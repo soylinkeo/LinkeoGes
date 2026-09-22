@@ -1,0 +1,347 @@
+// Datos maestros iniciales de LinkeoGes
+// Extraídos directamente de Control de Gastos NFC.xlsx, linkeocards.com y los flyers oficiales
+
+export const PARTNERS = {
+  luis: {
+    id: 'luis',
+    name: 'Luis Romero',
+    role: 'Co-Fundador & Co-CEO | Dirección General (Comercial & Operaciones)',
+    email: 'luis@linkeocards.com',
+    avatar: '👨‍💼',
+    status: 'Disponible'
+  },
+  kevin: {
+    id: 'kevin',
+    name: 'Kevin Servat',
+    role: 'Co-Fundador & Co-CEO | Dirección General (Comercial & Operaciones)',
+    email: 'kevin@linkeocards.com',
+    avatar: '🚀',
+    status: 'Disponible'
+  }
+};
+
+export const INITIAL_PRODUCTS = [
+  {
+    id: 'mod-1',
+    name: 'Modelo 1 – Display de Mesa',
+    sku: 'LNK-DISP-MESA',
+    category: 'Individual',
+    type: 'Display Acrílico en L',
+    price: 60.00,
+    cost: 13.00,
+    margin: 47.00,
+    marginPct: 78.3,
+    description: 'Display acrílico inclinado más visible para mesas de restaurantes, barras y recepciones. Incluye chip NFC embebido + código QR grabado.',
+    badge: 'Más visible',
+    imageUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'mod-2',
+    name: 'Modelo 2 – Tarjeta Horizontal',
+    sku: 'LNK-CARD-HORIZ',
+    category: 'Individual',
+    type: 'Tarjeta NFC Horizontal',
+    price: 80.00,
+    cost: 13.00,
+    margin: 67.00,
+    marginPct: 83.8,
+    description: 'Tarjeta NFC rígida con soporte de mostrador o presentación horizontal. Acabado premium mate blanco o negro.',
+    badge: 'Ideal mostrador',
+    imageUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=400&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'mod-3',
+    name: 'Modelo 3 – Tarjeta Vertical',
+    sku: 'LNK-CARD-VERT',
+    category: 'Individual',
+    type: 'Tarjeta PVC Vertical',
+    price: 40.00,
+    cost: 13.00,
+    margin: 27.00,
+    marginPct: 67.5,
+    description: 'Tarjeta de bolsillo ultraligera y elegante con franja de colores Google. Práctica para llevar a ferias, eventos o entregar en mano.',
+    badge: 'Práctica y elegante',
+    imageUrl: 'https://images.unsplash.com/photo-1556742049-0a67c552a487?w=400&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'pack-1',
+    name: 'Pack Emprendedor',
+    sku: 'LNK-PACK-EMPR',
+    category: 'Pack',
+    type: 'Combo (Mod 2 + Mod 3)',
+    regularPrice: 100.00,
+    price: 80.00,
+    cost: 26.00,
+    margin: 54.00,
+    savings: 20.00,
+    description: 'Incluye 1 Tarjeta Horizontal + 1 Tarjeta Vertical. Ideal para pequeños negocios que desean mostrador + movilidad.',
+    badge: 'Ahorra S/ 20'
+  },
+  {
+    id: 'pack-2',
+    name: 'Pack Negocio',
+    sku: 'LNK-PACK-NEG',
+    category: 'Pack',
+    type: 'Combo (Mod 1 + Mod 3)',
+    regularPrice: 120.00,
+    price: 100.00,
+    cost: 26.00,
+    margin: 74.00,
+    savings: 20.00,
+    description: 'Display de Mesa para la zona principal + Tarjeta Vertical para el equipo o delivery.',
+    badge: '👑 Más Vendido'
+  },
+  {
+    id: 'pack-3',
+    name: 'Pack Dúo Premium',
+    sku: 'LNK-PACK-DUO',
+    category: 'Pack',
+    type: 'Combo (Mod 1 + Mod 2)',
+    regularPrice: 140.00,
+    price: 120.00,
+    cost: 26.00,
+    margin: 94.00,
+    savings: 20.00,
+    description: 'Display de Mesa para el comedor + Tarjeta Horizontal para el mostrador de caja.',
+    badge: 'Ahorra S/ 20'
+  },
+  {
+    id: 'pack-4',
+    name: 'Pack Full',
+    sku: 'LNK-PACK-FULL',
+    category: 'Pack',
+    type: 'Combo (Mod 1 + Mod 2 + Mod 3)',
+    regularPrice: 180.00,
+    price: 160.00,
+    cost: 39.00,
+    margin: 121.00,
+    savings: 20.00,
+    description: 'La solución más completa: 1 Display de Mesa + 1 Tarjeta Horizontal + 1 Tarjeta Vertical.'
+  }
+];
+
+export const INITIAL_EXPENSES = [];
+
+export const INITIAL_SALES = [];
+
+export const INITIAL_NFC_CARDS = [];
+
+export const INITIAL_LEADS = [];
+
+export const INITIAL_INVENTORY = [
+  {
+    id: 'inv-1',
+    sku: 'SKU-NTAG215-RAW',
+    name: 'Tarjetas Vírgenes NFC (NTAG215)',
+    category: 'Chips / Insumos',
+    quantity: 0,
+    minThreshold: 20,
+    unitCost: 3.70,
+    supplier: '',
+    leadTimeDays: 18,
+    status: 'stock_bajo_alerta',
+    reorderUrl: 'https://aliexpress.com',
+    notes: 'Insumo base para grabación de enlaces Google Place ID.'
+  },
+  {
+    id: 'inv-2',
+    sku: 'SKU-DISP-ACRYLIC',
+    name: 'Displays de Mesa en L (Acrílico)',
+    category: 'Displays',
+    quantity: 0,
+    minThreshold: 10,
+    unitCost: 8.50,
+    supplier: '',
+    leadTimeDays: 4,
+    status: 'stock_bajo_alerta',
+    reorderUrl: '',
+    notes: 'Insumo display acrílico para mesas.'
+  },
+  {
+    id: 'inv-3',
+    sku: 'SKU-CARD-HORIZ-BLANK',
+    name: 'Tarjetas PVC Rígidas Horizontales',
+    category: 'Tarjetas Base',
+    quantity: 0,
+    minThreshold: 8,
+    unitCost: 5.00,
+    supplier: '',
+    leadTimeDays: 14,
+    status: 'stock_bajo_alerta',
+    reorderUrl: '',
+    notes: 'Tarjetas NFC formato horizontal.'
+  },
+  {
+    id: 'inv-4',
+    sku: 'SKU-CARD-VERT-BLANK',
+    name: 'Tarjetas PVC Verticales',
+    category: 'Tarjetas Base',
+    quantity: 0,
+    minThreshold: 10,
+    unitCost: 4.20,
+    supplier: '',
+    leadTimeDays: 14,
+    status: 'stock_bajo_alerta',
+    reorderUrl: '',
+    notes: 'Tarjetas NFC formato vertical de bolsillo.'
+  },
+  {
+    id: 'inv-5',
+    sku: 'SKU-PACKAGING-BOX',
+    name: 'Sobres y Empaques Linkeo',
+    category: 'Empaque',
+    quantity: 0,
+    minThreshold: 15,
+    unitCost: 1.50,
+    supplier: '',
+    leadTimeDays: 3,
+    status: 'stock_bajo_alerta',
+    reorderUrl: '',
+    notes: 'Sobres y stickers de entrega.'
+  }
+];
+
+export const INITIAL_SUPPLIERS = [];
+
+// Las 27 tareas estratégicas extraídas del "Plan 30 dias" en el Excel Control de Gastos NFC.xlsx
+export const INITIAL_PLAN_30_DAYS = [
+  { day: 1, week: 1, action: 'Definir oferta, precios y condiciones', target: 'Oferta final escrita', channel: 'Gestión', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 2, week: 1, action: 'Configurar 2 muestras con negocios de prueba', target: '2 muestras funcionando', channel: 'Producto', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 3, week: 1, action: 'Grabar video demostrativo vertical', target: '1 video de 10–15 s', channel: 'Contenido', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 4, week: 1, action: 'Tomar fotos claras de ambos modelos', target: '5 fotos utilizables', channel: 'Contenido', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 5, week: 1, action: 'Crear catálogo de WhatsApp y perfiles', target: 'Catálogo publicado', channel: 'Digital', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 6, week: 1, action: 'Preparar guion de venta y respuestas', target: '1 guion + 8 objeciones', channel: 'Ventas', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 7, week: 1, action: 'Construir lista de prospectos', target: '50 negocios', channel: 'Prospección', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 8, week: 2, action: 'Contactar negocios por Instagram/WhatsApp', target: '15 contactos', channel: 'Mensajes', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 9, week: 2, action: 'Visitar negocios cercanos con muestra', target: '5 visitas', channel: 'Presencial', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 10, week: 2, action: 'Dar seguimiento a interesados', target: '10 seguimientos', channel: 'Mensajes', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 11, week: 2, action: 'Contactar nuevos prospectos', target: '15 contactos', channel: 'Mensajes', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 12, week: 2, action: 'Visitar segunda zona comercial', target: '5 visitas', channel: 'Presencial', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 13, week: 2, action: 'Publicar demostración y caso de uso', target: '1 publicación', channel: 'Contenido', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 14, week: 2, action: 'Revisar conversiones y objeciones', target: 'Resumen semanal', channel: 'Gestión', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 15, week: 3, action: 'Contactar nuevos prospectos', target: '20 contactos', channel: 'Mensajes', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 16, week: 3, action: 'Realizar demostraciones', target: '3 demostraciones', channel: 'Ventas', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 17, week: 3, action: 'Cerrar e instalar primeras ventas', target: '2 ventas', channel: 'Cierre', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 18, week: 3, action: 'Pedir foto y testimonio', target: '1 testimonio', channel: 'Postventa', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 19, week: 3, action: 'Ofrecer pack a negocios con 2 cajas', target: '5 propuestas', channel: 'Ventas', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 20, week: 3, action: 'Visitar negocios referidos', target: '5 visitas', channel: 'Presencial', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 21, week: 3, action: 'Revisar precio y canal ganador', target: 'Decisión documentada', channel: 'Gestión', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 22, week: 4, action: 'Duplicar prospección en rubro ganador', target: '20 contactos', channel: 'Prospección', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 23, week: 4, action: 'Publicar instalación real', target: '1 caso real', channel: 'Contenido', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 24, week: 4, action: 'Solicitar referidos a compradores', target: '5 solicitudes', channel: 'Postventa', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 25, week: 4, action: 'Realizar seguimiento de 7 días', target: '15 seguimientos', channel: 'Mensajes', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 26, week: 4, action: 'Cerrar ventas pendientes', target: '3 cierres', channel: 'Cierre', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
+  { day: 27, week: 4, action: 'Calcular costo de conseguir cliente', target: 'Métrica actualizada', channel: 'Gestión', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' }
+];
+
+export const INITIAL_CALENDAR_EVENTS = [];
+
+export const FINANCIAL_TARGETS = {
+  monthlyProfitTarget: 4000.00, // S/ 4,000 meta neta del negocio
+  monthlyUnitsTarget: 75,       // 75 unidades
+  targetPerPartner: 2012.50,    // S/ 2,012.50 por socio
+  monthlyRevenueEstimate: 5100.00
+};
+
+export const INITIAL_AUDIT_LOGS = [];
+export const INITIAL_DISTRICTS = [
+  'Miraflores',
+  'San Isidro',
+  'Barranco',
+  'Surco',
+  'San Borja',
+  'Magdalena',
+  'Jesús María',
+  'Lince',
+  'San Miguel',
+  'Pueblo Libre',
+  'La Molina',
+  'Surquillo',
+  'Lima Cercado'
+];
+
+export const INITIAL_PROJECT_PHASES = [
+  {
+    id: 'fase-1',
+    phaseNumber: 1,
+    key: 'inicio',
+    name: '1. Inicio & Definición de Negocio (Kickoff)',
+    description: 'Establecimiento del modelo de negocio de tarjetas NFC para Google Reviews, reglas societarias y propuesta de valor.',
+    progress: 0,
+    status: 'pendiente',
+    leader: 'both',
+    deliverables: [
+      { id: 'del-1-1', title: 'Definición de propuesta de valor: Tarjetas y displays inteligentes para reseñas Google 5 estrellas', completed: false, assignedTo: 'luis' },
+      { id: 'del-1-2', title: 'Acuerdo societario 50/50: Desembolsos compartidos equitativamente y distribución neta igualitaria', completed: false, assignedTo: 'both' },
+      { id: 'del-1-3', title: 'Identidad de marca y dominio linkeocards.com activo', completed: false, assignedTo: 'kevin' },
+      { id: 'del-1-4', title: 'Acuerdo societario y liderazgo compartido: Luis Romero & Kevin Servat (Co-Fundadores & Co-CEOs al 50/50)', completed: false, assignedTo: 'both' }
+    ]
+  },
+  {
+    id: 'fase-2',
+    phaseNumber: 2,
+    key: 'planificacion',
+    name: '2. Planificación Operativa & Financiera',
+    description: 'Estructuración de costos, metas mensuales (S/ 5,100 / 75 uds), cadena de suministros y protocolos de agenda.',
+    progress: 0,
+    status: 'pendiente',
+    leader: 'both',
+    deliverables: [
+      { id: 'del-2-1', title: 'Estructura oficial de precios: Displays S/ 60, Horizontal S/ 80, Vertical S/ 40 y Packs promocionales', completed: false, assignedTo: 'luis' },
+      { id: 'del-2-2', title: 'Meta financiera: 75 unidades mensuales para alcanzar S/ 4,000 de utilidad neta libre', completed: false, assignedTo: 'both' },
+      { id: 'del-2-3', title: 'Homologación de proveedores de chips NTAG215 (AliExpress) y acrílicos en Lima', completed: false, assignedTo: 'kevin' },
+      { id: 'del-2-4', title: 'Protocolo de coordinación y cobertura operativa 50/50 entre Co-CEOs', completed: false, assignedTo: 'both' },
+      { id: 'del-2-5', title: 'Checklist maestro de 30 días para ejecución comercial sistemática', completed: false, assignedTo: 'luis' }
+    ]
+  },
+  {
+    id: 'fase-3',
+    phaseNumber: 3,
+    key: 'implementacion',
+    name: '3. Implementación Comercial & Técnica',
+    description: 'Producción inicial, pruebas de lectura NFC en Android/iOS, pipeline B2B y despliegue del software LinkeoGes.',
+    progress: 0,
+    status: 'pendiente',
+    leader: 'kevin',
+    deliverables: [
+      { id: 'del-3-1', title: 'Validación técnica de payloads NDEF para enlace directo de reseñas Google', completed: false, assignedTo: 'kevin' },
+      { id: 'del-3-2', title: 'Adquisición de primer lote de prueba (15 tarjetas NTAG215 vírgenes)', completed: false, assignedTo: 'kevin' },
+      { id: 'del-3-3', title: 'Construcción y despliegue del ERP/CRM LinkeoGes para control integral', completed: false, assignedTo: 'luis' },
+      { id: 'del-3-4', title: 'Rutas presenciales de prospección en distritos clave (Miraflores, San Isidro, Barranco)', completed: false, assignedTo: 'both' },
+      { id: 'del-3-5', title: 'Kit de empaque premium con sobres y stickers corporativos Linkeo', completed: false, assignedTo: 'kevin' }
+    ]
+  },
+  {
+    id: 'fase-4',
+    phaseNumber: 4,
+    key: 'monitoreo',
+    name: '4. Monitoreo, Control & Auditoría',
+    description: 'Conciliación periódica de cuentas 50/50, seguimiento de stock crítico, registro de auditoría y feedback de clientes.',
+    progress: 0,
+    status: 'pendiente',
+    leader: 'both',
+    deliverables: [
+      { id: 'del-4-1', title: 'Algoritmo de balance y liquidación automática 50/50 en tiempo real', completed: false, assignedTo: 'luis' },
+      { id: 'del-4-2', title: 'Sistema de alertas por quiebre de stock (< 20 unidades) considerando 18 días de envío', completed: false, assignedTo: 'kevin' },
+      { id: 'del-4-3', title: 'Bitácora universal de auditoría con registro de bajas, ediciones y creadores', completed: false, assignedTo: 'both' },
+      { id: 'del-4-4', title: 'Métricas de conversión y velocidad de ciclo de ventas en Kanban', completed: false, assignedTo: 'luis' }
+    ]
+  },
+  {
+    id: 'fase-5',
+    phaseNumber: 5,
+    key: 'finalizacion',
+    name: '5. Cierre de Fase & Escalamiento a Nuevas Líneas',
+    description: 'Consolidación del modelo en Lima, cierre contable mensual y apertura de innovaciones (menús QR, vCard, Supabase).',
+    progress: 0,
+    status: 'pendiente',
+    leader: 'both',
+    deliverables: [
+      { id: 'del-5-1', title: 'Evaluación del primer mes de operación y distribución de utilidades', completed: false, assignedTo: 'both' },
+      { id: 'del-5-2', title: 'Migración a base de datos persistente en nube (Supabase + Vercel con cuenta oficial Linkeo)', completed: false, assignedTo: 'both' },
+      { id: 'del-5-3', title: 'Desarrollo de línea de Menús Digitales QR para restaurantes y cafeterías', completed: false, assignedTo: 'kevin' },
+      { id: 'del-5-4', title: 'Desarrollo de línea de Tarjetas Personales Ejecutivas vCard NFC', completed: false, assignedTo: 'luis' },
+      { id: 'del-5-5', title: 'Expansión de ventas a distritos de Lima Norte y provincias', completed: false, assignedTo: 'both' }
+    ]
+  }
+];
