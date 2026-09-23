@@ -393,16 +393,16 @@ button, input, select, textarea {
 
 /* Navbar Superior */
 .top-navbar {
-  height: 68px;
+  height: 72px;
   background-color: var(--bg-header);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border-color);
-  padding: 0 44px;
+  padding: 0 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 24px;
   position: sticky;
   top: 0;
   z-index: 30;
@@ -411,21 +411,22 @@ button, input, select, textarea {
 
 @media (max-width: 1200px) {
   .top-navbar {
-    padding: 0 24px;
+    padding: 0 20px;
+    gap: 16px;
   }
 }
 
 @media (max-width: 768px) {
   .top-navbar {
     padding: 0 16px;
-    height: 62px;
+    height: 64px;
   }
 }
 
 .nav-title-section {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -438,7 +439,7 @@ button, input, select, textarea {
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: nowrap;
   flex-shrink: 0;
   white-space: nowrap;
