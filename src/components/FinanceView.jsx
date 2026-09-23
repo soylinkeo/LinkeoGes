@@ -92,7 +92,7 @@ export default function FinanceView({
   const [settleNote, setSettleNote] = useState('Transferencia de cuadre vía Yape/BCP');
 
   // Cálculos
-  const { totalSalesAmount, totalCost, totalGrossProfit, totalExpenses, netProfit } = calculateFinance(sales, expenses);
+  const { totalSalesAmount, totalCost, totalGrossProfit, totalExpenses, inventoryPurchases, totalDisbursed, netProfit } = calculateFinance(sales, expenses);
 
   // Aportes de socios
   const paidByKevin = partnerBalance.paidByKevin || 0;
@@ -367,8 +367,8 @@ export default function FinanceView({
               <TrendingDown size={18} />
             </div>
           </div>
-          <div className="kpi-value">S/ {totalExpenses.toFixed(2)}</div>
-          <div className="kpi-subtext">{expenses.length} movimientos registrados</div>
+          <div className="kpi-value">S/ {(totalDisbursed || 0).toFixed(2)}</div>
+          <div className="kpi-subtext">{expenses.length} movimientos (S/ {(inventoryPurchases || 0).toFixed(2)} compras · S/ {totalExpenses.toFixed(2)} op)</div>
         </div>
 
         <div className="kpi-card kpi-green">

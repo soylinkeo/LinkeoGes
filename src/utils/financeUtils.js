@@ -14,9 +14,11 @@ export function calculateFinance(sales = [], expenses = []) {
   const totalSalesAmount = sum(sales, 'totalAmount');
   const totalCost = sum(sales, 'cost');
   const totalExpenses = sum(operatingExpenses, 'amount');
+  const inventoryPurchases = sum(contributions.filter(isInventoryPurchase), 'amount');
   return {
     totalSalesAmount, totalCost, totalGrossProfit: money(totalSalesAmount - totalCost), totalExpenses,
-    inventoryPurchases: sum(contributions.filter(isInventoryPurchase), 'amount'),
+    inventoryPurchases,
+    totalDisbursed: money(totalExpenses + inventoryPurchases),
     netProfit: money(totalSalesAmount - totalCost - totalExpenses),
     paidByKevin, paidByLuis, halfExpense: money((paidByKevin + paidByLuis) / 2),
     debtLuisToKevin: money((paidByKevin - paidByLuis) / 2 - repaidByLuis + repaidByKevin),

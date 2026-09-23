@@ -26,6 +26,7 @@ test('paying the full partner debt leaves zero and does not affect profit', () =
 test('purchases are not deducted a second time as operating expenses', () => {
   const result = calculateFinance([{ totalAmount:100,cost:40 }], [{ paidBy:'kevin',amount:40,category:'Compra de mercadería' }]);
   assert.equal(result.netProfit,60); assert.equal(result.debtLuisToKevin,20);
+  assert.equal(result.inventoryPurchases, 40); assert.equal(result.totalDisbursed, 40);
 });
 test('a loss-making product cannot yield a feasible sales target', () => {
   const result = computeDynamicTargets({ projectedProducts:[{ price:10,baseCost:20,mixPercent:100 }] });
