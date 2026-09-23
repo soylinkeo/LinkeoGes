@@ -313,97 +313,57 @@ export default function App() {
       const data = await dbService.fetchAllInitialData();
       if (!isMounted || !data) return;
 
-      // 1. Conciliar y sincronizar gastos (Expenses)
-      if (data.expenses && data.expenses.length > 0) {
-        const cloudIds = new Set(data.expenses.map(e => e.id));
-        const localUnsynced = expenses.filter(e => !cloudIds.has(e.id));
-        if (localUnsynced.length > 0) {
-          localUnsynced.forEach(e => dbService.insert('expenses', e, mappers.expenseToDb));
-          setExpenses([...data.expenses, ...localUnsynced]);
-        } else {
-          setExpenses(data.expenses);
-        }
-      } else if (expenses && expenses.length > 0) {
-        expenses.forEach(e => dbService.insert('expenses', e, mappers.expenseToDb));
-      }
+      // 1. Gastos (Expenses) - La nube es la fuente autoritativa
+      setExpenses(data.expenses || []);
 
-      // 2. Conciliar y sincronizar ventas (Sales)
-      if (data.sales && data.sales.length > 0) {
-        const cloudIds = new Set(data.sales.map(s => s.id));
-        const localUnsynced = sales.filter(s => !cloudIds.has(s.id));
-        if (localUnsynced.length > 0) {
-          localUnsynced.forEach(s => dbService.insert('sales', s, mappers.saleToDb));
-          setSales([...data.sales, ...localUnsynced]);
-        } else {
-          setSales(data.sales);
-        }
-      } else if (sales && sales.length > 0) {
-        sales.forEach(s => dbService.insert('sales', s, mappers.saleToDb));
-      }
+      // 2. Ventas (Sales) - La nube es la fuente autoritativa
+      setSales(data.sales || []);
 
-      // 3. Conciliar prospectos (Leads)
-      if (data.leads && data.leads.length > 0) {
-        const cloudIds = new Set(data.leads.map(l => l.id));
-        const localUnsynced = leads.filter(l => !cloudIds.has(l.id));
-        if (localUnsynced.length > 0) {
-          localUnsynced.forEach(l => dbService.insert('leads', l, mappers.leadToDb));
-          setLeads([...data.leads, ...localUnsynced]);
-        } else {
-          setLeads(data.leads);
-        }
-      } else if (leads && leads.length > 0) {
-        leads.forEach(l => dbService.insert('leads', l, mappers.leadToDb));
-      }
+      // 3. Prospectos (Leads) - La nube es la fuente autoritativa
+      setLeads(data.leads || []);
 
-      // 4. Conciliar chips NFC
-      if (data.nfcCards && data.nfcCards.length > 0) {
-        setNfcCards(data.nfcCards);
-      } else if (nfcCards && nfcCards.length > 0) {
-        nfcCards.forEach(c => dbService.insert('nfc_cards', c, mappers.nfcToDb));
-      }
+      // 4. Chips NFC - La nube es la fuente autoritativa
+      setNfcCards(data.nfcCards || []);
 
-      // 5. Conciliar inventario
+      // 5. Inventario Físico - Si la nube tiene datos, usarlos. Si la base en la nube está completamente vacía (primera inicialización), sembrar
       if (data.inventory && data.inventory.length > 0) {
         setInventory(data.inventory);
-      } else if (inventory && inventory.length > 0) {
-        inventory.forEach(i => dbService.insert('inventory', i, mappers.inventoryToDb));
+      } else if (INITIAL_INVENTORY && INITIAL_INVENTORY.length > 0) {
+        setInventory(INITIAL_INVENTORY);
+        INITIAL_INVENTORY.forEach(i => dbService.saveInventoryItem(i));
       }
 
-      // 6. Conciliar catálogo de productos
+      // 6. Catálogo de Productos
       if (data.products && data.products.length > 0) {
         setProducts(data.products);
-      } else if (products && products.length > 0) {
-        products.forEach(p => dbService.insert('products', p, mappers.productToDb));
+      } else if (INITIAL_PRODUCTS && INITIAL_PRODUCTS.length > 0) {
+        setProducts(INITIAL_PRODUCTS);
+        INITIAL_PRODUCTS.forEach(p => dbService.saveProduct(p));
       }
 
-      // 7. Conciliar proveedores
+      // 7. Proveedores
       if (data.suppliers && data.suppliers.length > 0) {
         setSuppliers(data.suppliers);
-      } else if (suppliers && suppliers.length > 0) {
-        suppliers.forEach(s => dbService.insert('suppliers', s, mappers.supplierToDb));
+      } else if (INITIAL_SUPPLIERS && INITIAL_SUPPLIERS.length > 0) {
+        setSuppliers(INITIAL_SUPPLIERS);
+        INITIAL_SUPPLIERS.forEach(s => dbService.saveSupplier(s));
       }
 
-      // 8. Conciliar eventos de agenda
-      if (data.calendarEvents && data.calendarEvents.length > 0) {
-        setCalendarEvents(data.calendarEvents);
-      } else if (calendarEvents && calendarEvents.length > 0) {
-        calendarEvents.forEach(ev => dbService.insert('calendar_events', ev, mappers.eventToDb));
-      }
+      // 8. Eventos de Agenda - La nube es la fuente autoritativa
+      setCalendarEvents(data.calendarEvents || []);
 
       // 9. Distritos y Auditoría
       if (data.districts && data.districts.length > 0) setDistricts(data.districts);
-      if (data.auditLogs && data.auditLogs.length > 0) setAuditLogs(data.auditLogs);
+      if (data.auditLogs) setAuditLogs(data.auditLogs);
 
       // 10. Proyecciones y Plan 30 Días
       if (data.projections) {
         setProjectionsData(data.projections);
       } else {
-        dbService.saveProjections(projectionsData);
+        dbService.saveProjections(INITIAL_PROJECTIONS_DATA);
       }
       if (data.plan30Days && data.plan30Days.length > 0) {
         setPlan30Days(data.plan30Days);
-      } else if (plan30Days && plan30Days.length > 0) {
-        dbService.savePlan30Days(plan30Days);
       }
 
       isCloudLoadedRef.current = true;
@@ -411,16 +371,27 @@ export default function App() {
 
     loadCloudData();
 
-    // Canal Realtime para recibir cambios instantáneos entre Luis y Kevin
+    // Canal Realtime para recibir cambios instantáneos entre navegadores y dispositivos
     const channel = supabase.channel('linkeoges-realtime-sync')
       .on('postgres_changes', { event: '*', schema: 'public' }, () => {
         loadCloudData();
       })
       .subscribe();
 
+    // Sincronización proactiva multi-dispositivo al cambiar de pestaña o reactivar celular
+    const handleVisibilitySync = () => {
+      if (document.visibilityState === 'visible') {
+        loadCloudData();
+      }
+    };
+    window.addEventListener('focus', handleVisibilitySync);
+    document.addEventListener('visibilitychange', handleVisibilitySync);
+
     return () => {
       isMounted = false;
       supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleVisibilitySync);
+      document.removeEventListener('visibilitychange', handleVisibilitySync);
     };
   }, []);
 
@@ -637,12 +608,12 @@ export default function App() {
     setIsProfileModalOpen(false);
   };
 
-  // Reajuste de datos a cero (Modo Limpio) y Cargar Demo
-  const handleResetToZero = () => {
+  // Reajuste de datos a cero (Modo Limpio) y Cargar Demo sincronizado con Supabase
+  const handleResetToZero = async () => {
     const confirmReset = window.confirm(
       '⚠️ ¿Deseas reiniciar todas las operaciones activas a 0 (CERO)?\n\n' +
       'Esto dejará ventas (0), gastos (0), prospectos (0), chips activos (0), inventario (0), ' +
-      'catálogo (0) y proveedores (0) para comenzar a conectar tus registros limpios uno a uno.'
+      'catálogo (0) y proveedores (0) en la nube y en todos tus navegadores y celulares.'
     );
     if (!confirmReset) return;
 
@@ -655,6 +626,28 @@ export default function App() {
     setProducts([]);
     setSuppliers([]);
 
+    if (isSupabaseConfigured) {
+      try {
+        await Promise.all([
+          supabase.from('sales').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+          supabase.from('expenses').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+          supabase.from('leads').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+          supabase.from('nfc_cards').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+          supabase.from('calendar_events').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+          supabase.from('products').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+          supabase.from('suppliers').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        ]);
+        const { data: invList } = await supabase.from('inventory').select('id');
+        if (invList && invList.length > 0) {
+          for (const item of invList) {
+            await supabase.from('inventory').update({ quantity: 0 }).eq('id', item.id);
+          }
+        }
+      } catch (err) {
+        console.warn('Error al reiniciar datos en Supabase:', err);
+      }
+    }
+
     logAudit({
       actionType: 'Eliminación',
       entityType: 'Sistema ERP',
@@ -663,10 +656,10 @@ export default function App() {
       reason: 'Los socios reiniciaron los datos operativos a 0 para carga paso a paso.'
     });
 
-    alert('✓ Datos operativos reiniciados a 0. ¡Listo para conectar todo desde cero!');
+    showToast('✓ Datos operativos reiniciados a 0 en la nube y en todos tus dispositivos.', 'success');
   };
 
-  const handleLoadDemoData = () => {
+  const handleLoadDemoData = async () => {
     setSales(INITIAL_SALES);
     setExpenses(INITIAL_EXPENSES);
     setNfcCards(INITIAL_NFC_CARDS);
@@ -677,6 +670,28 @@ export default function App() {
     setProducts(INITIAL_PRODUCTS);
     setSuppliers(INITIAL_SUPPLIERS);
     setProjectionsData(INITIAL_PROJECTIONS_DATA);
+
+    if (isSupabaseConfigured) {
+      try {
+        if (INITIAL_INVENTORY.length > 0) {
+          for (const item of INITIAL_INVENTORY) {
+            await dbService.saveInventoryItem(item);
+          }
+        }
+        if (INITIAL_PRODUCTS.length > 0) {
+          for (const p of INITIAL_PRODUCTS) {
+            await dbService.saveProduct(p);
+          }
+        }
+        if (INITIAL_SUPPLIERS.length > 0) {
+          for (const s of INITIAL_SUPPLIERS) {
+            await dbService.saveSupplier(s);
+          }
+        }
+      } catch (e) {
+        console.warn('Error al cargar datos demo en Supabase:', e);
+      }
+    }
 
     logAudit({
       actionType: 'Creación',
@@ -962,6 +977,9 @@ export default function App() {
   const handleUpdateCard = (updatedCard) => {
     const oldCard = nfcCards.find(c => c.id === updatedCard.id);
     setNfcCards(prev => prev.map(c => c.id === updatedCard.id ? updatedCard : c));
+    if (isSupabaseConfigured) {
+      dbService.update('nfc_cards', updatedCard.id, updatedCard, mappers.nfcToDb);
+    }
     logAudit({
       actionType: 'Modificación',
       entityType: 'Tarjeta NFC',
@@ -1062,9 +1080,17 @@ export default function App() {
     setSales([newSale, ...sales]);
     setNfcCards([newCard, ...nfcCards]);
 
+    if (isSupabaseConfigured) {
+      dbService.update('leads', lead.id, { stage: 'entregado' });
+      dbService.insert('sales', newSale, mappers.saleToDb);
+      dbService.insert('nfc_cards', newCard, mappers.nfcToDb);
+    }
+
     setInventory(prev => prev.map(item => {
       if (item.sku === 'SKU-NTAG215-RAW') {
-        return { ...item, quantity: Math.max(0, item.quantity - 1) };
+        const updated = { ...item, quantity: Math.max(0, item.quantity - 1) };
+        if (isSupabaseConfigured) dbService.saveInventoryItem(updated);
+        return updated;
       }
       return item;
     }));
@@ -1095,6 +1121,9 @@ export default function App() {
 
   const handleEditEvent = (updatedEvent) => {
     setCalendarEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e));
+    if (isSupabaseConfigured) {
+      dbService.update('calendar_events', updatedEvent.id, updatedEvent, mappers.eventToDb);
+    }
     logAudit({
       actionType: 'Modificación',
       entityType: 'Evento',
@@ -1572,20 +1601,28 @@ export default function App() {
       }
       if (auditLog.entityType === 'Producto') {
         setProducts(prev => [auditLog.snapshot, ...prev]);
+        if (isSupabaseConfigured) dbService.saveProduct(auditLog.snapshot);
       } else if (auditLog.entityType === 'Gasto') {
         setExpenses(prev => [auditLog.snapshot, ...prev]);
+        if (isSupabaseConfigured) dbService.insert('expenses', auditLog.snapshot, mappers.expenseToDb);
       } else if (auditLog.entityType === 'Venta') {
         setSales(prev => [auditLog.snapshot, ...prev]);
+        if (isSupabaseConfigured) dbService.insert('sales', auditLog.snapshot, mappers.saleToDb);
       } else if (auditLog.entityType === 'Lead') {
         setLeads(prev => [auditLog.snapshot, ...prev]);
+        if (isSupabaseConfigured) dbService.insert('leads', auditLog.snapshot, mappers.leadToDb);
       } else if (auditLog.entityType === 'Tarjeta NFC') {
         setNfcCards(prev => [auditLog.snapshot, ...prev]);
+        if (isSupabaseConfigured) dbService.insert('nfc_cards', auditLog.snapshot, mappers.nfcToDb);
       } else if (auditLog.entityType === 'Insumo') {
         setInventory(prev => [auditLog.snapshot, ...prev]);
+        if (isSupabaseConfigured) dbService.saveInventoryItem(auditLog.snapshot);
       } else if (auditLog.entityType === 'Proveedor') {
         setSuppliers(prev => [auditLog.snapshot, ...prev]);
+        if (isSupabaseConfigured) dbService.saveSupplier(auditLog.snapshot);
       } else if (auditLog.entityType === 'Evento') {
         setCalendarEvents(prev => [auditLog.snapshot, ...prev]);
+        if (isSupabaseConfigured) dbService.insert('calendar_events', auditLog.snapshot, mappers.eventToDb);
       } else if (auditLog.entityType === 'Plan 30 Días') {
         setPlan30Days(prev => [...prev, auditLog.snapshot]);
       } else if (auditLog.entityType === 'Inversión Inicial') {
@@ -1609,20 +1646,28 @@ export default function App() {
       const id = auditLog.entityId;
       if (auditLog.entityType === 'Producto') {
         setProducts(prev => prev.filter(p => p.id !== id));
+        if (isSupabaseConfigured) dbService.delete('products', id);
       } else if (auditLog.entityType === 'Gasto') {
         setExpenses(prev => prev.filter(e => e.id !== id));
+        if (isSupabaseConfigured) dbService.delete('expenses', id);
       } else if (auditLog.entityType === 'Venta') {
         setSales(prev => prev.filter(s => s.id !== id && s.saleNumber !== id));
+        if (isSupabaseConfigured) dbService.delete('sales', id);
       } else if (auditLog.entityType === 'Lead') {
         setLeads(prev => prev.filter(l => l.id !== id));
+        if (isSupabaseConfigured) dbService.delete('leads', id);
       } else if (auditLog.entityType === 'Tarjeta NFC') {
         setNfcCards(prev => prev.filter(c => c.id !== id && c.chipUid !== id));
+        if (isSupabaseConfigured) dbService.delete('nfc_cards', id);
       } else if (auditLog.entityType === 'Insumo') {
         setInventory(prev => prev.filter(i => i.id !== id && i.sku !== id));
+        if (isSupabaseConfigured) dbService.delete('inventory', id);
       } else if (auditLog.entityType === 'Proveedor') {
         setSuppliers(prev => prev.filter(s => s.id !== id));
+        if (isSupabaseConfigured) dbService.delete('suppliers', id);
       } else if (auditLog.entityType === 'Evento') {
         setCalendarEvents(prev => prev.filter(e => e.id !== id));
+        if (isSupabaseConfigured) dbService.delete('calendar_events', id);
       } else if (auditLog.entityType === 'Plan 30 Días') {
         setPlan30Days(prev => prev.filter(t => `dia-${t.day}` !== id && t.day !== Number(id?.replace('dia-', ''))));
       } else if (auditLog.entityType === 'Inversión Inicial') {
@@ -1646,12 +1691,16 @@ export default function App() {
         const id = auditLog.entityId;
         if (auditLog.entityType === 'Insumo') {
           setInventory(prev => prev.map(i => (i.id === id || i.sku === id) ? auditLog.snapshot : i));
+          if (isSupabaseConfigured) dbService.saveInventoryItem(auditLog.snapshot);
         } else if (auditLog.entityType === 'Producto') {
           setProducts(prev => prev.map(p => p.id === id ? auditLog.snapshot : p));
+          if (isSupabaseConfigured) dbService.saveProduct(auditLog.snapshot);
         } else if (auditLog.entityType === 'Gasto') {
           setExpenses(prev => prev.map(e => e.id === id ? auditLog.snapshot : e));
+          if (isSupabaseConfigured) dbService.update('expenses', id, auditLog.snapshot, mappers.expenseToDb);
         } else if (auditLog.entityType === 'Lead') {
           setLeads(prev => prev.map(l => l.id === id ? auditLog.snapshot : l));
+          if (isSupabaseConfigured) dbService.update('leads', id, auditLog.snapshot, mappers.leadToDb);
         } else if (auditLog.entityType === 'Inversión Inicial') {
           setProjectionsData(prev => ({
             ...prev,
@@ -1671,6 +1720,7 @@ export default function App() {
           setPlan30Days(prev => prev.map(t => (`dia-${t.day}` === id || t.day === Number(id?.replace('dia-', ''))) ? auditLog.snapshot : t));
         } else if (auditLog.entityType === 'Evento') {
           setCalendarEvents(prev => prev.map(e => e.id === id ? auditLog.snapshot : e));
+          if (isSupabaseConfigured) dbService.update('calendar_events', id, auditLog.snapshot, mappers.eventToDb);
         }
       }
     }
@@ -1727,6 +1777,9 @@ export default function App() {
       notes: note
     };
     setExpenses([settleExp, ...expenses]);
+    if (isSupabaseConfigured) {
+      dbService.insert('expenses', settleExp, mappers.expenseToDb);
+    }
     logAudit({
       actionType: 'Creación',
       entityType: 'Gasto',

@@ -170,13 +170,17 @@ export const mappers = {
   supplierToFront: (s) => ({
     id: s.id,
     name: s.name,
-    category: s.category,
+    category: s.category || 'Insumos',
+    itemSupplied: s.category || '',
     contactPerson: s.contact_person || '',
+    contact: s.contact_person || '',
     phone: s.phone || '',
     email: s.email || '',
     country: s.country || 'Perú',
     leadTimeDays: Number(s.lead_time_days || 5),
+    leadTime: `${s.lead_time_days || 5} días`,
     minOrderQty: Number(s.min_order_qty || 1),
+    minOrder: `${s.min_order_qty || 1} unidades`,
     status: s.status || 'Activo',
     paymentTerms: s.payment_terms || '',
     notes: s.notes || ''
@@ -185,16 +189,16 @@ export const mappers = {
   supplierToDb: (s) => ({
     id: s.id,
     name: s.name,
-    category: s.category,
-    contact_person: s.contactPerson || '',
+    category: s.category || s.itemSupplied || 'Insumos Generales',
+    contact_person: s.contactPerson || s.contact || '',
     phone: s.phone || '',
     email: s.email || '',
     country: s.country || 'Perú',
-    lead_time_days: Number(s.leadTimeDays || 5),
-    min_order_qty: Number(s.minOrderQty || 1),
+    lead_time_days: Number(s.leadTimeDays || (typeof s.leadTime === 'string' ? parseInt(s.leadTime, 10) : 5) || 5),
+    min_order_qty: Number(s.minOrderQty || (typeof s.minOrder === 'string' ? parseInt(s.minOrder, 10) : 1) || 1),
     status: s.status || 'Activo',
     payment_terms: s.paymentTerms || '',
-    notes: s.notes || ''
+    notes: s.notes || (s.unitCostAvg ? `Costo: ${s.unitCostAvg}` : '')
   }),
 
   eventToFront: (e) => ({
@@ -206,7 +210,9 @@ export const mappers = {
     endTime: e.end_time || '',
     district: e.district || '',
     address: e.address || '',
+    client: e.client_name || '',
     clientName: e.client_name || '',
+    partner: e.responsible || 'both',
     responsible: e.responsible || 'both',
     status: e.status || 'pendiente',
     description: e.description || ''
@@ -221,8 +227,8 @@ export const mappers = {
     end_time: e.endTime || '',
     district: e.district || '',
     address: e.address || '',
-    client_name: e.clientName || '',
-    responsible: e.responsible || 'both',
+    client_name: e.client || e.clientName || '',
+    responsible: e.partner || e.responsible || 'both',
     status: e.status || 'pendiente',
     description: e.description || ''
   }),
@@ -308,52 +314,86 @@ export const mappers = {
 export const dbService = {
   isCloudReady: () => isSupabaseConfigured,
 
-  // Carga inicial masiva desde Supabase
+  // Carga inicial masiva desde Supabase (Resiliente y con fallback en la nube)
   async fetchAllInitialData() {
     if (!isSupabaseConfigured) return null;
 
     try {
+      const fetchTable = async (query) => {
+        try {
+          const res = await query;
+          return res.error ? null : res.data;
+        } catch (e) {
+          return null;
+        }
+      };
+
       const [
-        salesRes,
-        expensesRes,
-        leadsRes,
-        nfcRes,
-        invRes,
-        suppRes,
-        eventsRes,
-        prodRes,
-        distRes,
-        auditRes,
-        projRes,
-        planRes
+        salesData,
+        expensesData,
+        leadsData,
+        nfcData,
+        invData,
+        suppData,
+        eventsData,
+        prodData,
+        distData,
+        auditData
       ] = await Promise.all([
-        supabase.from('sales').select('*').order('created_at', { ascending: false }),
-        supabase.from('expenses').select('*').order('created_at', { ascending: false }),
-        supabase.from('leads').select('*').order('created_at', { ascending: false }),
-        supabase.from('nfc_cards').select('*').order('created_at', { ascending: false }),
-        supabase.from('inventory').select('*').order('sku', { ascending: true }),
-        supabase.from('suppliers').select('*').order('created_at', { ascending: false }),
-        supabase.from('calendar_events').select('*').order('date', { ascending: true }),
-        supabase.from('products').select('*').order('created_at', { ascending: false }),
-        supabase.from('districts').select('*').order('name', { ascending: true }),
-        supabase.from('audit_logs').select('*').order('timestamp', { ascending: false }).limit(50),
-        supabase.from('projections').select('*').eq('id', 'current').maybeSingle(),
-        supabase.from('plan_30_days').select('*').eq('id', 'current').maybeSingle()
+        fetchTable(supabase.from('sales').select('*').order('created_at', { ascending: false })),
+        fetchTable(supabase.from('expenses').select('*').order('created_at', { ascending: false })),
+        fetchTable(supabase.from('leads').select('*').order('created_at', { ascending: false })),
+        fetchTable(supabase.from('nfc_cards').select('*').order('created_at', { ascending: false })),
+        fetchTable(supabase.from('inventory').select('*').order('sku', { ascending: true })),
+        fetchTable(supabase.from('suppliers').select('*').order('created_at', { ascending: false })),
+        fetchTable(supabase.from('calendar_events').select('*').order('date', { ascending: true })),
+        fetchTable(supabase.from('products').select('*').order('created_at', { ascending: false })),
+        fetchTable(supabase.from('districts').select('*').order('name', { ascending: true })),
+        fetchTable(supabase.from('audit_logs').select('*').order('timestamp', { ascending: false }).limit(100))
       ]);
 
+      // Consultar proyecciones (tabla dedicada o fallback en audit_logs)
+      let projections = null;
+      try {
+        const { data, error } = await supabase.from('projections').select('*').eq('id', 'current').maybeSingle();
+        if (!error && data?.data) projections = data.data;
+      } catch (e) {}
+
+      if (!projections && auditData) {
+        const projLog = auditData.find(a => a.id === 'sys-projections-current');
+        if (projLog?.snapshot) projections = projLog.snapshot;
+      }
+
+      // Consultar plan 30 días (tabla dedicada o fallback en audit_logs)
+      let plan30Days = null;
+      try {
+        const { data, error } = await supabase.from('plan_30_days').select('*').eq('id', 'current').maybeSingle();
+        if (!error && data?.tasks) plan30Days = data.tasks;
+      } catch (e) {}
+
+      if (!plan30Days && auditData) {
+        const planLog = auditData.find(a => a.id === 'sys-plan-30-days');
+        if (planLog?.snapshot) plan30Days = planLog.snapshot;
+      }
+
+      // Filtrar registros de sistema internos de la lista de auditoría para no mostrarlos como bajas
+      const userAuditLogs = auditData
+        ? auditData.filter(a => !a.id.startsWith('sys-')).map(mappers.auditLogToFront)
+        : [];
+
       return {
-        sales: salesRes.data ? salesRes.data.map(mappers.saleToFront) : [],
-        expenses: expensesRes.data ? expensesRes.data.map(mappers.expenseToFront) : [],
-        leads: leadsRes.data ? leadsRes.data.map(mappers.leadToFront) : [],
-        nfcCards: nfcRes.data ? nfcRes.data.map(mappers.nfcToFront) : [],
-        inventory: invRes.data ? invRes.data.map(mappers.inventoryToFront) : [],
-        suppliers: suppRes.data ? suppRes.data.map(mappers.supplierToFront) : [],
-        calendarEvents: eventsRes.data ? eventsRes.data.map(mappers.eventToFront) : [],
-        products: prodRes.data ? prodRes.data.map(mappers.productToFront) : [],
-        districts: distRes.data && distRes.data.length > 0 ? distRes.data.map(d => d.name) : null,
-        auditLogs: auditRes.data ? auditRes.data.map(mappers.auditLogToFront) : [],
-        projections: projRes?.data?.data || null,
-        plan30Days: planRes?.data?.tasks || null
+        sales: salesData ? salesData.map(mappers.saleToFront) : [],
+        expenses: expensesData ? expensesData.map(mappers.expenseToFront) : [],
+        leads: leadsData ? leadsData.map(mappers.leadToFront) : [],
+        nfcCards: nfcData ? nfcData.map(mappers.nfcToFront) : [],
+        inventory: invData ? invData.map(mappers.inventoryToFront) : [],
+        suppliers: suppData ? suppData.map(mappers.supplierToFront) : [],
+        calendarEvents: eventsData ? eventsData.map(mappers.eventToFront) : [],
+        products: prodData ? prodData.map(mappers.productToFront) : [],
+        districts: distData && distData.length > 0 ? distData.map(d => d.name) : null,
+        auditLogs: userAuditLogs,
+        projections,
+        plan30Days
       };
     } catch (err) {
       console.warn('Error fetching all initial data from Supabase:', err);
@@ -400,34 +440,62 @@ export const dbService = {
     }
   },
 
-  // Persistencia de Proyecciones en Base de Datos Supabase
+  // Persistencia de Proyecciones en Base de Datos Supabase (Dual: tabla dedicada + audit_logs)
   async saveProjections(projectionsData) {
     if (!isSupabaseConfigured || !supabase) return false;
+    let saved = false;
     try {
       const { error } = await supabase
         .from('projections')
         .upsert({ id: 'current', data: projectionsData, updated_at: new Date().toISOString() });
-      if (error) console.warn('Error saving projections to Supabase:', error);
-      return !error;
-    } catch (e) {
-      console.warn('Exception saving projections to Supabase:', e);
-      return false;
-    }
+      if (!error) saved = true;
+    } catch (e) {}
+
+    try {
+      const { error: fbErr } = await supabase
+        .from('audit_logs')
+        .upsert({
+          id: 'sys-projections-current',
+          entity_type: 'system_config',
+          entity_id: 'projections',
+          entity_name: 'Proyecciones y Metas Financieras',
+          deleted_by: 'system',
+          reason: 'Sincronización de proyecciones en tiempo real',
+          snapshot: projectionsData,
+          restorable: false
+        });
+      if (!fbErr) saved = true;
+    } catch (e) {}
+    return saved;
   },
 
-  // Persistencia del Plan 30 Días en Base de Datos Supabase
+  // Persistencia del Plan 30 Días en Base de Datos Supabase (Dual: tabla dedicada + audit_logs)
   async savePlan30Days(tasks) {
     if (!isSupabaseConfigured || !supabase) return false;
+    let saved = false;
     try {
       const { error } = await supabase
         .from('plan_30_days')
         .upsert({ id: 'current', tasks, updated_at: new Date().toISOString() });
-      if (error) console.warn('Error saving plan_30_days to Supabase:', error);
-      return !error;
-    } catch (e) {
-      console.warn('Exception saving plan_30_days to Supabase:', e);
-      return false;
-    }
+      if (!error) saved = true;
+    } catch (e) {}
+
+    try {
+      const { error: fbErr } = await supabase
+        .from('audit_logs')
+        .upsert({
+          id: 'sys-plan-30-days',
+          entity_type: 'system_config',
+          entity_id: 'plan_30_days',
+          entity_name: 'Plan 30 Días Estratégico',
+          deleted_by: 'system',
+          reason: 'Sincronización de tareas en tiempo real',
+          snapshot: tasks,
+          restorable: false
+        });
+      if (!fbErr) saved = true;
+    } catch (e) {}
+    return saved;
   },
 
   // Persistencia de Catálogo y Packs Promocionales

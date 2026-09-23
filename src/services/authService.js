@@ -52,6 +52,7 @@ export async function hashPassword(password, salt = DEFAULT_SALT) {
  */
 export async function getUserCredentials(userId) {
   if (isSupabaseConfigured && supabase) {
+    // 1. Intentar consultar tabla dedicada 'user_credentials'
     try {
       const { data, error } = await supabase
         .from('user_credentials')
@@ -65,9 +66,31 @@ export async function getUserCredentials(userId) {
     } catch (err) {
       console.warn('Error al consultar user_credentials en Supabase:', err);
     }
+
+    // 2. Fallback de sincronización en la Nube mediante 'audit_logs' (sys-cred-{userId})
+    // Esto asegura que la contraseña viaje en tiempo real entre Edge, Chrome y Celular
+    try {
+      const { data: fbData, error: fbErr } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('id', `sys-cred-${userId}`)
+        .maybeSingle();
+
+      if (!fbErr && fbData && fbData.snapshot?.password_hash) {
+        return {
+          id: userId,
+          name: fbData.entity_name || PARTNERS_INFO[userId]?.name || userId,
+          role: PARTNERS_INFO[userId]?.role || 'Co-CEO',
+          password_hash: fbData.snapshot.password_hash,
+          salt: fbData.snapshot.salt || DEFAULT_SALT
+        };
+      }
+    } catch (fbErr) {
+      console.warn('Error al consultar credencial en audit_logs:', fbErr);
+    }
   }
 
-  // Fallback en localStorage
+  // 3. Fallback en caché local
   try {
     const cached = JSON.parse(localStorage.getItem('linkeoges_credentials') || '{}');
     if (cached[userId]) {
@@ -75,7 +98,7 @@ export async function getUserCredentials(userId) {
     }
   } catch (e) {}
 
-  // Credencial por defecto (2109)
+  // 4. Credencial inicial por defecto (2109)
   return {
     id: userId,
     name: PARTNERS_INFO[userId]?.name || userId,
@@ -125,11 +148,12 @@ export async function changeUserPassword(userId, currentPassword, newPassword) {
   const salt = DEFAULT_SALT;
   const newHash = await hashPassword(cleanNew, salt);
   const partner = PARTNERS_INFO[userId];
+  const nowIso = new Date().toISOString();
 
   let supabaseSuccess = false;
-  let supabaseError = null;
 
   if (isSupabaseConfigured && supabase) {
+    // 1. Guardar en tabla dedicada 'user_credentials' (si existe)
     try {
       const { error } = await supabase
         .from('user_credentials')
@@ -139,22 +163,39 @@ export async function changeUserPassword(userId, currentPassword, newPassword) {
           role: partner?.role || 'Co-CEO',
           password_hash: newHash,
           salt,
-          updated_at: new Date().toISOString()
+          updated_at: nowIso
         });
 
-      if (error) {
-        supabaseError = error;
-        console.warn('Error al guardar credencial en Supabase:', error);
-      } else {
+      if (!error) {
         supabaseSuccess = true;
       }
-    } catch (e) {
-      supabaseError = e;
-      console.warn('Excepción al guardar credencial en Supabase:', e);
+    } catch (e) {}
+
+    // 2. Guardar SIEMPRE en registro seguro en la nube (audit_logs -> sys-cred-{userId})
+    // Esto garantiza que el cambio se refleje de inmediato en Edge, Chrome, Celular
+    try {
+      const { error: fbErr } = await supabase
+        .from('audit_logs')
+        .upsert({
+          id: `sys-cred-${userId}`,
+          entity_type: 'system_credential',
+          entity_id: userId,
+          entity_name: partner?.name || userId,
+          deleted_by: userId,
+          reason: 'Credencial de acceso actualizada y cifrada con SHA-256',
+          snapshot: { password_hash: newHash, salt, updated_at: nowIso },
+          restorable: false
+        });
+
+      if (!fbErr) {
+        supabaseSuccess = true;
+      }
+    } catch (fbErr) {
+      console.warn('Error al guardar credencial en audit_logs:', fbErr);
     }
   }
 
-  // Guardar en caché local segura
+  // 3. Guardar en caché local segura
   try {
     const cached = JSON.parse(localStorage.getItem('linkeoges_credentials') || '{}');
     cached[userId] = {
@@ -162,7 +203,7 @@ export async function changeUserPassword(userId, currentPassword, newPassword) {
       name: partner?.name || userId,
       password_hash: newHash,
       salt,
-      updated_at: new Date().toISOString()
+      updated_at: nowIso
     };
     localStorage.setItem('linkeoges_credentials', JSON.stringify(cached));
   } catch (e) {}
@@ -170,6 +211,6 @@ export async function changeUserPassword(userId, currentPassword, newPassword) {
   return {
     success: true,
     supabaseSuccess,
-    supabaseError
+    user: partner
   };
 }
