@@ -24,6 +24,7 @@ export default function Sidebar({
   auditLogsCount = 0,
   productsCount = 0,
   partnerBalance,
+  expenses = [],
   collapsed = false,
   setCollapsed,
   onOpenMasterData
@@ -146,18 +147,22 @@ export default function Sidebar({
           <div style={{ 
             fontSize: '0.85rem', 
             fontWeight: 700, 
-            color: partnerBalance.debtLuisToKevin > 0 ? '#f59e0b' : '#10b981',
+            color: (partnerBalance?.debtLuisToKevin || 0) > 0 ? '#f59e0b' : (partnerBalance?.debtLuisToKevin || 0) < 0 ? '#38bdf8' : '#10b981',
             padding: '4px 0',
             lineHeight: 1.2
           }}>
-            {partnerBalance.debtLuisToKevin > 0 
+            {(partnerBalance?.debtLuisToKevin || 0) > 0 
               ? `Luis Romero debe debitar S/ ${partnerBalance.debtLuisToKevin.toFixed(2)} a Kevin Servat`
-              : `Kevin Servat debe debitar S/ ${Math.abs(partnerBalance.debtLuisToKevin).toFixed(2)} a Luis Romero`
+              : (partnerBalance?.debtLuisToKevin || 0) < 0
+              ? `Kevin Servat debe debitar S/ ${Math.abs(partnerBalance.debtLuisToKevin).toFixed(2)} a Luis Romero`
+              : 'Balance equilibrado (50/50)'
             }
           </div>
 
           <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px' }}>
-            Último gasto: S/ 388.93 (Kevin Servat)
+            {expenses && expenses.length > 0 
+              ? `Último gasto: S/ ${Number(expenses[0].amount).toFixed(2)} (${expenses[0].paidBy === 'luis' ? 'Luis' : 'Kevin'})`
+              : 'Sin gastos registrados'}
           </div>
         </div>
 

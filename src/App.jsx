@@ -1198,6 +1198,7 @@ export default function App() {
         auditLogsCount={auditLogs.length}
         productsCount={products.length}
         partnerBalance={partnerBalance}
+        expenses={expenses}
         collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
         onOpenMasterData={() => setIsMasterDataModalOpen(true)}

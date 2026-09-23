@@ -145,7 +145,7 @@ export default function DashboardView({
             <span>Margen bruto S/ {totalGrossProfit.toFixed(2)} - Gastos S/ {totalExpenses.toFixed(2)}</span>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '8px' }}>
-            Fase inicial de inversión en mercadería (lote de 15 tarjetas)
+            {expenses.length > 0 ? `${expenses.length} gastos operativos registrados` : 'Sin gastos operativos registrados'}
           </div>
         </div>
 
@@ -161,10 +161,12 @@ export default function DashboardView({
             S/ {Math.abs(partnerBalance.debtLuisToKevin || 0).toFixed(2)}
           </div>
           <div className="kpi-subtext" style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-            {partnerBalance.debtLuisToKevin > 0 ? (
+            {(partnerBalance.debtLuisToKevin || 0) > 0 ? (
               <span>Luis Romero debe a Kevin Servat</span>
-            ) : (
+            ) : (partnerBalance.debtLuisToKevin || 0) < 0 ? (
               <span>Kevin Servat debe a Luis Romero</span>
+            ) : (
+              <span style={{ color: 'var(--google-green)' }}>✓ Cuentas saldadas al 50/50</span>
             )}
           </div>
           <button 
@@ -196,55 +198,65 @@ export default function DashboardView({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {nfcCards.slice(0, 4).map(card => (
-              <div 
-                key={card.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 14px',
-                  backgroundColor: 'var(--bg-input)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-subtle)',
-                  transition: 'border-color var(--transition-fast)'
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <span className="code-mono">{card.id}</span>
-                    <strong style={{ fontSize: '0.9rem' }}>{card.businessName}</strong>
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '8px' }}>
-                    <span>📍 {card.district}</span>
-                    <span>•</span>
-                    <span>{card.model}</span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <a 
-                    href={card.reviewUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '4px 8px' }}
-                    title="Probar enlace de reseña de Google"
-                  >
-                    <ExternalLink size={14} />
-                    <span style={{ fontSize: '0.75rem' }}>Probar</span>
-                  </a>
-                  <button 
-                    className="btn btn-primary btn-sm"
-                    style={{ padding: '4px 8px' }}
-                    onClick={() => onOpenCardDetails(card)}
-                    title="Ver QR y detalles"
-                  >
-                    QR
-                  </button>
-                </div>
+            {nfcCards.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
+                <QrCode size={32} style={{ opacity: 0.35, marginBottom: '8px' }} />
+                <p style={{ fontSize: '0.88rem', fontWeight: 600 }}>No hay tarjetas NFC asignadas aún</p>
+                <p style={{ fontSize: '0.76rem', color: 'var(--text-subtle)', marginTop: '4px' }}>
+                  Al registrar una venta o asignar un chip se mostrará aquí con su Place ID y QR directo.
+                </p>
               </div>
-            ))}
+            ) : (
+              nfcCards.slice(0, 4).map(card => (
+                <div 
+                  key={card.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    backgroundColor: 'var(--bg-input)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-subtle)',
+                    transition: 'border-color var(--transition-fast)'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <span className="code-mono">{card.id}</span>
+                      <strong style={{ fontSize: '0.9rem' }}>{card.businessName}</strong>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '8px' }}>
+                      <span>📍 {card.district}</span>
+                      <span>•</span>
+                      <span>{card.model}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <a 
+                      href={card.reviewUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '4px 8px' }}
+                      title="Probar enlace de reseña de Google"
+                    >
+                      <ExternalLink size={14} />
+                      <span style={{ fontSize: '0.75rem' }}>Probar</span>
+                    </a>
+                    <button 
+                      className="btn btn-primary btn-sm"
+                      style={{ padding: '4px 8px' }}
+                      onClick={() => onOpenCardDetails(card)}
+                      title="Ver QR y detalles"
+                    >
+                      QR
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -360,34 +372,48 @@ export default function DashboardView({
               </tr>
             </thead>
             <tbody>
-              {sales.map(sale => (
-                <tr key={sale.id}>
-                  <td><span className="code-mono">{sale.saleNumber || sale.id}</span></td>
-                  <td>{sale.date}</td>
-                  <td><strong>{sale.clientName}</strong></td>
-                  <td>📍 {sale.district}</td>
-                  <td>{sale.productName}</td>
-                  <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>S/ {sale.totalAmount.toFixed(2)}</td>
-                  <td style={{ color: '#10b981', fontWeight: 600 }}>+S/ {sale.profit.toFixed(2)}</td>
-                  <td><span className="badge badge-blue">{sale.paymentMethod}</span></td>
-                  <td>{sale.soldBy === 'luis' ? '👨‍💼 Luis Romero' : '🚀 Kevin Servat'}</td>
-                  <td>
-                    <span className="badge badge-green">
-                      <CheckCircle2 size={12} /> {sale.status}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <button 
-                      className="btn-icon" 
-                      style={{ width: '28px', height: '28px', color: '#ef4444' }}
-                      onClick={() => onRequestDelete && onRequestDelete(sale, 'Venta')}
-                      title="Eliminar venta (con registro de auditoría)"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+              {sales.length === 0 ? (
+                <tr>
+                  <td colSpan="11" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
+                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <ShoppingBag size={28} style={{ opacity: 0.35 }} />
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>No hay ventas registradas todavía</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
+                        Haz clic en "+ Nueva Venta" para registrar tu primera operación y vincular una tarjeta NFC.
+                      </span>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                sales.map(sale => (
+                  <tr key={sale.id}>
+                    <td><span className="code-mono">{sale.saleNumber || sale.id}</span></td>
+                    <td>{sale.date}</td>
+                    <td><strong>{sale.clientName}</strong></td>
+                    <td>📍 {sale.district}</td>
+                    <td>{sale.productName}</td>
+                    <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>S/ {sale.totalAmount.toFixed(2)}</td>
+                    <td style={{ color: '#10b981', fontWeight: 600 }}>+S/ {sale.profit.toFixed(2)}</td>
+                    <td><span className="badge badge-blue">{sale.paymentMethod}</span></td>
+                    <td>{sale.soldBy === 'luis' ? '👨‍💼 Luis Romero' : '🚀 Kevin Servat'}</td>
+                    <td>
+                      <span className="badge badge-green">
+                        <CheckCircle2 size={12} /> {sale.status}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button 
+                        className="btn-icon" 
+                        style={{ width: '28px', height: '28px', color: '#ef4444' }}
+                        onClick={() => onRequestDelete && onRequestDelete(sale, 'Venta')}
+                        title="Eliminar venta (con registro de auditoría)"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

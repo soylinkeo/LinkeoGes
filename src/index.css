@@ -374,37 +374,41 @@ button, input, select, textarea {
 
 /* Navbar Superior */
 .top-navbar {
-  height: 68px;
+  height: 60px;
   background-color: var(--bg-header);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border-color);
-  padding: 0 28px;
+  padding: 0 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
   position: sticky;
   top: 0;
   z-index: 30;
+  white-space: nowrap;
 }
 
 .nav-title-section {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .nav-title-section h2 {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 800;
 }
 
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* Botones */
