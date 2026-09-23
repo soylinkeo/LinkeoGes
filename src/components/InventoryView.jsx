@@ -9,12 +9,16 @@ import {
   CheckCircle, 
   ShieldCheck, 
   Clock, 
-  DollarSign,
-  Package,
-  Layers,
-  Trash2,
-  Edit
+  DollarSign, 
+  Package, 
+  Layers, 
+  Trash2, 
+  Edit,
+  Shuffle,
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
+import { generateRandomSku } from '../utils/skuUtils';
 
 export default function InventoryView({
   inventory = [],
@@ -28,7 +32,7 @@ export default function InventoryView({
 }) {
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
   const [newItemForm, setNewItemForm] = useState({
-    sku: '',
+    sku: generateRandomSku('SKU-LNK'),
     name: '',
     category: 'Chips / Insumos',
     quantity: 50,
@@ -39,6 +43,20 @@ export default function InventoryView({
     reorderUrl: '',
     notes: ''
   });
+
+  const handleOpenNewItemModal = () => {
+    setNewItemForm(prev => ({
+      ...prev,
+      sku: generateRandomSku('SKU-LNK'),
+      name: '',
+      quantity: 50,
+      minThreshold: 20,
+      unitCost: 4.00,
+      reorderUrl: '',
+      notes: ''
+    }));
+    setIsNewItemModalOpen(true);
+  };
 
   // Estado para Crear / Editar Proveedores
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
@@ -116,9 +134,10 @@ export default function InventoryView({
 
   const handleCreateItem = (e) => {
     e.preventDefault();
+    const finalSku = (newItemForm.sku && newItemForm.sku.trim()) || generateRandomSku('SKU-LNK');
     const item = {
       id: `inv-${Date.now()}`,
-      sku: newItemForm.sku || `SKU-LNK-${Date.now().toString().slice(-4)}`,
+      sku: finalSku,
       name: newItemForm.name,
       category: newItemForm.category,
       quantity: Number(newItemForm.quantity) || 0,
@@ -133,7 +152,7 @@ export default function InventoryView({
     onAddNewInventoryItem(item);
     setIsNewItemModalOpen(false);
     setNewItemForm({
-      sku: '',
+      sku: generateRandomSku('SKU-LNK'),
       name: '',
       category: 'Chips / Insumos',
       quantity: 50,
@@ -165,7 +184,7 @@ export default function InventoryView({
             <DollarSign size={16} />
             <span>Registrar Compra / Gasto</span>
           </button>
-          <button className="btn btn-primary" onClick={() => setIsNewItemModalOpen(true)}>
+          <button className="btn btn-primary" onClick={handleOpenNewItemModal}>
             <Plus size={16} />
             <span>+ Agregar Insumo / SKU</span>
           </button>
@@ -465,14 +484,41 @@ export default function InventoryView({
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Código SKU:</label>
-                  <input 
-                    type="text" 
-                    className="form-control code-mono"
-                    placeholder="SKU-LNK-001"
-                    value={newItemForm.sku}
-                    onChange={(e) => setNewItemForm({ ...newItemForm, sku: e.target.value })}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Código SKU:</label>
+                    <button 
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                      onClick={() => setNewItemForm(prev => ({ ...prev, sku: generateRandomSku('SKU-LNK') }))}
+                      title="Generar otro código SKU aleatorio"
+                    >
+                      <Shuffle size={12} />
+                      <span>🎲 Generar Aleatorio</span>
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input 
+                      type="text" 
+                      className="form-control code-mono"
+                      placeholder="SKU-LNK-XXXX"
+                      value={newItemForm.sku}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, sku: e.target.value })}
+                      required
+                    />
+                    <button 
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '0 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onClick={() => setNewItemForm(prev => ({ ...prev, sku: generateRandomSku('SKU-LNK') }))}
+                      title="Regenerar SKU aleatorio"
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
+                    ✓ Generado automáticamente de forma aleatoria. Puedes editarlo o pulsar el botón para otro código.
+                  </span>
                 </div>
 
                 <div className="form-group">

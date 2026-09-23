@@ -7,11 +7,14 @@ import {
   TrendingUp, 
   Package, 
   Layers, 
-  CheckCircle,
-  Percent,
-  Compass,
-  Trash2
+  CheckCircle, 
+  Percent, 
+  Compass, 
+  Trash2,
+  Shuffle,
+  RefreshCw
 } from 'lucide-react';
+import { generateRandomSku } from '../utils/skuUtils';
 
 export default function ProductsCatalogView({
   products = [],
@@ -23,7 +26,7 @@ export default function ProductsCatalogView({
 
   const [newProductForm, setNewProductForm] = useState({
     name: '',
-    sku: '',
+    sku: generateRandomSku('LNK-PROD'),
     category: 'Individual',
     type: 'NFC Inteligente',
     price: '',
@@ -32,6 +35,19 @@ export default function ProductsCatalogView({
     badge: 'Nuevo Producto',
     description: ''
   });
+
+  const handleOpenNewProductModal = () => {
+    setNewProductForm(prev => ({
+      ...prev,
+      sku: generateRandomSku('LNK-PROD'),
+      name: '',
+      price: '',
+      cost: 13.00,
+      stock: 20,
+      description: ''
+    }));
+    setIsNewProductModalOpen(true);
+  };
 
   const filteredProducts = products.filter(p => {
     if (activeCategory === 'all') return true;
@@ -45,11 +61,12 @@ export default function ProductsCatalogView({
     const marginNum = priceNum - costNum;
     const marginPct = priceNum > 0 ? (marginNum / priceNum) * 100 : 0;
     const stockNum = Math.max(0, parseInt(newProductForm.stock) || 0);
+    const finalSku = (newProductForm.sku && newProductForm.sku.trim()) || generateRandomSku('LNK-PROD');
 
     const newProd = {
       id: `prod-${Date.now()}`,
       name: newProductForm.name,
-      sku: newProductForm.sku || `LNK-SKU-${Date.now().toString().slice(-4)}`,
+      sku: finalSku,
       category: newProductForm.category,
       type: newProductForm.type,
       price: priceNum,
@@ -65,7 +82,7 @@ export default function ProductsCatalogView({
     setIsNewProductModalOpen(false);
     setNewProductForm({
       name: '',
-      sku: '',
+      sku: generateRandomSku('LNK-PROD'),
       category: 'Individual',
       type: 'NFC Inteligente',
       price: '',
@@ -94,7 +111,7 @@ export default function ProductsCatalogView({
           </p>
         </div>
 
-        <button className="btn btn-primary" onClick={() => setIsNewProductModalOpen(true)}>
+        <button className="btn btn-primary" onClick={handleOpenNewProductModal}>
           <Plus size={16} />
           <span>+ Agregar Producto al Almacén</span>
         </button>
@@ -302,14 +319,41 @@ export default function ProductsCatalogView({
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Código SKU:</label>
-                  <input 
-                    type="text" 
-                    className="form-control code-mono"
-                    placeholder="LNK-PROD-001"
-                    value={newProductForm.sku}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, sku: e.target.value })}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Código SKU:</label>
+                    <button 
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                      onClick={() => setNewProductForm(prev => ({ ...prev, sku: generateRandomSku('LNK-PROD') }))}
+                      title="Generar otro código SKU aleatorio"
+                    >
+                      <Shuffle size={12} />
+                      <span>🎲 Generar Aleatorio</span>
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input 
+                      type="text" 
+                      className="form-control code-mono"
+                      placeholder="LNK-PROD-XXXX"
+                      value={newProductForm.sku}
+                      onChange={(e) => setNewProductForm({ ...newProductForm, sku: e.target.value })}
+                      required
+                    />
+                    <button 
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '0 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onClick={() => setNewProductForm(prev => ({ ...prev, sku: generateRandomSku('LNK-PROD') }))}
+                      title="Regenerar SKU aleatorio"
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
+                    ✓ Generado automáticamente de forma aleatoria. Puedes editarlo o pulsar el botón para otro código.
+                  </span>
                 </div>
 
                 <div className="form-group">
