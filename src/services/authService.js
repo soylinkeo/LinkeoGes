@@ -89,15 +89,23 @@ export async function getUserCredentials(userId) {
  * Verifica la contraseña ingresada contra el hash en la base de datos
  */
 export async function verifyUserPassword(userId, password) {
-  const cred = await getUserCredentials(userId);
-  const salt = cred.salt || DEFAULT_SALT;
-  const computedHash = await hashPassword(password, salt);
-  const isValid = (computedHash === cred.password_hash);
+  try {
+    const cred = await getUserCredentials(userId);
+    const salt = cred.salt || DEFAULT_SALT;
+    const computedHash = await hashPassword(password, salt);
+    const isValid = (computedHash === cred.password_hash);
 
-  return {
-    isValid,
-    user: PARTNERS_INFO[userId]
-  };
+    return {
+      isValid,
+      user: PARTNERS_INFO[userId]
+    };
+  } catch (err) {
+    console.warn('Error en verifyUserPassword:', err);
+    return {
+      isValid: false,
+      user: null
+    };
+  }
 }
 
 /**

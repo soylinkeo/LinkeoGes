@@ -55,6 +55,7 @@ export default function UserProfileModal({
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
+    if (isChangingPass) return;
     setPassError('');
     setPassSuccess('');
 
@@ -254,162 +255,183 @@ export default function UserProfileModal({
 
             {showSecuritySection && (
               <form onSubmit={handlePasswordSubmit} style={{ marginTop: '14px', borderTop: '1px solid var(--border-subtle)', paddingTop: '14px' }}>
-                {passError && (
-                  <div 
-                    style={{
-                      backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      marginBottom: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '0.78rem',
-                      color: '#ef4444'
-                    }}
-                  >
-                    <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                    <span>{passError}</span>
-                  </div>
-                )}
-
-                {passSuccess && (
-                  <div 
-                    style={{
-                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                      border: '1px solid rgba(16, 185, 129, 0.3)',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      marginBottom: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '0.78rem',
-                      color: '#10b981'
-                    }}
-                  >
-                    <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
-                    <span>{passSuccess}</span>
-                  </div>
-                )}
-
-                {/* Contraseña Actual */}
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>
-                    Contraseña Actual:
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input 
-                      ref={currentPassRef}
-                      type={showCurrentPass ? 'text' : 'password'}
-                      className="form-control"
-                      placeholder="Ingresa tu clave actual (def: 2109)"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      required
-                      style={{ height: '38px', fontSize: '0.85rem', paddingRight: '36px' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPass(!showCurrentPass)}
-                      style={{
-                        position: 'absolute',
-                        right: '10px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {showCurrentPass ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Nueva Contraseña */}
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>
-                    Nueva Contraseña (mínimo 4 caracteres):
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input 
-                      ref={newPassRef}
-                      type={showNewPass ? 'text' : 'password'}
-                      className="form-control"
-                      placeholder="Nueva contraseña secreta"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      required
-                      minLength={4}
-                      style={{ height: '38px', fontSize: '0.85rem', paddingRight: '36px' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPass(!showNewPass)}
-                      style={{
-                        position: 'absolute',
-                        right: '10px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {showNewPass ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Confirmar Nueva Contraseña */}
-                <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>
-                    Confirmar Nueva Contraseña:
-                  </label>
-                  <input 
-                    ref={confirmPassRef}
-                    type={showNewPass ? 'text' : 'password'}
-                    className="form-control"
-                    placeholder="Repite la nueva contraseña"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    minLength={4}
-                    style={{ height: '38px', fontSize: '0.85rem' }}
-                  />
-                </div>
-
-                <button 
-                  type="submit" 
-                  className="btn btn-primary"
-                  disabled={isChangingPass}
-                  style={{
-                    width: '100%',
-                    height: '38px',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px'
+                <fieldset 
+                  disabled={isChangingPass} 
+                  style={{ 
+                    border: 'none', 
+                    padding: 0, 
+                    margin: 0, 
+                    pointerEvents: isChangingPass ? 'none' : 'auto',
+                    opacity: isChangingPass ? 0.75 : 1,
+                    transition: 'opacity 0.2s ease'
                   }}
                 >
-                  {isChangingPass ? (
-                    <>
-                      <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
-                      <span>Hasheando y Guardando en Base...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock size={15} />
-                      <span>Guardar Nueva Clave en Base de Datos</span>
-                    </>
+                  {passError && (
+                    <div 
+                      style={{
+                        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '0.78rem',
+                        color: '#ef4444'
+                      }}
+                    >
+                      <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                      <span>{passError}</span>
+                    </div>
                   )}
-                </button>
+
+                  {passSuccess && (
+                    <div 
+                      style={{
+                        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '0.78rem',
+                        color: '#10b981'
+                      }}
+                    >
+                      <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
+                      <span>{passSuccess}</span>
+                    </div>
+                  )}
+
+                  {/* Contraseña Actual */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>
+                      Contraseña Actual:
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        ref={currentPassRef}
+                        type={showCurrentPass ? 'text' : 'password'}
+                        className="form-control"
+                        placeholder="Ingresa tu clave actual (def: 2109)"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        disabled={isChangingPass}
+                        readOnly={isChangingPass}
+                        required
+                        style={{ height: '38px', fontSize: '0.85rem', paddingRight: '36px', cursor: isChangingPass ? 'not-allowed' : 'text' }}
+                      />
+                      <button
+                        type="button"
+                        disabled={isChangingPass}
+                        onClick={() => setShowCurrentPass(!showCurrentPass)}
+                        style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: isChangingPass ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {showCurrentPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Nueva Contraseña */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>
+                      Nueva Contraseña (mínimo 4 caracteres):
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        ref={newPassRef}
+                        type={showNewPass ? 'text' : 'password'}
+                        className="form-control"
+                        placeholder="Nueva contraseña secreta"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        disabled={isChangingPass}
+                        readOnly={isChangingPass}
+                        required
+                        minLength={4}
+                        style={{ height: '38px', fontSize: '0.85rem', paddingRight: '36px', cursor: isChangingPass ? 'not-allowed' : 'text' }}
+                      />
+                      <button
+                        type="button"
+                        disabled={isChangingPass}
+                        onClick={() => setShowNewPass(!showNewPass)}
+                        style={{
+                          position: 'absolute',
+                          right: '10px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: isChangingPass ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {showNewPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Confirmar Nueva Contraseña */}
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>
+                      Confirmar Nueva Contraseña:
+                    </label>
+                    <input 
+                      ref={confirmPassRef}
+                      type={showNewPass ? 'text' : 'password'}
+                      className="form-control"
+                      placeholder="Repite la nueva contraseña"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      disabled={isChangingPass}
+                      readOnly={isChangingPass}
+                      required
+                      minLength={4}
+                      style={{ height: '38px', fontSize: '0.85rem', cursor: isChangingPass ? 'not-allowed' : 'text' }}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    disabled={isChangingPass}
+                    style={{
+                      width: '100%',
+                      height: '38px',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      cursor: isChangingPass ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {isChangingPass ? (
+                      <>
+                        <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                        <span>Hasheando y Guardando en Base...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock size={15} />
+                        <span>Guardar Nueva Clave en Base de Datos</span>
+                      </>
+                    )}
+                  </button>
+                </fieldset>
               </form>
             )}
           </div>

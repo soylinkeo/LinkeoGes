@@ -18,6 +18,8 @@ export default function LoginModal({ onLoginSuccess }) {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (isLoading) return; // Prevenir ejecuciones múltiples concurrentes
+
     if (!password) {
       setErrorMsg('Por favor ingresa tu contraseña.');
       passwordInputRef.current?.focus();
@@ -26,17 +28,23 @@ export default function LoginModal({ onLoginSuccess }) {
 
     setIsLoading(true);
     setErrorMsg('');
+    // Desenfocar input para cerrar teclado móvil y bloquear escritura inmediata
+    passwordInputRef.current?.blur();
 
     try {
       const { isValid, user } = await verifyUserPassword(selectedUser, password);
       if (!isValid) {
         setErrorMsg(`Contraseña incorrecta para ${PARTNERS_INFO[selectedUser]?.name || 'el socio'}.`);
         setPassword(''); // Limpia la celda inmediatamente ante error
-        passwordInputRef.current?.focus();
         setIsLoading(false);
+        setTimeout(() => {
+          passwordInputRef.current?.focus();
+        }, 60);
         return;
       }
 
+      // Si las credenciales son válidas, mantenemos isLoading = true para que la UI 
+      // permanezca 100% bloqueada hasta que el modal sea desmontado por el ERP
       setPassword('');
       setErrorMsg('');
       onLoginSuccess(user, rememberMe);
@@ -44,9 +52,10 @@ export default function LoginModal({ onLoginSuccess }) {
       console.warn('Error al verificar login:', err);
       setErrorMsg('Error al validar credenciales con la base de datos.');
       setPassword('');
-      passwordInputRef.current?.focus();
-    } finally {
       setIsLoading(false);
+      setTimeout(() => {
+        passwordInputRef.current?.focus();
+      }, 60);
     }
   };
 
@@ -72,7 +81,8 @@ export default function LoginModal({ onLoginSuccess }) {
           border: '1px solid rgba(0, 102, 255, 0.3)',
           borderRadius: 'var(--radius-lg, 16px)',
           boxShadow: '0 25px 50px -12px rgba(0, 102, 255, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05)',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          transition: 'all 0.2s ease'
         }}
       >
         {/* Encabezado con branding Linkeo */}
@@ -109,170 +119,231 @@ export default function LoginModal({ onLoginSuccess }) {
           </p>
         </div>
 
-        {/* Formulario */}
-        <form onSubmit={handleLogin} style={{ padding: '24px' }}>
-          {errorMsg && (
-            <div 
-              style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '8px',
-                padding: '10px 14px',
-                marginBottom: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '0.82rem',
-                color: '#ef4444'
-              }}
-            >
-              <AlertCircle size={16} style={{ flexShrink: 0 }} />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          <div style={{ marginBottom: '18px' }}>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-main, #f8fafc)' }}>
-              Selecciona tu Usuario:
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              {users.map(u => {
-                const isSelected = selectedUser === u.id;
-                return (
-                  <button
-                    key={u.id}
-                    type="button"
-                    onClick={() => { 
-                      setSelectedUser(u.id); 
-                      setPassword(''); 
-                      setErrorMsg(''); 
-                      passwordInputRef.current?.focus(); 
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '12px 14px',
-                      borderRadius: '10px',
-                      border: `1.5px solid ${isSelected ? 'var(--primary-600, #0066ff)' : 'var(--border-subtle, rgba(255, 255, 255, 0.1))'}`,
-                      backgroundColor: isSelected ? 'rgba(0, 102, 255, 0.15)' : 'var(--bg-input, rgba(255, 255, 255, 0.04))',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <span style={{ fontSize: '1.4rem' }}>{u.avatar}</span>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: isSelected ? '#38bdf8' : 'var(--text-main, #f8fafc)' }}>
-                        {u.name}
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: isSelected ? '#38bdf8' : 'var(--text-muted, #94a3b8)', fontWeight: 600 }}>
-                        Co-CEO & Dirección General
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '18px' }}>
-            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-main, #f8fafc)' }}>
-              Contraseña de Acceso:
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Lock 
-                size={16} 
-                style={{ 
-                  position: 'absolute', 
-                  left: '14px', 
-                  top: '50%', 
-                  transform: 'translateY(-50%)', 
-                  color: 'var(--text-muted, #94a3b8)' 
-                }} 
-              />
-              <input 
-                ref={passwordInputRef}
-                type={showPassword ? 'text' : 'password'}
-                className="form-control"
-                placeholder="Ingresa clave (2109)"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setErrorMsg(''); }}
-                required
-                autoFocus
-                style={{
-                  width: '100%',
-                  paddingLeft: '40px',
-                  paddingRight: '40px',
-                  height: '44px',
-                  fontSize: '0.95rem'
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-muted, #94a3b8)',
-                  cursor: 'pointer',
-                  padding: '4px'
-                }}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
-              <span>Clave por defecto: <strong>2109</strong> (Modificable en Perfil)</span>
-              <span style={{ color: '#10b981', fontWeight: 600 }}>🔒 Cifrado SHA-256</span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', cursor: 'pointer' }}>
-              <input 
-                type="checkbox" 
-                checked={rememberMe} 
-                onChange={(e) => setRememberMe(e.target.checked)} 
-              />
-              <span>Mantener sesión iniciada</span>
-            </label>
-            <span style={{ fontSize: '0.74rem', color: '#f59e0b' }}>⏱️ Inactividad: 10 min</span>
-          </div>
-
-          <button 
-            type="submit" 
-            className="btn btn-primary"
-            disabled={isLoading}
-            style={{
-              width: '100%',
-              height: '46px',
-              fontSize: '0.95rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
+        {/* Formulario con bloqueo total durante carga */}
+        <form onSubmit={handleLogin} style={{ padding: '24px', position: 'relative' }}>
+          <fieldset 
+            disabled={isLoading} 
+            style={{ 
+              border: 'none', 
+              padding: 0, 
+              margin: 0, 
+              pointerEvents: isLoading ? 'none' : 'auto',
               opacity: isLoading ? 0.75 : 1,
-              cursor: isLoading ? 'not-allowed' : 'pointer'
+              transition: 'opacity 0.2s ease'
             }}
           >
-            {isLoading ? (
-              <>
-                <Loader2 size={18} className="spin-animation" style={{ animation: 'spin 1s linear infinite' }} />
-                <span>Verificando Credenciales...</span>
-              </>
-            ) : (
-              <>
-                <span>Ingresar al Sistema</span>
-                <ArrowRight size={18} />
-              </>
+            {errorMsg && (
+              <div 
+                style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '0.82rem',
+                  color: '#ef4444'
+                }}
+              >
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{errorMsg}</span>
+              </div>
             )}
-          </button>
+
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-main, #f8fafc)' }}>
+                Selecciona tu Usuario:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                {users.map(u => {
+                  const isSelected = selectedUser === u.id;
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() => { 
+                        if (isLoading) return;
+                        setSelectedUser(u.id); 
+                        setPassword(''); 
+                        setErrorMsg(''); 
+                        passwordInputRef.current?.focus(); 
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        border: `1.5px solid ${isSelected ? 'var(--primary-600, #0066ff)' : 'var(--border-subtle, rgba(255, 255, 255, 0.1))'}`,
+                        backgroundColor: isSelected ? 'rgba(0, 102, 255, 0.15)' : 'var(--bg-input, rgba(255, 255, 255, 0.04))',
+                        cursor: isLoading ? 'not-allowed' : 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s ease',
+                        opacity: isLoading ? 0.6 : 1
+                      }}
+                    >
+                      <span style={{ fontSize: '1.4rem' }}>{u.avatar}</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.88rem', color: isSelected ? '#38bdf8' : 'var(--text-main, #f8fafc)' }}>
+                          {u.name}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: isSelected ? '#38bdf8' : 'var(--text-muted, #94a3b8)', fontWeight: 600 }}>
+                          Co-CEO & Dirección General
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-main, #f8fafc)' }}>
+                Contraseña de Acceso:
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Lock 
+                  size={16} 
+                  style={{ 
+                    position: 'absolute', 
+                    left: '14px', 
+                    top: '50%', 
+                    transform: 'translateY(-50%)', 
+                    color: 'var(--text-muted, #94a3b8)' 
+                  }} 
+                />
+                <input 
+                  ref={passwordInputRef}
+                  type={showPassword ? 'text' : 'password'}
+                  className="form-control"
+                  placeholder={isLoading ? "Verificando acceso..." : "Ingresa clave (2109)"}
+                  value={password}
+                  onChange={(e) => { 
+                    if (isLoading) return;
+                    setPassword(e.target.value); 
+                    setErrorMsg(''); 
+                  }}
+                  onKeyDown={(e) => {
+                    if (isLoading) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                  }}
+                  disabled={isLoading}
+                  readOnly={isLoading}
+                  required
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    paddingLeft: '40px',
+                    paddingRight: '40px',
+                    height: '44px',
+                    fontSize: '0.95rem',
+                    cursor: isLoading ? 'not-allowed' : 'text',
+                    backgroundColor: isLoading ? 'rgba(255, 255, 255, 0.02)' : undefined
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => {
+                    if (isLoading) return;
+                    setShowPassword(!showPassword);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted, #94a3b8)',
+                    cursor: isLoading ? 'not-allowed' : 'pointer',
+                    padding: '4px'
+                  }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Clave por defecto: <strong>2109</strong> (Modificable en Perfil)</span>
+                <span style={{ color: '#10b981', fontWeight: 600 }}>🔒 Cifrado SHA-256</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', cursor: isLoading ? 'not-allowed' : 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={rememberMe} 
+                  disabled={isLoading}
+                  onChange={(e) => {
+                    if (isLoading) return;
+                    setRememberMe(e.target.checked);
+                  }} 
+                />
+                <span>Mantener sesión iniciada</span>
+              </label>
+              <span style={{ fontSize: '0.74rem', color: '#f59e0b' }}>⏱️ Inactividad: 10 min</span>
+            </div>
+
+            {/* Aviso visual en tiempo real durante la validación */}
+            {isLoading && (
+              <div 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '9px 12px',
+                  marginBottom: '14px',
+                  borderRadius: '8px',
+                  background: 'rgba(56, 189, 248, 0.1)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  color: '#38bdf8',
+                  fontSize: '0.8rem',
+                  fontWeight: 600
+                }}
+              >
+                <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                <span>Validando credenciales en la base de datos... Por favor espera</span>
+              </div>
+            )}
+
+            <button 
+              type="submit" 
+              className="btn btn-primary"
+              disabled={isLoading}
+              style={{
+                width: '100%',
+                height: '46px',
+                fontSize: '0.95rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                opacity: isLoading ? 0.8 : 1,
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                filter: isLoading ? 'brightness(0.9)' : undefined
+              }}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 size={18} className="spin-animation" style={{ animation: 'spin 1s linear infinite' }} />
+                  <span>Verificando Credenciales...</span>
+                </>
+              ) : (
+                <>
+                  <span>Ingresar al Sistema</span>
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+          </fieldset>
         </form>
       </div>
     </div>
