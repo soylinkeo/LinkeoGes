@@ -253,40 +253,6 @@ export default function Sidebar({
         </nav>
 
         <div className="sidebar-footer">
-          {/* Botones de Acción Rápida en Móvil */}
-          <div 
-            style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '1fr 1fr', 
-              gap: '6px', 
-              marginBottom: '8px' 
-            }}
-          >
-            {onOpenNewSale && (
-              <button 
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={() => { onOpenNewSale(); if (onCloseMobileMenu) onCloseMobileMenu(); }}
-                style={{ padding: '6px 8px', fontSize: '0.76rem', justifyContent: 'center' }}
-              >
-                <TrendingUp size={13} />
-                <span>+ Venta</span>
-              </button>
-            )}
-
-            {onOpenNewExpense && (
-              <button 
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => { onOpenNewExpense(); if (onCloseMobileMenu) onCloseMobileMenu(); }}
-                style={{ padding: '6px 8px', fontSize: '0.76rem', justifyContent: 'center' }}
-              >
-                <CreditCard size={13} />
-                <span>+ Gasto</span>
-              </button>
-            )}
-          </div>
-
           {/* Widget Cuentas Claras */}
           <div className="partners-compact-card">
             <div className="partners-compact-header">
