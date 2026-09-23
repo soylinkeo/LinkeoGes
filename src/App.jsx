@@ -696,12 +696,38 @@ export default function App() {
     if (isSupabaseConfigured) {
       dbService.insert('nfc_cards', newCard, mappers.nfcToDb);
     }
+
+    // Descontar inventario / almacén si la opción de stock está activa
+    if (newCard.discountStock) {
+      setProducts(prev => prev.map(p => {
+        if (p.name === newCard.model || p.id === newCard.productId) {
+          const current = p.stock !== undefined ? p.stock : 0;
+          return { ...p, stock: Math.max(0, current - 1) };
+        }
+        return p;
+      }));
+
+      setInventory(prev => prev.map(item => {
+        if (
+          item.name.toLowerCase() === newCard.model?.toLowerCase() || 
+          (newCard.productSku && item.sku === newCard.productSku) ||
+          (item.name.toLowerCase().includes(newCard.model?.toLowerCase()))
+        ) {
+          return { ...item, quantity: Math.max(0, item.quantity - 1) };
+        }
+        if (item.sku === 'SKU-NTAG215-RAW') {
+          return { ...item, quantity: Math.max(0, item.quantity - 1) };
+        }
+        return item;
+      }));
+    }
+
     logAudit({
       actionType: 'Creación',
       entityType: 'Tarjeta NFC',
       entityId: newCard.id,
       entityName: `${newCard.businessName} (${newCard.model})`,
-      reason: `Chip NFC vinculado con Place ID: ${newCard.placeId}`
+      reason: `Chip NFC vinculado con Place ID: ${newCard.placeId}.${newCard.discountStock ? ' Descontada 1 unidad de stock en almacén.' : ''}`
     });
   };
 
@@ -1336,11 +1362,14 @@ export default function App() {
           {currentTab === 'nfc-traceability' && (
             <NfcTraceabilityView 
               nfcCards={nfcCards}
+              products={products}
+              inventory={inventory}
               onUpdateCard={handleUpdateCard}
               onAddNewCard={handleAddNewCard}
               selectedCardModal={selectedCardModal}
               setSelectedCardModal={setSelectedCardModal}
               onRequestDelete={handleRequestDelete}
+              onUpdateInventoryStock={handleUpdateInventoryStock}
             />
           )}
 

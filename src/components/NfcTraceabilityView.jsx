@@ -22,11 +22,14 @@ import {
 
 export default function NfcTraceabilityView({
   nfcCards = [],
+  products = [],
+  inventory = [],
   onUpdateCard,
   onAddNewCard,
   onRequestDelete,
   selectedCardModal,
-  setSelectedCardModal
+  setSelectedCardModal,
+  onUpdateInventoryStock
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDistrict, setFilterDistrict] = useState('all');
@@ -35,15 +38,54 @@ export default function NfcTraceabilityView({
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copiedId, setCopiedId] = useState(null);
 
+  // Obtener stock disponible de un producto/modelo
+  const getProductStock = (productOrName) => {
+    if (!productOrName) return 0;
+    const prod = typeof productOrName === 'string'
+      ? products.find(p => p.name === productOrName) || inventory.find(i => i.name === productOrName)
+      : productOrName;
+
+    if (!prod) {
+      const matched = inventory.find(i => 
+        i.name.toLowerCase().includes(String(productOrName).toLowerCase()) ||
+        String(productOrName).toLowerCase().includes(i.name.toLowerCase())
+      );
+      if (matched) return Number(matched.quantity || 0);
+      return 0;
+    }
+
+    if (prod.stock !== undefined && prod.stock !== null) {
+      return Number(prod.stock);
+    }
+
+    const invItem = inventory.find(i => 
+      (i.sku && prod.sku && i.sku.toLowerCase() === prod.sku.toLowerCase()) ||
+      (i.name && prod.name && i.name.toLowerCase().trim() === prod.name.toLowerCase().trim()) ||
+      (i.name && prod.name && (i.name.toLowerCase().includes(prod.name.toLowerCase()) || prod.name.toLowerCase().includes(i.name.toLowerCase())))
+    );
+    if (invItem) {
+      return Number(invItem.quantity || 0);
+    }
+
+    const rawChip = inventory.find(i => i.sku === 'SKU-NTAG215-RAW' || i.name.toLowerCase().includes('ntag215'));
+    if (rawChip) {
+      return Number(rawChip.quantity || 0);
+    }
+
+    return 0;
+  };
+
   // Estados para modal de edición / soporte técnico
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
   const [supportNote, setSupportNote] = useState('');
 
-  // Estados para modal de nueva tarjeta
+  // Estados para modal de nueva tarjeta vinculada a catálogo y stock
+  const initialModel = products[0]?.name || (inventory[0]?.name || 'Tarjeta Google NFC Cuadrado');
   const [isNewCardModalOpen, setIsNewCardModalOpen] = useState(false);
   const [newCardForm, setNewCardForm] = useState({
-    model: 'Modelo 1 – Display de Mesa',
+    model: initialModel,
+    selectedProductId: products[0]?.id || '',
     businessName: '',
     category: 'Restaurante / Cafetería',
     district: 'Miraflores',
@@ -51,7 +93,8 @@ export default function NfcTraceabilityView({
     contactName: '',
     contactPhone: '',
     placeId: '',
-    chipUid: ''
+    chipUid: '',
+    discountStock: true
   });
 
   useEffect(() => {
@@ -148,14 +191,19 @@ export default function NfcTraceabilityView({
       ? `https://search.google.com/local/writereview?placeid=${newCardForm.placeId.trim()}`
       : 'https://linkeocards.com/';
 
+    const selectedProd = products.find(p => p.name === newCardForm.model) || inventory.find(i => i.name === newCardForm.model);
+
     const newCard = {
       id: newId,
       chipUid: newCardForm.chipUid.trim() || `04:${Math.random().toString(16).substr(2, 2).toUpperCase()}:A1:B2:C3:D4`,
       model: newCardForm.model,
+      productId: selectedProd?.id || null,
+      productSku: selectedProd?.sku || null,
+      discountStock: newCardForm.discountStock,
       businessName: newCardForm.businessName,
       category: newCardForm.category,
       district: newCardForm.district,
-      address: newCardForm.address,
+      address: newCardForm.address || `Distrito de ${newCardForm.district}, Lima`,
       contactName: newCardForm.contactName,
       contactPhone: newCardForm.contactPhone,
       placeId: newCardForm.placeId.trim(),
@@ -168,7 +216,7 @@ export default function NfcTraceabilityView({
         {
           date: new Date().toLocaleString('es-PE'),
           author: 'Luis Romero / Kevin Servat',
-          action: 'Alta y vinculación inicial de tarjeta NFC.'
+          action: `Alta y vinculación física de tarjeta NFC (${newCardForm.model}).`
         }
       ]
     };
@@ -176,7 +224,8 @@ export default function NfcTraceabilityView({
     onAddNewCard(newCard);
     setIsNewCardModalOpen(false);
     setNewCardForm({
-      model: 'Modelo 1 – Display de Mesa',
+      model: products[0]?.name || (inventory[0]?.name || 'Tarjeta Google NFC'),
+      selectedProductId: products[0]?.id || '',
       businessName: '',
       category: 'Restaurante / Cafetería',
       district: 'Miraflores',
@@ -184,7 +233,8 @@ export default function NfcTraceabilityView({
       contactName: '',
       contactPhone: '',
       placeId: '',
-      chipUid: ''
+      chipUid: '',
+      discountStock: true
     });
   };
 
@@ -608,16 +658,110 @@ export default function NfcTraceabilityView({
             <form onSubmit={handleCreateNewCard}>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Modelo de Tarjeta:</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>
+                      Modelo de Tarjeta / Producto de Almacén:
+                    </label>
+                    {(() => {
+                      const matched = products.find(p => p.name === newCardForm.model) || inventory.find(i => i.name === newCardForm.model);
+                      const stock = getProductStock(matched || newCardForm.model);
+                      return (
+                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: stock > 0 ? '#10b981' : '#ef4444' }}>
+                          {stock > 0 ? `✓ En Stock: ${stock} uds` : '⚠️ Agotado (0 uds)'}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <select 
                     className="form-control"
                     value={newCardForm.model}
-                    onChange={(e) => setNewCardForm({ ...newCardForm, model: e.target.value })}
+                    onChange={(e) => {
+                      const selectedName = e.target.value;
+                      const matched = products.find(p => p.name === selectedName) || inventory.find(i => i.name === selectedName);
+                      setNewCardForm({ 
+                        ...newCardForm, 
+                        model: selectedName,
+                        selectedProductId: matched?.id || ''
+                      });
+                    }}
+                    required
                   >
-                    <option value="Modelo 1 – Display de Mesa">Modelo 1 – Display de Mesa (S/ 60)</option>
-                    <option value="Modelo 2 – Tarjeta Horizontal">Modelo 2 – Tarjeta Horizontal (S/ 80)</option>
-                    <option value="Modelo 3 – Tarjeta Vertical">Modelo 3 – Tarjeta Vertical (S/ 40)</option>
+                    {products.length === 0 && inventory.length === 0 ? (
+                      <option value="">(Sin productos en Almacén — Agrega en Catálogo)</option>
+                    ) : (
+                      <>
+                        {products.map(p => {
+                          const stock = getProductStock(p);
+                          const inStock = stock > 0;
+                          return (
+                            <option key={p.id} value={p.name}>
+                              📦 {p.name} {p.price ? `(S/ ${Number(p.price).toFixed(2)})` : ''} — {inStock ? `✅ En Stock: ${stock} uds` : `⚠️ AGOTADO (0 uds)`}
+                            </option>
+                          );
+                        })}
+                        {inventory.filter(i => !products.some(p => p.name === i.name)).map(i => {
+                          const stock = Number(i.quantity || 0);
+                          const inStock = stock > 0;
+                          return (
+                            <option key={i.id} value={i.name}>
+                              🏷️ {i.name} — {inStock ? `✅ En Stock: ${stock} uds` : `⚠️ AGOTADO (0 uds)`}
+                            </option>
+                          );
+                        })}
+                      </>
+                    )}
                   </select>
+
+                  {/* Tarjeta de Disponibilidad de Stock */}
+                  {(() => {
+                    const matched = products.find(p => p.name === newCardForm.model) || inventory.find(i => i.name === newCardForm.model);
+                    const stock = getProductStock(matched || newCardForm.model);
+                    return (
+                      <div 
+                        style={{
+                          marginTop: '8px',
+                          padding: '8px 12px',
+                          borderRadius: 'var(--radius-md)',
+                          backgroundColor: stock > 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                          border: `1px solid ${stock > 0 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.78rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '1.05rem' }}>{stock > 0 ? '📦' : '⚠️'}</span>
+                          <div>
+                            <strong style={{ color: stock > 0 ? '#10b981' : '#ef4444' }}>
+                              {stock > 0 ? `Stock Disponible: ${stock} unidades en almacén` : 'Sin unidades en almacén (Agotado)'}
+                            </strong>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                              {matched?.sku ? `SKU: ${matched.sku} • ` : ''}
+                              {matched?.price ? `Precio: S/ ${Number(matched.price).toFixed(2)} • ` : ''}
+                              {matched?.cost ? `Costo: S/ ${Number(matched.cost).toFixed(2)}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <span className={`badge ${stock > 0 ? 'badge-green' : 'badge-red'}`}>
+                          {stock > 0 ? 'Disponible' : 'Sin Stock'}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                    <input 
+                      type="checkbox"
+                      id="discountStockCard"
+                      checked={newCardForm.discountStock}
+                      onChange={(e) => setNewCardForm({ ...newCardForm, discountStock: e.target.checked })}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <label htmlFor="discountStockCard" style={{ cursor: 'pointer', marginBottom: 0 }}>
+                      Descontar automáticamente 1 unidad del inventario al vincular
+                    </label>
+                  </div>
                 </div>
 
                 <div className="form-group">

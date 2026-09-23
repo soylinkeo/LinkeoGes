@@ -28,6 +28,7 @@ export default function ProductsCatalogView({
     type: 'NFC Inteligente',
     price: '',
     cost: 13.00,
+    stock: 20,
     badge: 'Nuevo Producto',
     description: ''
   });
@@ -43,6 +44,7 @@ export default function ProductsCatalogView({
     const costNum = Number(newProductForm.cost) || 0;
     const marginNum = priceNum - costNum;
     const marginPct = priceNum > 0 ? (marginNum / priceNum) * 100 : 0;
+    const stockNum = Math.max(0, parseInt(newProductForm.stock) || 0);
 
     const newProd = {
       id: `prod-${Date.now()}`,
@@ -52,6 +54,7 @@ export default function ProductsCatalogView({
       type: newProductForm.type,
       price: priceNum,
       cost: costNum,
+      stock: stockNum,
       margin: marginNum,
       marginPct: Number(marginPct.toFixed(1)),
       badge: newProductForm.badge,
@@ -67,6 +70,7 @@ export default function ProductsCatalogView({
       type: 'NFC Inteligente',
       price: '',
       cost: 13.00,
+      stock: 20,
       badge: 'Nuevo Producto',
       description: ''
     });
@@ -198,15 +202,21 @@ export default function ProductsCatalogView({
                     </span>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.78rem', paddingTop: '8px', borderTop: '1px dashed var(--border-subtle)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', fontSize: '0.78rem', paddingTop: '8px', borderTop: '1px dashed var(--border-subtle)' }}>
                     <div>
-                      <span style={{ color: 'var(--text-subtle)' }}>Costo Insumos:</span>
+                      <span style={{ color: 'var(--text-subtle)' }}>Costo Insumo:</span>
                       <div style={{ fontWeight: 700, color: 'var(--google-red)' }}>S/ {Number(prod.cost).toFixed(2)}</div>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--text-subtle)' }}>Ganancia Neta:</span>
+                      <span style={{ color: 'var(--text-subtle)' }}>Ganancia:</span>
                       <div style={{ fontWeight: 700, color: 'var(--google-green)' }}>
-                        S/ {Number(prod.margin).toFixed(2)} ({prod.marginPct}%)
+                        S/ {Number(prod.margin).toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-subtle)' }}>Stock Almacén:</span>
+                      <div style={{ fontWeight: 800, color: (prod.stock ?? 0) > 0 ? '#10b981' : '#ef4444' }}>
+                        {(prod.stock ?? 0) > 0 ? `${prod.stock} uds` : '0 (Agotado)'}
                       </div>
                     </div>
                   </div>
@@ -349,6 +359,22 @@ export default function ProductsCatalogView({
                     Costo cargado por defecto en compras/gastos
                   </span>
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Stock Disponible en Almacén (Unidades):</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  className="form-control"
+                  placeholder="Ej: 20"
+                  value={newProductForm.stock}
+                  onChange={(e) => setNewProductForm({ ...newProductForm, stock: e.target.value })}
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '3px', display: 'block' }}>
+                  Cantidad disponible para vincular a chips NFC y vender inmediatamente
+                </span>
               </div>
 
               <div className="form-group">
