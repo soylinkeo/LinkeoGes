@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Trash2, ShieldAlert, Check } from 'lucide-react';
+import { Trash2, ShieldAlert } from 'lucide-react';
 
 export default function DeleteConfirmModal({
   isOpen,

@@ -3,41 +3,30 @@ import {
   TrendingUp, 
   DollarSign, 
   Package, 
-  Layers, 
   Users, 
   Calendar, 
-  CheckCircle, 
   Plus, 
   Trash2, 
-  RefreshCw, 
   Sliders, 
   Target, 
-  PieChart, 
   Filter, 
   Sparkles, 
-  ArrowUpRight, 
-  ArrowRight,
   Boxes,
   ShoppingBag,
-  ExternalLink,
   ShieldCheck,
   Zap,
-  HelpCircle,
   Shuffle,
   Edit3,
-  Check,
   RotateCcw,
   FileSpreadsheet,
-  Settings,
-  History
+  Settings
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
 import { 
   EXCEL_PLAN_30_DAYS_TEMPLATE, 
   EXCEL_FIXED_COSTS_TEMPLATE, 
   EXCEL_PROJECTED_PRODUCTS_TEMPLATE, 
-  EXCEL_INITIAL_INVESTMENT_TEMPLATE,
-  INITIAL_PROJECTIONS_DATA
+  EXCEL_INITIAL_INVESTMENT_TEMPLATE
 } from '../data/initialData';
 
 export default function ProjectionsView({
@@ -1066,12 +1055,23 @@ export default function ProjectionsView({
         </div>
       </div>
 
-      {/* Navegación por Sub-Pestañas */}
-      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-subtle)', marginBottom: '24px', overflowX: 'auto', paddingBottom: '4px' }}>
+      {/* Navegación por Sub-Pestañas Touch-Friendly */}
+      <div 
+        style={{ 
+          display: 'flex', 
+          gap: '8px', 
+          borderBottom: '1px solid var(--border-subtle)', 
+          marginBottom: '20px', 
+          overflowX: 'auto', 
+          whiteSpace: 'nowrap',
+          paddingBottom: '6px',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
         <button
           className={`btn btn-sm ${activeSubTab === 'goals' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSubTab('goals')}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
         >
           <Target size={15} />
           <span>🎯 Metas & Simulador Libre</span>
@@ -1080,7 +1080,7 @@ export default function ProjectionsView({
         <button
           className={`btn btn-sm ${activeSubTab === 'products' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSubTab('products')}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
         >
           <ShoppingBag size={15} />
           <span>🛍️ Mix de Productos ({projectedProducts.length})</span>
@@ -1089,7 +1089,7 @@ export default function ProjectionsView({
         <button
           className={`btn btn-sm ${activeSubTab === 'costs' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSubTab('costs')}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
         >
           <DollarSign size={15} />
           <span>💼 Gastos Fijos & Variables ({fixedCosts.length})</span>
@@ -1098,7 +1098,7 @@ export default function ProjectionsView({
         <button
           className={`btn btn-sm ${activeSubTab === 'funnel' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSubTab('funnel')}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
         >
           <Filter size={15} />
           <span>🚀 Embudo de Ventas & Inversión</span>
@@ -1107,7 +1107,7 @@ export default function ProjectionsView({
         <button
           className={`btn btn-sm ${activeSubTab === 'plan30' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveSubTab('plan30')}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
         >
           <Calendar size={15} />
           <span>📅 Plan de Acción 30 Días ({completedTasksCount}/{plan30Days.length})</span>
@@ -1582,7 +1582,7 @@ export default function ProjectionsView({
       {/* SUB-PESTAÑA 3: GASTOS FIJOS Y VARIABLES (EDITABLES Y AUDITADOS)           */}
       {/* ========================================================================= */}
       {activeSubTab === 'costs' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' }}>
           {/* Columna 1: Gastos Fijos Mensuales */}
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
@@ -1810,7 +1810,7 @@ export default function ProjectionsView({
       {/* SUB-PESTAÑA 4: EMBUDO COMERCIAL & INVERSIÓN INICIAL (EDITABLE & AUDITADO) */}
       {/* ========================================================================= */}
       {activeSubTab === 'funnel' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' }}>
           {/* Bloque 1: Embudo Comercial para Alcanzar la Meta */}
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>

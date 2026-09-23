@@ -170,6 +170,49 @@ CREATE TABLE IF NOT EXISTS products (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 11. TABLA: CREDENCIALES DE ACCESO Y SEGURIDAD HASHEADAS (USER_CREDENTIALS)
+CREATE TABLE IF NOT EXISTS user_credentials (
+    id TEXT PRIMARY KEY, -- 'luis' | 'kevin'
+    name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Inserción inicial de contraseñas por defecto hasheadas con SHA-256 (Clave inicial: 2109)
+INSERT INTO user_credentials (id, name, role, password_hash, salt) VALUES
+('luis', 'Luis Romero', 'Co-Fundador & Co-CEO | Dirección General (Comercial & Operaciones)', '0a7704cc2445a4d5987138e2196db1f8f575488e8f994c70c3c851295e512ada', 'linkeo_ges_salt_2026'),
+('kevin', 'Kevin Servat', 'Co-Fundador & Co-CEO | Dirección General (Comercial & Operaciones)', '0a7704cc2445a4d5987138e2196db1f8f575488e8f994c70c3c851295e512ada', 'linkeo_ges_salt_2026')
+ON CONFLICT (id) DO NOTHING;
+
+-- Habilitar Row Level Security (RLS) con acceso total mediante Anon Key
+-- 12. TABLA: PROYECCIONES FINANCIERAS & METAS (PROJECTIONS)
+CREATE TABLE IF NOT EXISTS projections (
+    id TEXT PRIMARY KEY DEFAULT 'current',
+    data JSONB NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Inserción inicial con valores base de proyecciones
+INSERT INTO projections (id, data) VALUES
+('current', '{
+  "businessParams": { "salesDaysPerMonth": 24, "partnersCount": 2, "businessProfitTarget": 0, "partnerProfitTarget": 0, "customProfitTarget": 4000 },
+  "fixedCosts": [],
+  "variableUnitCosts": { "packagingPerUnit": 0, "setupLaborPerUnit": 0, "paymentFeePercent": 0, "deliveryPerUnit": 0, "defectReservePerUnit": 0 },
+  "projectedProducts": [],
+  "initialInvestment": [],
+  "funnelRatios": { "contactToResponse": 0.35, "responseToDemo": 0.70, "demoToCustomer": 0.40, "unitsPerCustomer": 1.29 }
+}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
+-- 13. TABLA: PLAN 30 DÍAS COMERCIAL (PLAN_30_DAYS)
+CREATE TABLE IF NOT EXISTS plan_30_days (
+    id TEXT PRIMARY KEY DEFAULT 'current',
+    tasks JSONB NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Habilitar Row Level Security (RLS) con acceso total mediante Anon Key
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
@@ -181,6 +224,9 @@ ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE districts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_credentials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE plan_30_days ENABLE ROW LEVEL SECURITY;
 
 -- Políticas de lectura/escritura anónima (para uso interno autorizado mediante frontend)
 CREATE POLICY "Acceso total a sales" ON sales FOR ALL USING (true) WITH CHECK (true);
@@ -193,6 +239,9 @@ CREATE POLICY "Acceso total a calendar_events" ON calendar_events FOR ALL USING 
 CREATE POLICY "Acceso total a audit_logs" ON audit_logs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Acceso total a districts" ON districts FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Acceso total a products" ON products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a user_credentials" ON user_credentials FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a projections" ON projections FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a plan_30_days" ON plan_30_days FOR ALL USING (true) WITH CHECK (true);
 
 -- Habilitar Supabase Realtime para sincronización instantánea entre socios
 ALTER PUBLICATION supabase_realtime ADD TABLE sales;
@@ -203,4 +252,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE inventory;
 ALTER PUBLICATION supabase_realtime ADD TABLE calendar_events;
 ALTER PUBLICATION supabase_realtime ADD TABLE audit_logs;
 ALTER PUBLICATION supabase_realtime ADD TABLE products;
+ALTER PUBLICATION supabase_realtime ADD TABLE user_credentials;
+ALTER PUBLICATION supabase_realtime ADD TABLE projections;
+ALTER PUBLICATION supabase_realtime ADD TABLE plan_30_days;
 

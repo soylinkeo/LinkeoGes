@@ -6,17 +6,10 @@ import {
   Download, 
   Plus, 
   Users, 
-  CheckCircle, 
   Receipt, 
-  CreditCard, 
   ArrowRightLeft,
-  Calendar,
-  Layers,
-  Sparkles,
   Trash2,
-  Package,
-  Edit3,
-  Box
+  Edit3
 } from 'lucide-react';
 import { getAccountingMonth, ACCOUNTING_MONTHS } from '../utils/dateUtils';
 
@@ -36,7 +29,6 @@ export default function FinanceView({
   onAddNewProduct,
   onUpdateInventoryStock
 }) {
-  const [activeTab, setActiveTab] = useState('expenses'); // 'expenses' | 'sales' | 'balance'
   const [filterMonth, setFilterMonth] = useState('all');
   const [filterPartner, setFilterPartner] = useState('all');
   const [isNewExpenseModalOpen, setIsNewExpenseModalOpen] = useState(false);
@@ -261,7 +253,7 @@ export default function FinanceView({
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button className="btn btn-outline-excel" onClick={onExportExcel}>
             <Download size={16} />
             <span>Exportar Todo a Excel (.xlsx)</span>
@@ -280,20 +272,20 @@ export default function FinanceView({
           background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(59, 130, 246, 0.08) 100%)',
           border: '1px solid rgba(168, 85, 247, 0.3)',
           borderRadius: 'var(--radius-lg)',
-          padding: '24px 28px',
-          marginBottom: '32px',
+          padding: '18px 20px',
+          marginBottom: '24px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '20px'
+          gap: '16px'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           <div 
             style={{ 
-              width: '52px', 
-              height: '52px', 
+              width: '48px', 
+              height: '48px', 
               borderRadius: 'var(--radius-md)', 
               backgroundColor: 'rgba(168, 85, 247, 0.2)', 
               display: 'flex', 
@@ -401,10 +393,10 @@ export default function FinanceView({
             </h3>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: '100%', maxWidth: '420px' }}>
             <select 
               className="form-control" 
-              style={{ width: 'auto', padding: '6px 12px', fontSize: '0.82rem' }}
+              style={{ flex: '1 1 140px', minWidth: '130px', padding: '6px 10px', fontSize: '0.82rem' }}
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
             >
@@ -416,13 +408,13 @@ export default function FinanceView({
 
             <select 
               className="form-control" 
-              style={{ width: 'auto', padding: '6px 12px', fontSize: '0.82rem' }}
+              style={{ flex: '1 1 180px', minWidth: '150px', padding: '6px 10px', fontSize: '0.82rem' }}
               value={filterPartner}
               onChange={(e) => setFilterPartner(e.target.value)}
             >
               <option value="all">Todos los Socios</option>
-              <option value="luis">Pagado por Luis Romero (Co-CEO)</option>
-              <option value="kevin">Pagado por Kevin Servat (Co-CEO)</option>
+              <option value="luis">Luis Romero (Co-CEO)</option>
+              <option value="kevin">Kevin Servat (Co-CEO)</option>
             </select>
           </div>
         </div>

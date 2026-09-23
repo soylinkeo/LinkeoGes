@@ -5,27 +5,32 @@ import {
   Plus, 
   Minus, 
   Truck, 
-  ExternalLink, 
   CheckCircle, 
-  ShieldCheck, 
   Clock, 
   DollarSign, 
   Package, 
   Layers, 
   Trash2, 
-  Edit,
-  Shuffle,
-  RefreshCw,
-  Sparkles,
-  Search,
-  ChevronDown,
-  Check,
+  Edit, 
+  Shuffle, 
+  RefreshCw, 
+  Search, 
+  ChevronDown, 
+  Check, 
   X,
-  Building2
+  ShoppingBag,
+  Sparkles,
+  Compass,
+  Gift,
+  Percent,
+  Tag,
+  Info,
+  ArrowRight,
+  SlidersHorizontal
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
 
-// Función para parsear días de cadenas tipo "18 días", "3 - 5 días", etc.
+// Helper para parsear días de cadenas ("18 días", "3 - 5 días")
 const parseSupplierDays = (leadTime) => {
   if (typeof leadTime === 'number' && !isNaN(leadTime)) return leadTime;
   if (!leadTime) return null;
@@ -38,18 +43,13 @@ const parseSupplierDays = (leadTime) => {
   return singleMatch ? parseInt(singleMatch[1], 10) : null;
 };
 
-// Helpers para parsear y formatear campos estructurados de proveedores
 const parseLeadTimeFields = (leadTimeStr) => {
   if (!leadTimeStr) return { min: '3', max: '5' };
   const str = String(leadTimeStr).trim();
   const rangeMatch = str.match(/(\d+)\s*[-–a]\s*(\d+)/i);
-  if (rangeMatch) {
-    return { min: rangeMatch[1], max: rangeMatch[2] };
-  }
+  if (rangeMatch) return { min: rangeMatch[1], max: rangeMatch[2] };
   const singleMatch = str.match(/(\d+)/);
-  if (singleMatch) {
-    return { min: singleMatch[1], max: '' };
-  }
+  if (singleMatch) return { min: singleMatch[1], max: '' };
   return { min: '3', max: '5' };
 };
 
@@ -71,33 +71,46 @@ const parseMinOrderFields = (minOrderStr) => {
   const standardUnits = ['unidades', 'millares', 'paquetes', 'piezas', 'cajas', 'metros', 'lotes'];
   const matchedUnit = standardUnits.find(u => rest.includes(u.slice(0, 4)));
 
-  if (matchedUnit) {
-    return { qty, unit: matchedUnit, customUnit: '' };
-  }
-  if (rest) {
-    return { qty, unit: 'otro', customUnit: rest };
-  }
+  if (matchedUnit) return { qty, unit: matchedUnit, customUnit: '' };
+  if (rest) return { qty, unit: 'otro', customUnit: rest };
   return { qty, unit: 'unidades', customUnit: '' };
 };
 
 export default function InventoryView({
   inventory = [],
+  products = [],
   suppliers = [],
   onUpdateInventoryStock,
   onAddNewInventoryItem,
+  onAddNewProduct,
   onAddNewSupplier,
   onEditSupplier,
   onOpenNewExpense,
-  onRequestDelete
+  onRequestDelete,
+  initialSubTab = 'catalog'
 }) {
-  // Consolidar lista única de proveedores de la base de datos (Directorio + Histórico de Inventario)
-  // Consolidar lista de proveedores de la base de datos (Directorio oficial + Histórico de Inventario)
-  // Soporta múltiples insumos/categorías del mismo proveedor empresarial preservando su identidad única
+  // Subpestaña activa: 'catalog' (Catálogo & Packs) | 'stock' (Stock Físico & Insumos) | 'suppliers' (Proveedores)
+  const [activeSubTab, setActiveSubTab] = useState(initialSubTab);
+  const [showExplanation, setShowExplanation] = useState(true);
+
+  // Filtros del Catálogo
+  const [catalogCategory, setCatalogCategory] = useState('all');
+  const [catalogSearch, setCatalogSearch] = useState('');
+
+  // Modales
+  const [isPackModalOpen, setIsPackModalOpen] = useState(false);
+  const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
+  const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState(null);
+
+  // -------------------------------------------------------------
+  // PROVEEDORES CONSOLIDADOS
+  // -------------------------------------------------------------
   const dbSuppliersList = useMemo(() => {
     const list = [];
     const seenIds = new Set();
 
-    // 1. Proveedores oficiales registrados en el Directorio
     suppliers.forEach((s, idx) => {
       if (s && s.name && s.name.trim()) {
         const supId = s.id || `sup-${s.name.trim().toLowerCase()}-${(s.itemSupplied || idx).toString().toLowerCase()}`;
@@ -120,14 +133,12 @@ export default function InventoryView({
       }
     });
 
-    // 2. Proveedores registrados previamente en ítems de inventario que aún no estén en el directorio
     const directoryNames = new Set(suppliers.filter(s => s && s.name).map(s => s.name.trim().toLowerCase()));
     const seenInvSuppliers = new Set();
 
     inventory.forEach(inv => {
       if (inv && inv.supplier && inv.supplier.trim()) {
         const normName = inv.supplier.trim().toLowerCase();
-        // Solo agregar de inventario si no existe ya en el Directorio oficial
         if (!directoryNames.has(normName) && !seenInvSuppliers.has(normName)) {
           seenInvSuppliers.add(normName);
           list.push({
@@ -150,7 +161,216 @@ export default function InventoryView({
     return list;
   }, [suppliers, inventory]);
 
-  const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
+  // -------------------------------------------------------------
+  // FORMULARIO: PACK / PROMOCIÓN (UNIR PRODUCTOS)
+  // -------------------------------------------------------------
+  const [packForm, setPackForm] = useState({
+    name: '',
+    sku: generateRandomSku('LNK-PACK'),
+    badge: 'Pack Promocional',
+    promoPrice: '',
+    bundleComponents: [], // [{ id, sku, name, unitCost, quantity }]
+    description: ''
+  });
+
+  const handleOpenPackModal = () => {
+    // Si hay insumos en inventario, pre-seleccionar uno para facilitar al usuario
+    const initialComponents = inventory.length > 0
+      ? [{ id: inventory[0].id, sku: inventory[0].sku, name: inventory[0].name, unitCost: Number(inventory[0].unitCost) || 0, quantity: 2 }]
+      : [];
+
+    const totalInitCost = initialComponents.reduce((sum, c) => sum + (c.unitCost * c.quantity), 0);
+    const suggestedPrice = totalInitCost > 0 ? (totalInitCost * 2.5).toFixed(2) : '99.00';
+
+    setPackForm({
+      name: '',
+      sku: generateRandomSku('LNK-PACK'),
+      badge: '🔥 Pack Dúo',
+      promoPrice: suggestedPrice,
+      bundleComponents: initialComponents,
+      description: initialComponents.length > 0 
+        ? `Incluye: ${initialComponents.map(c => `${c.quantity}x ${c.name}`).join(' + ')}.` 
+        : ''
+    });
+    setIsPackModalOpen(true);
+  };
+
+  const handleAddComponentToPack = (invItem) => {
+    setPackForm(prev => {
+      const exists = prev.bundleComponents.find(c => c.id === invItem.id || c.sku === invItem.sku);
+      let updated;
+      if (exists) {
+        updated = prev.bundleComponents.map(c => 
+          (c.id === invItem.id || c.sku === invItem.sku) 
+            ? { ...c, quantity: c.quantity + 1 } 
+            : c
+        );
+      } else {
+        updated = [
+          ...prev.bundleComponents, 
+          { 
+            id: invItem.id, 
+            sku: invItem.sku, 
+            name: invItem.name, 
+            unitCost: Number(invItem.unitCost) || 0, 
+            quantity: 1 
+          }
+        ];
+      }
+      const desc = `Incluye: ${updated.map(c => `${c.quantity}x ${c.name}`).join(' + ')}.`;
+      return { ...prev, bundleComponents: updated, description: desc };
+    });
+  };
+
+  const handleUpdateComponentQty = (id, delta) => {
+    setPackForm(prev => {
+      const updated = prev.bundleComponents
+        .map(c => c.id === id ? { ...c, quantity: Math.max(0, c.quantity + delta) } : c)
+        .filter(c => c.quantity > 0);
+      const desc = `Incluye: ${updated.map(c => `${c.quantity}x ${c.name}`).join(' + ')}.`;
+      return { ...prev, bundleComponents: updated, description: desc };
+    });
+  };
+
+  const handleRemoveComponent = (id) => {
+    setPackForm(prev => {
+      const updated = prev.bundleComponents.filter(c => c.id !== id);
+      const desc = `Incluye: ${updated.map(c => `${c.quantity}x ${c.name}`).join(' + ')}.`;
+      return { ...prev, bundleComponents: updated, description: desc };
+    });
+  };
+
+  // Cálculos reactivos del Pack
+  const packTotalCost = useMemo(() => {
+    return packForm.bundleComponents.reduce((acc, c) => acc + (c.unitCost * c.quantity), 0);
+  }, [packForm.bundleComponents]);
+
+  // Precio regular estimado: suma de precios estimados individuales (aprox costo * 2.8 o si coincide con producto)
+  const packSuggestedRegularPrice = useMemo(() => {
+    let regularSum = 0;
+    packForm.bundleComponents.forEach(c => {
+      const matchedProd = products.find(p => p.sku === c.sku || p.name.toLowerCase().includes(c.name.toLowerCase()));
+      if (matchedProd && matchedProd.price) {
+        regularSum += Number(matchedProd.price) * c.quantity;
+      } else {
+        regularSum += (c.unitCost * 3) * c.quantity;
+      }
+    });
+    return Math.max(packTotalCost * 1.5, regularSum);
+  }, [packForm.bundleComponents, products, packTotalCost]);
+
+  const promoPriceNum = Number(packForm.promoPrice) || 0;
+  const packSavings = Math.max(0, packSuggestedRegularPrice - promoPriceNum);
+  const packDiscountPct = packSuggestedRegularPrice > 0 ? Math.round((packSavings / packSuggestedRegularPrice) * 100) : 0;
+  const packProfit = promoPriceNum - packTotalCost;
+  const packMarginPct = promoPriceNum > 0 ? Number(((packProfit / promoPriceNum) * 100).toFixed(1)) : 0;
+
+  const handleSavePack = (e) => {
+    e.preventDefault();
+    if (packForm.bundleComponents.length === 0) {
+      alert('⚠️ Por favor agrega al menos 1 insumo o producto al pack antes de guardarlo.');
+      return;
+    }
+
+    const finalSku = (packForm.sku && packForm.sku.trim()) || generateRandomSku('LNK-PACK');
+    const newPack = {
+      id: `prod-pack-${Date.now()}`,
+      name: packForm.name.trim(),
+      sku: finalSku,
+      category: 'Pack',
+      type: 'Pack Promocional',
+      price: promoPriceNum,
+      cost: Number(packTotalCost.toFixed(2)),
+      regularPrice: Number(packSuggestedRegularPrice.toFixed(2)),
+      stock: 25, // Unidades estimadas disponibles para armado
+      margin: Number(packProfit.toFixed(2)),
+      marginPct: packMarginPct,
+      badge: packForm.badge.trim() || 'Pack Promocional',
+      description: packForm.description.trim(),
+      bundleItems: packForm.bundleComponents
+    };
+
+    onAddNewProduct(newPack);
+    setIsPackModalOpen(false);
+  };
+
+  // -------------------------------------------------------------
+  // FORMULARIO: PRODUCTO INDIVIDUAL
+  // -------------------------------------------------------------
+  const [newProductForm, setNewProductForm] = useState({
+    name: '',
+    sku: generateRandomSku('LNK-PROD'),
+    category: 'Individual',
+    type: 'NFC Inteligente',
+    price: '',
+    cost: 13.00,
+    stock: 20,
+    badge: 'Nuevo Producto',
+    description: ''
+  });
+
+  const handleOpenNewProductModal = () => {
+    setNewProductForm({
+      name: '',
+      sku: generateRandomSku('LNK-PROD'),
+      category: 'Individual',
+      type: 'NFC Inteligente',
+      price: '',
+      cost: 13.00,
+      stock: 20,
+      badge: 'Nuevo Producto',
+      description: ''
+    });
+    setIsNewProductModalOpen(true);
+  };
+
+  // Publicar directamente desde un insumo físico de inventario al Catálogo
+  const handlePublishInventoryToCatalog = (invItem) => {
+    setNewProductForm({
+      name: invItem.name,
+      sku: generateRandomSku('LNK-PROD'),
+      category: 'Individual',
+      type: invItem.category || 'NFC Inteligente',
+      price: (Number(invItem.unitCost || 0) * 3).toFixed(2),
+      cost: Number(invItem.unitCost || 0),
+      stock: invItem.quantity || 20,
+      badge: 'Modelo Oficial',
+      description: `Producto fabricado con ${invItem.name}. Configurado con chip NFC de alta fidelidad para Google Reviews y enlace directo.`
+    });
+    setIsNewProductModalOpen(true);
+  };
+
+  const handleCreateProduct = (e) => {
+    e.preventDefault();
+    const priceNum = Number(newProductForm.price) || 0;
+    const costNum = Number(newProductForm.cost) || 0;
+    const marginNum = priceNum - costNum;
+    const marginPct = priceNum > 0 ? (marginNum / priceNum) * 100 : 0;
+    const stockNum = Math.max(0, parseInt(newProductForm.stock) || 0);
+    const finalSku = (newProductForm.sku && newProductForm.sku.trim()) || generateRandomSku('LNK-PROD');
+
+    const newProd = {
+      id: `prod-${Date.now()}`,
+      name: newProductForm.name,
+      sku: finalSku,
+      category: newProductForm.category,
+      type: newProductForm.type,
+      price: priceNum,
+      cost: costNum,
+      stock: stockNum,
+      margin: marginNum,
+      marginPct: Number(marginPct.toFixed(1)),
+      badge: newProductForm.badge,
+      description: newProductForm.description
+    };
+
+    onAddNewProduct(newProd);
+    setIsNewProductModalOpen(false);
+  };
+
+  // -------------------------------------------------------------
+  // FORMULARIO: NUEVO INSUMO / SKU EN INVENTARIO
+  // -------------------------------------------------------------
   const [newItemForm, setNewItemForm] = useState({
     sku: generateRandomSku('SKU-LNK'),
     name: '',
@@ -164,13 +384,11 @@ export default function InventoryView({
     notes: ''
   });
 
-  // Estados para el Combobox de Proveedor con tracking de ID específico
   const [supplierComboboxOpen, setSupplierComboboxOpen] = useState(false);
   const [supplierFilterQuery, setSupplierFilterQuery] = useState('');
   const [selectedSupplierId, setSelectedSupplierId] = useState(null);
   const comboboxRef = useRef(null);
 
-  // Cerrar menú al hacer clic fuera del combobox
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (comboboxRef.current && !comboboxRef.current.contains(e.target)) {
@@ -181,26 +399,14 @@ export default function InventoryView({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filtrado reactivo de proveedores
   const filteredSuppliers = useMemo(() => {
     const query = (supplierFilterQuery || '').trim().toLowerCase();
     if (!query) return dbSuppliersList;
     return dbSuppliersList.filter(s => 
       s.name.toLowerCase().includes(query) ||
-      (s.itemSupplied && s.itemSupplied.toLowerCase().includes(query)) ||
-      (s.reliability && s.reliability.toLowerCase().includes(query))
+      (s.itemSupplied && s.itemSupplied.toLowerCase().includes(query))
     );
   }, [dbSuppliersList, supplierFilterQuery]);
-
-  // Proveedor verificado exacto en la base de datos (prioriza coincidencia por ID específico de insumo)
-  const matchedSupplier = useMemo(() => {
-    if (selectedSupplierId) {
-      const byId = dbSuppliersList.find(s => s.id === selectedSupplierId);
-      if (byId) return byId;
-    }
-    if (!newItemForm.supplier || !newItemForm.supplier.trim()) return null;
-    return dbSuppliersList.find(s => s.name.toLowerCase() === newItemForm.supplier.trim().toLowerCase());
-  }, [dbSuppliersList, newItemForm.supplier, selectedSupplierId]);
 
   const handleSelectSupplier = (sup) => {
     setSelectedSupplierId(sup.id);
@@ -211,7 +417,6 @@ export default function InventoryView({
     setNewItemForm(prev => ({
       ...prev,
       supplier: sup.name,
-      // Si el nombre del insumo no se ha definido, sugerir el producto suministrado por este proveedor
       name: !prev.name.trim() ? sup.itemSupplied : prev.name,
       unitCost: autoCost !== null && (!prev.unitCost || prev.unitCost === 4.00) ? autoCost : prev.unitCost,
       leadTimeDays: leadDays,
@@ -223,11 +428,7 @@ export default function InventoryView({
 
   const handleOpenNewItemModal = () => {
     const defaultSup = dbSuppliersList.length > 0 ? dbSuppliersList[0] : null;
-    const defaultSupName = defaultSup ? defaultSup.name : '';
-    const defaultLeadDays = defaultSup ? (defaultSup.leadTimeDays || 15) : 15;
-    const defaultSupId = defaultSup ? defaultSup.id : null;
-
-    setSelectedSupplierId(defaultSupId);
+    setSelectedSupplierId(defaultSup?.id || null);
     setNewItemForm({
       sku: generateRandomSku('SKU-LNK'),
       name: '',
@@ -235,19 +436,40 @@ export default function InventoryView({
       quantity: 50,
       minThreshold: 20,
       unitCost: 4.00,
-      supplier: defaultSupName,
-      leadTimeDays: defaultLeadDays,
+      supplier: defaultSup ? defaultSup.name : '',
+      leadTimeDays: defaultSup ? defaultSup.leadTimeDays : 15,
       reorderUrl: '',
       notes: ''
     });
-    setSupplierFilterQuery(defaultSupName);
+    setSupplierFilterQuery(defaultSup ? defaultSup.name : '');
     setSupplierComboboxOpen(false);
     setIsNewItemModalOpen(true);
   };
 
-  // Estado para Crear / Editar Proveedores con formato numérico y tipado estricto
-  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState(null);
+  const handleCreateItem = (e) => {
+    e.preventDefault();
+    const finalSku = (newItemForm.sku && newItemForm.sku.trim()) || generateRandomSku('SKU-LNK');
+    const item = {
+      id: `inv-${Date.now()}`,
+      sku: finalSku,
+      name: newItemForm.name,
+      category: newItemForm.category,
+      quantity: Number(newItemForm.quantity) || 0,
+      minThreshold: Number(newItemForm.minThreshold) || 20,
+      unitCost: Number(newItemForm.unitCost) || 0,
+      supplier: newItemForm.supplier,
+      leadTimeDays: Number(newItemForm.leadTimeDays) || 15,
+      reorderUrl: newItemForm.reorderUrl,
+      notes: newItemForm.notes
+    };
+
+    onAddNewInventoryItem(item);
+    setIsNewItemModalOpen(false);
+  };
+
+  // -------------------------------------------------------------
+  // FORMULARIO: PROVEEDOR
+  // -------------------------------------------------------------
   const [supplierForm, setSupplierForm] = useState({
     name: '',
     itemSupplied: '',
@@ -307,8 +529,6 @@ export default function InventoryView({
 
   const handleSaveSupplier = (e) => {
     e.preventDefault();
-
-    // 1. Formatear Tiempo Estimado de Entrega (solo números contabilizables)
     const minDays = parseInt(supplierForm.leadTimeMin, 10);
     const maxDays = parseInt(supplierForm.leadTimeMax, 10);
     let formattedLeadTime = '3 - 5 días';
@@ -325,13 +545,11 @@ export default function InventoryView({
       avgDays = maxDays;
     }
 
-    // 2. Formatear Costo Unitario Promedio (con moneda garantizada y valor numérico)
     const costVal = parseFloat(supplierForm.unitCostValue);
     const formattedCost = !isNaN(costVal)
       ? `${supplierForm.costCurrency} ${costVal.toFixed(2)}`
       : `${supplierForm.costCurrency} 0.00`;
 
-    // 3. Formatear Pedido Mínimo (cantidad numérica + tipo de unidad)
     const orderQty = parseInt(supplierForm.minOrderQty, 10) || 1;
     const orderUnit = supplierForm.minOrderUnit === 'otro'
       ? (supplierForm.customMinOrderUnit.trim() || 'unidades')
@@ -352,392 +570,1162 @@ export default function InventoryView({
     };
 
     if (editingSupplier) {
-      if (onEditSupplier) {
-        onEditSupplier({
-          ...editingSupplier,
-          ...supplierPayload
-        });
-      }
+      if (onEditSupplier) onEditSupplier({ ...editingSupplier, ...supplierPayload });
     } else {
-      const newSup = {
-        id: `sup-${Date.now()}`,
-        ...supplierPayload
-      };
-      if (onAddNewSupplier) {
-        onAddNewSupplier(newSup);
-      }
-      // Si el modal de nuevo ítem está abierto, vincular de inmediato este nuevo proveedor
-      if (isNewItemModalOpen) {
-        setNewItemForm(prev => ({
-          ...prev,
-          supplier: newSup.name,
-          name: !prev.name.trim() ? newSup.itemSupplied : prev.name,
-          leadTimeDays: avgDays
-        }));
-        setSelectedSupplierId(newSup.id);
-        setSupplierFilterQuery(newSup.name);
-      }
+      const newSup = { id: `sup-${Date.now()}`, ...supplierPayload };
+      if (onAddNewSupplier) onAddNewSupplier(newSup);
     }
     setIsSupplierModalOpen(false);
   };
 
-  // Identificar items en stock crítico (< threshold)
-  const lowStockItems = inventory.filter(i => i.quantity <= i.minThreshold);
+  // -------------------------------------------------------------
+  // MÉTRICAS & ALERTAS DE STOCK FÍSICO
+  // -------------------------------------------------------------
+  const lowStockItems = inventory.filter(i => (Number(i.quantity) || 0) <= (Number(i.minThreshold) || 10));
   const totalStockUnits = inventory.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0);
   const totalStockValue = inventory.reduce((acc, i) => acc + ((Number(i.quantity) || 0) * (Number(i.unitCost) || 0)), 0);
 
-  const handleAdjustStock = (itemId, delta) => {
-    onUpdateInventoryStock(itemId, delta);
-  };
+  // Filtrado de Productos del Catálogo
+  const filteredProducts = products.filter(p => {
+    const matchCat = catalogCategory === 'all' || p.category === catalogCategory;
+    const matchText = !catalogSearch.trim() || 
+      p.name.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+      p.sku.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+      (p.badge && p.badge.toLowerCase().includes(catalogSearch.toLowerCase()));
+    return matchCat && matchText;
+  });
 
-  const handleCreateItem = (e) => {
-    e.preventDefault();
-    const finalSku = (newItemForm.sku && newItemForm.sku.trim()) || generateRandomSku('SKU-LNK');
-    const item = {
-      id: `inv-${Date.now()}`,
-      sku: finalSku,
-      name: newItemForm.name,
-      category: newItemForm.category,
-      quantity: Number(newItemForm.quantity) || 0,
-      minThreshold: Number(newItemForm.minThreshold) || 20,
-      unitCost: Number(newItemForm.unitCost) || 0,
-      supplier: newItemForm.supplier,
-      leadTimeDays: Number(newItemForm.leadTimeDays) || 15,
-      reorderUrl: newItemForm.reorderUrl,
-      notes: newItemForm.notes
-    };
-
-    onAddNewInventoryItem(item);
-    setIsNewItemModalOpen(false);
-    setNewItemForm({
-      sku: generateRandomSku('SKU-LNK'),
-      name: '',
-      category: 'Chips / Insumos',
-      quantity: 50,
-      minThreshold: 20,
-      unitCost: 4.00,
-      supplier: 'AliExpress Official RFID Store',
-      leadTimeDays: 18,
-      reorderUrl: '',
-      notes: ''
-    });
-  };
+  const individualCount = products.filter(p => p.category === 'Individual').length;
+  const packsCount = products.filter(p => p.category === 'Pack').length;
+  const innovationsCount = products.filter(p => p.category === 'Innovacion').length;
 
   return (
     <div className="inventory-view">
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px', flexWrap: 'wrap', gap: '16px' }}>
+      {/* HEADER PRINCIPAL */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
             <div style={{ background: 'rgba(0, 102, 255, 0.12)', padding: '8px', borderRadius: 'var(--radius-md)', color: 'var(--primary-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Boxes size={24} />
             </div>
             <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0 }}>
-              Control de Inventario & Alertas de Proveedores
+              Almacén & Inventario Integral
             </h2>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
-            Stock diferenciado de insumos vírgenes, acrílicos, empaques y tiempos de importación de AliExpress.
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: '4px 0 0 0', maxWidth: '820px' }}>
+            Módulo unificado para gestionar el <strong>Catálogo Comercial (Packs y Precios de Venta)</strong>, el <strong>Stock Físico (Insumos y Piezas)</strong> y la <strong>Logística de Proveedores</strong> con descuento automático de piezas en cada venta.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="btn btn-secondary" onClick={onOpenNewExpense}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary" onClick={onOpenNewExpense} title="Registrar gasto de compra de insumos">
             <DollarSign size={16} />
             <span>Registrar Compra / Gasto</span>
           </button>
-          <button className="btn btn-primary" onClick={handleOpenNewItemModal}>
-            <Plus size={16} />
-            <span>Agregar Insumo / SKU</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Banner de Alerta Crítica si hay Stock Bajo */}
-      {lowStockItems.length > 0 && (
-        <div 
-          style={{
-            backgroundColor: 'rgba(245, 158, 11, 0.12)',
-            border: '1px solid rgba(245, 158, 11, 0.4)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '18px 22px',
-            marginBottom: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '16px'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <AlertTriangle size={32} color="#f59e0b" style={{ flexShrink: 0 }} />
-            <div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '4px' }}>
-                ⚠️ Alerta de Quiebre de Stock: {lowStockItems[0].name}
-              </h3>
-              <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0 }}>
-                Stock actual: <strong style={{ color: '#f59e0b' }}>{lowStockItems[0].quantity} unidades</strong> (Umbral mínimo de reposición: {lowStockItems[0].minThreshold} uds).
-                Considerando los <strong>15 a 18 días hábiles</strong> de transporte desde China vía AliExpress, se debe emitir orden para evitar desabastecimiento.
-              </p>
-            </div>
-          </div>
-
-          <a 
-            href={lowStockItems[0].reorderUrl || 'https://es.aliexpress.com/wholesale?SearchText=ntag215+nfc+card'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary"
-            style={{ textDecoration: 'none' }}
-          >
-            <Truck size={16} />
-            <span>Reordenar en AliExpress</span>
-          </a>
-        </div>
-      )}
-
-      {/* Métricas de Inventario */}
-      <div className="metrics-grid" style={{ marginBottom: '24px' }}>
-        <div className="kpi-card">
-          <div className="kpi-header">
-            <span className="kpi-label">Unidades en Almacén</span>
-            <div className="kpi-icon-wrapper">
-              <Package size={18} />
-            </div>
-          </div>
-          <div className="kpi-value">{totalStockUnits} uds</div>
-          <div className="kpi-subtext">Sumatoria de todos los SKUs físicos</div>
-        </div>
-
-        <div className="kpi-card kpi-green">
-          <div className="kpi-header">
-            <span className="kpi-label">Valor Total en Stock</span>
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-              <DollarSign size={18} />
-            </div>
-          </div>
-          <div className="kpi-value">S/ {totalStockValue.toFixed(2)}</div>
-          <div className="kpi-subtext">Valorizado a costo unitario de compra</div>
-        </div>
-
-        <div className="kpi-card kpi-yellow">
-          <div className="kpi-header">
-            <span className="kpi-label">Alertas Activas</span>
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
-              <AlertTriangle size={18} />
-            </div>
-          </div>
-          <div className="kpi-value" style={{ color: lowStockItems.length > 0 ? '#f59e0b' : '#10b981' }}>
-            {lowStockItems.length} {lowStockItems.length === 1 ? 'insumo' : 'insumos'}
-          </div>
-          <div className="kpi-subtext">Por debajo o cerca del umbral mínimo</div>
-        </div>
-      </div>
-
-      {/* Tabla de Stock por Insumo */}
-      <div className="card" style={{ marginBottom: '24px' }}>
-        <div className="card-header">
-          <h3 className="card-title">
-            <Layers size={18} color="var(--primary-600)" />
-            <span>Detalle de Insumos y Materiales</span>
-          </h3>
-        </div>
-
-        <div className="table-responsive">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>SKU</th>
-                <th>Nombre del Material</th>
-                <th>Categoría</th>
-                <th>Stock Actual</th>
-                <th>Mínimo Alerta</th>
-                <th>Costo Unit. (S/)</th>
-                <th>Proveedor</th>
-                <th>Días Envío</th>
-                <th>Estado</th>
-                <th style={{ textAlign: 'center' }}>Ajuste & Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inventory.map(item => {
-                const isLow = item.quantity <= item.minThreshold;
-                return (
-                  <tr key={item.id}>
-                    <td><span className="code-mono">{item.sku}</span></td>
-                    <td>
-                      <strong style={{ fontSize: '0.9rem' }}>{item.name}</strong>
-                      {item.notes && (
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          {item.notes}
-                        </div>
-                      )}
-                    </td>
-                    <td><span className="badge badge-blue">{item.category}</span></td>
-                    <td style={{ fontWeight: 800, fontSize: '1rem', color: isLow ? '#f59e0b' : 'var(--text-main)' }}>
-                      {item.quantity} uds
-                    </td>
-                    <td>{item.minThreshold} uds</td>
-                    <td>S/ {Number(item.unitCost).toFixed(2)}</td>
-                    <td>{item.supplier}</td>
-                    <td>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
-                        <Clock size={12} /> {item.leadTimeDays} días
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`badge ${isLow ? 'badge-yellow' : 'badge-green'}`}>
-                        {isLow ? '⚠️ Stock Bajo' : '✓ Óptimo'}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <button 
-                          className="btn-icon" 
-                          style={{ width: '28px', height: '28px' }}
-                          onClick={() => handleAdjustStock(item.id, -1)}
-                          title="Restar 1 unidad (ej. por venta o prueba)"
-                        >
-                          <Minus size={13} />
-                        </button>
-                        <button 
-                          className="btn-icon" 
-                          style={{ width: '28px', height: '28px' }}
-                          onClick={() => handleAdjustStock(item.id, 1)}
-                          title="Sumar 1 unidad"
-                        >
-                          <Plus size={13} />
-                        </button>
-                        <button 
-                          className="btn-icon" 
-                          style={{ width: '28px', height: '28px', color: '#ef4444', marginLeft: '4px' }}
-                          onClick={() => onRequestDelete && onRequestDelete(item, 'Insumo')}
-                          title="Eliminar insumo del inventario (con auditoría)"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Directorio de Proveedores y Logística */}
-      <div className="card">
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h3 className="card-title" style={{ margin: 0 }}>
-              <Truck size={18} color="var(--primary-600)" />
-              <span>Directorio de Proveedores y Logística de Reabastecimiento</span>
-            </h3>
-            <span className="badge badge-blue">{suppliers.length} Proveedores Validados</span>
-          </div>
-          <button 
-            className="btn btn-primary btn-sm" 
-            onClick={handleOpenAddSupplier}
-            title="Registrar nuevo proveedor de insumos"
-          >
-            <Plus size={14} />
-            <span>Agregar Proveedor</span>
-          </button>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
-          {suppliers.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '36px 16px', gridColumn: '1 / -1', color: 'var(--text-muted)' }}>
-              <Truck size={36} style={{ opacity: 0.3, marginBottom: '10px' }} />
-              <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '4px' }}>No hay proveedores registrados</h4>
-              <p style={{ fontSize: '0.84rem', margin: '0 auto 16px auto', maxWidth: '420px' }}>
-                Registra proveedores locales o internacionales para llevar el control de insumos, costos, tiempos de entrega y contacto.
-              </p>
-              <button className="btn btn-primary btn-sm" onClick={handleOpenAddSupplier}>
-                <Plus size={14} /> Agregar Proveedor
+          {activeSubTab === 'catalog' && (
+            <>
+              <button className="btn btn-primary" onClick={handleOpenPackModal}>
+                <Gift size={16} />
+                <span>+ Crear Pack / Promoción</span>
               </button>
-            </div>
-          ) : (
-            suppliers.map(sup => (
-              <div 
-                key={sup.id}
-                style={{
-                  backgroundColor: 'var(--bg-input)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '16px',
-                  border: '1px solid var(--border-subtle)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between'
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <h4 style={{ fontSize: '1rem', fontWeight: 800 }}>{sup.name}</h4>
-                    <span style={{ fontSize: '0.8rem' }}>{sup.reliability}</span>
-                  </div>
-
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                    📦 <strong>Suministra:</strong> {sup.itemSupplied}
-                  </div>
-
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                    <div>⏱️ <strong>Tiempo estimado:</strong> {sup.leadTime}</div>
-                    <div>💰 <strong>Costo estimado:</strong> {sup.unitCostAvg}</div>
-                    <div>📦 <strong>Pedido mínimo:</strong> {sup.minOrder}</div>
-                    <div>📞 <strong>Contacto:</strong> {sup.contact}</div>
-                  </div>
-
-                  {sup.notes && (
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
-                      💡 {sup.notes}
-                    </p>
-                  )}
-                </div>
-
-                {/* Acciones de Edición y Eliminación Auditada */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
-                  <button 
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '4px 10px', fontSize: '0.76rem', gap: '4px' }}
-                    onClick={() => handleOpenEditSupplier(sup)}
-                    title="Editar información de proveedor"
-                  >
-                    <Edit size={12} />
-                    <span>Editar</span>
-                  </button>
-                  <button 
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '4px 10px', fontSize: '0.76rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '4px' }}
-                    onClick={() => onRequestDelete && onRequestDelete(sup, 'Proveedor')}
-                    title="Eliminar proveedor (Auditoría obligatoria)"
-                  >
-                    <Trash2 size={12} />
-                    <span>Eliminar</span>
-                  </button>
-                </div>
-              </div>
-            ))
+              <button className="btn btn-secondary" onClick={handleOpenNewProductModal}>
+                <Plus size={16} />
+                <span>+ Producto Individual</span>
+              </button>
+            </>
+          )}
+          {activeSubTab === 'stock' && (
+            <button className="btn btn-primary" onClick={handleOpenNewItemModal}>
+              <Plus size={16} />
+              <span>+ Agregar Insumo / SKU</span>
+            </button>
+          )}
+          {activeSubTab === 'suppliers' && (
+            <button className="btn btn-primary" onClick={handleOpenAddSupplier}>
+              <Plus size={16} />
+              <span>+ Agregar Proveedor</span>
+            </button>
           )}
         </div>
       </div>
 
-      {/* MODAL: Nuevo SKU / Insumo */}
+      {/* GUÍA DIDÁCTICA: DIFERENCIA ENTRE INVENTARIO Y ALMACÉN */}
+      {showExplanation && (
+        <div 
+          style={{
+            background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.07) 0%, rgba(16, 185, 129, 0.05) 100%)',
+            border: '1px solid rgba(0, 102, 255, 0.22)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: '20px',
+            position: 'relative'
+          }}
+        >
+          <button 
+            onClick={() => setShowExplanation(false)}
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '4px'
+            }}
+            title="Ocultar explicación"
+          >
+            <X size={16} />
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <div style={{ color: 'var(--primary-600)', marginTop: '2px' }}>
+              <Info size={20} />
+            </div>
+            <div style={{ fontSize: '0.84rem', lineHeight: 1.5 }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, margin: '0 0 6px 0', color: 'var(--text-main)' }}>
+                💡 ¿Cuál es la diferencia entre Inventario y Almacén en LinkeoGes?
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '12px', marginTop: '8px' }}>
+                <div style={{ background: 'var(--bg-card)', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                  <strong style={{ color: 'var(--primary-600)' }}>📦 Stock Físico (Inventario):</strong>
+                  <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                    Son las piezas y materias primas en bodega (tarjetas vírgenes PVC, chips NTAG213, bases de acrílico en L, empaques). Controlas unidades reales, costos de importación de AliExpress y umbrales mínimos.
+                  </p>
+                </div>
+                <div style={{ background: 'var(--bg-card)', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                  <strong style={{ color: '#10b981' }}>🛍️ Almacén Comercial (Catálogo & Packs):</strong>
+                  <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                    Es lo que ofreces al cliente final con precio oficial de venta (S/), ganancia y ofertas. Puedes <strong>unir múltiples insumos en un Pack</strong> (ej. 2 tarjetas + 1 base acrílica con 15% dcto). Al venderlo, el sistema descuenta automáticamente cada pieza del stock físico.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUBTABS DE NAVEGACIÓN */}
+      <div className="subtabs-bar">
+        <button 
+          className={`subtab-btn ${activeSubTab === 'catalog' ? 'active' : ''}`}
+          onClick={() => setActiveSubTab('catalog')}
+        >
+          <ShoppingBag size={18} />
+          <span>Catálogo Comercial & Packs Promocionales ({products.length})</span>
+        </button>
+
+        <button 
+          className={`subtab-btn ${activeSubTab === 'stock' ? 'active' : ''}`}
+          onClick={() => setActiveSubTab('stock')}
+        >
+          <Boxes size={18} />
+          <span>Stock Físico & Insumos ({inventory.length})</span>
+          {lowStockItems.length > 0 && (
+            <span className="badge badge-yellow" style={{ fontSize: '0.68rem', padding: '1px 6px', marginLeft: '2px' }}>
+              ⚠️ {lowStockItems.length} alertas
+            </span>
+          )}
+        </button>
+
+        <button 
+          className={`subtab-btn ${activeSubTab === 'suppliers' ? 'active' : ''}`}
+          onClick={() => setActiveSubTab('suppliers')}
+        >
+          <Truck size={18} />
+          <span>Proveedores & Logística ({suppliers.length})</span>
+        </button>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* PESTAÑA 1: CATÁLOGO COMERCIAL & PACKS PROMOCIONALES                       */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'catalog' && (
+        <div className="catalog-subtab">
+          {/* Barra de Filtros y Búsqueda */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button 
+                className={`btn btn-sm ${catalogCategory === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setCatalogCategory('all')}
+              >
+                Todos ({products.length})
+              </button>
+              <button 
+                className={`btn btn-sm ${catalogCategory === 'Pack' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setCatalogCategory('Pack')}
+              >
+                🎁 Packs Promocionales ({packsCount})
+              </button>
+              <button 
+                className={`btn btn-sm ${catalogCategory === 'Individual' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setCatalogCategory('Individual')}
+              >
+                Modelos Individuales ({individualCount})
+              </button>
+              <button 
+                className={`btn btn-sm ${catalogCategory === 'Innovacion' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setCatalogCategory('Innovacion')}
+              >
+                Próximas Innovaciones ({innovationsCount})
+              </button>
+            </div>
+
+            <div style={{ position: 'relative', minWidth: '220px' }}>
+              <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input 
+                type="text" 
+                className="form-control"
+                style={{ paddingLeft: '32px', fontSize: '0.84rem' }}
+                placeholder="Buscar por nombre, SKU..."
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Grid de Productos y Packs */}
+          {filteredProducts.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '48px 24px', backgroundColor: 'var(--bg-card)', marginBottom: '24px' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius-full)', backgroundColor: 'rgba(0, 102, 255, 0.1)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-600)', marginBottom: '16px' }}>
+                <ShoppingBag size={28} />
+              </div>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '6px' }}>
+                No hay productos en esta categoría
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', maxWidth: '480px', margin: '0 auto 20px auto' }}>
+                {catalogCategory === 'Pack'
+                  ? 'Aún no has creado ningún combo o promoción. Puedes unir varios insumos (ej. 2 tarjetas + 1 base acrílica) con un descuento atractivo para tus clientes.'
+                  : 'No se encontraron productos coincidentes con los filtros seleccionados.'}
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                <button className="btn btn-primary" onClick={handleOpenPackModal}>
+                  <Gift size={16} />
+                  <span>+ Crear Pack / Promoción</span>
+                </button>
+                <button className="btn btn-secondary" onClick={handleOpenNewProductModal}>
+                  <Plus size={16} />
+                  <span>+ Producto Individual</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '20px' }}>
+              {filteredProducts.map(prod => {
+                const isPack = prod.category === 'Pack' || (prod.bundleItems && prod.bundleItems.length > 0);
+                const hasDiscount = prod.regularPrice && prod.regularPrice > prod.price;
+
+                return (
+                  <div 
+                    key={prod.id} 
+                    className="card"
+                    style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      justifyContent: 'space-between',
+                      position: 'relative',
+                      border: isPack ? '1px solid rgba(0, 102, 255, 0.35)' : '1px solid var(--border-color)',
+                      boxShadow: isPack ? '0 4px 20px rgba(0, 102, 255, 0.08)' : 'none'
+                    }}
+                  >
+                    <div>
+                      {/* Badges superiores y botón de eliminar */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <span className="code-mono" style={{ fontSize: '0.78rem' }}>{prod.sku}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span className={`badge ${
+                            prod.badge?.includes('🔥') || prod.badge?.includes('Dúo') || prod.badge?.includes('Pack') ? 'badge-blue' :
+                            prod.badge?.includes('👑') || prod.badge?.includes('Vendido') ? 'badge-yellow' :
+                            prod.badge?.includes('Ahorra') || prod.badge?.includes('2x1') ? 'badge-red' : 'badge-green'
+                          }`}>
+                            {prod.badge || (isPack ? 'Pack Especial' : 'Catálogo')}
+                          </span>
+                          <button 
+                            className="btn-icon" 
+                            style={{ width: '28px', height: '28px', color: '#ef4444' }}
+                            onClick={() => onRequestDelete && onRequestDelete(prod, 'Producto')}
+                            title="Eliminar producto del catálogo (Auditoría)"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Nombre y Tipo */}
+                      <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 4px 0', lineHeight: 1.3 }}>
+                        {prod.name}
+                      </h3>
+                      <div style={{ fontSize: '0.8rem', color: isPack ? 'var(--primary-600)' : 'var(--text-muted)', fontWeight: 600, marginBottom: '12px' }}>
+                        {isPack ? '🎁 Pack Combinado (Auto-descuenta componentes)' : (prod.type || 'Modelo Individual')}
+                      </div>
+
+                      {/* Si es Pack: Mostrar Lista de Componentes Vinculados */}
+                      {isPack && prod.bundleItems && prod.bundleItems.length > 0 && (
+                        <div style={{ 
+                          backgroundColor: 'var(--bg-input)', 
+                          padding: '10px 12px', 
+                          borderRadius: 'var(--radius-md)', 
+                          border: '1px dashed rgba(0, 102, 255, 0.3)',
+                          marginBottom: '14px'
+                        }}>
+                          <div style={{ fontSize: '0.74rem', color: 'var(--text-subtle)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                            📦 Componentes incluidos en este Pack:
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {prod.bundleItems.map((bi, idx) => (
+                              <span key={idx} className="bundle-component-tag">
+                                <strong>{bi.quantity}x</strong> {bi.name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Pricing & Margen */}
+                      <div style={{ 
+                        backgroundColor: 'var(--bg-input)', 
+                        padding: '12px', 
+                        borderRadius: 'var(--radius-md)', 
+                        border: '1px solid var(--border-subtle)',
+                        marginBottom: '14px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                            {isPack ? 'Precio Promoción:' : 'Precio Oficial:'}
+                          </span>
+                          <div style={{ textAlign: 'right' }}>
+                            {hasDiscount && (
+                              <span style={{ fontSize: '0.85rem', color: 'var(--text-subtle)', textDecoration: 'line-through', marginRight: '8px' }}>
+                                S/ {Number(prod.regularPrice).toFixed(2)}
+                              </span>
+                            )}
+                            <span style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)' }}>
+                              S/ {Number(prod.price).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', fontSize: '0.78rem', paddingTop: '8px', borderTop: '1px dashed var(--border-subtle)' }}>
+                          <div>
+                            <span style={{ color: 'var(--text-subtle)' }}>Costo Total:</span>
+                            <div style={{ fontWeight: 700, color: 'var(--google-red)' }}>S/ {Number(prod.cost).toFixed(2)}</div>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-subtle)' }}>Ganancia:</span>
+                            <div style={{ fontWeight: 700, color: 'var(--google-green)' }}>
+                              S/ {Number(prod.margin).toFixed(2)} ({prod.marginPct}%)
+                            </div>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--text-subtle)' }}>Disponibilidad:</span>
+                            <div style={{ fontWeight: 800, color: '#10b981' }}>
+                              {isPack ? 'Ensamblado Inmediato' : `${prod.stock || 20} uds`}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Descripción */}
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.4, margin: 0 }}>
+                        {prod.description}
+                      </p>
+                    </div>
+
+                    <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                        ✓ Listo para facturación & ventas
+                      </span>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--primary-600)', fontWeight: 600 }}>
+                        ✓ Google Reviews Ready
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Banner de Innovación */}
+          <div 
+            style={{
+              marginTop: '32px',
+              background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%)',
+              border: '1px dashed rgba(0, 102, 255, 0.35)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '22px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '16px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', background: 'rgba(0, 102, 255, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-600)' }}>
+                <Compass size={24} />
+              </div>
+              <div>
+                <h4 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 4px 0' }}>
+                  ¿Deseas lanzar una nueva línea o promoción especial?
+                </h4>
+                <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0, maxWidth: '650px' }}>
+                  Puedes diseñar promociones para restaurantes o eventos uniendo varias tarjetas con displays de acrílico. LinkeoGes sincroniza todo automáticamente con Supabase.
+                </p>
+              </div>
+            </div>
+
+            <button className="btn btn-primary" onClick={handleOpenPackModal}>
+              <Sparkles size={16} />
+              <span>Crear Nuevo Pack Promocional</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* PESTAÑA 2: STOCK FÍSICO & INSUMOS                                         */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'stock' && (
+        <div className="stock-subtab">
+          {/* Banner de Alerta Crítica si hay Stock Bajo */}
+          {lowStockItems.length > 0 && (
+            <div 
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '16px 20px',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '16px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <AlertTriangle size={30} color="#f59e0b" style={{ flexShrink: 0 }} />
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '3px' }}>
+                    ⚠️ Alerta de Quiebre de Stock: {lowStockItems[0].name}
+                  </h3>
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0 }}>
+                    Stock actual: <strong style={{ color: '#f59e0b' }}>{lowStockItems[0].quantity} unidades</strong> (Mínimo de seguridad: {lowStockItems[0].minThreshold} uds).
+                    Considerando tiempos de importación de <strong>{lowStockItems[0].leadTimeDays || 15} días</strong>, se recomienda reordenar pronto.
+                  </p>
+                </div>
+              </div>
+
+              <a 
+                href={lowStockItems[0].reorderUrl || 'https://es.aliexpress.com/wholesale?SearchText=ntag215+nfc+card'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+                style={{ textDecoration: 'none' }}
+              >
+                <Truck size={16} />
+                <span>Reordenar en AliExpress</span>
+              </a>
+            </div>
+          )}
+
+          {/* KPIs de Stock Físico */}
+          <div className="metrics-grid" style={{ marginBottom: '22px' }}>
+            <div className="kpi-card">
+              <div className="kpi-header">
+                <span className="kpi-label">Unidades Físicas en Bodega</span>
+                <div className="kpi-icon-wrapper">
+                  <Package size={18} />
+                </div>
+              </div>
+              <div className="kpi-value">{totalStockUnits} uds</div>
+              <div className="kpi-subtext">Sumatoria de todos los insumos y materiales</div>
+            </div>
+
+            <div className="kpi-card kpi-green">
+              <div className="kpi-header">
+                <span className="kpi-label">Valor Total en Stock</span>
+                <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                  <DollarSign size={18} />
+                </div>
+              </div>
+              <div className="kpi-value">S/ {totalStockValue.toFixed(2)}</div>
+              <div className="kpi-subtext">Valorizado al costo unitario de compra</div>
+            </div>
+
+            <div className="kpi-card kpi-yellow">
+              <div className="kpi-header">
+                <span className="kpi-label">Alertas de Reposición</span>
+                <div className="kpi-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
+                  <AlertTriangle size={18} />
+                </div>
+              </div>
+              <div className="kpi-value" style={{ color: lowStockItems.length > 0 ? '#f59e0b' : '#10b981' }}>
+                {lowStockItems.length} {lowStockItems.length === 1 ? 'insumo' : 'insumos'}
+              </div>
+              <div className="kpi-subtext">Por debajo o cerca del umbral mínimo</div>
+            </div>
+          </div>
+
+          {/* Tabla de Detalle de Insumos */}
+          <div className="card">
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <h3 className="card-title" style={{ margin: 0 }}>
+                <Layers size={18} color="var(--primary-600)" />
+                <span>Detalle de Insumos, Materias Primas y Piezas Físicas</span>
+              </h3>
+              <button className="btn btn-primary btn-sm" onClick={handleOpenNewItemModal}>
+                <Plus size={14} />
+                <span>Agregar Insumo / SKU</span>
+              </button>
+            </div>
+
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Nombre del Material</th>
+                    <th>Categoría</th>
+                    <th>Stock Actual</th>
+                    <th>Mínimo Alerta</th>
+                    <th>Costo Unit. (S/)</th>
+                    <th>Proveedor</th>
+                    <th>Días Envío</th>
+                    <th>Estado</th>
+                    <th style={{ textAlign: 'center' }}>Acciones & Catálogo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inventory.length === 0 ? (
+                    <tr>
+                      <td colSpan="10" style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                        No hay insumos registrados en el inventario. Pulsa "Agregar Insumo / SKU" para comenzar.
+                      </td>
+                    </tr>
+                  ) : (
+                    inventory.map(item => {
+                      const isLow = (Number(item.quantity) || 0) <= (Number(item.minThreshold) || 10);
+                      return (
+                        <tr key={item.id}>
+                          <td><span className="code-mono">{item.sku}</span></td>
+                          <td>
+                            <strong style={{ fontSize: '0.9rem' }}>{item.name}</strong>
+                            {item.notes && (
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                {item.notes}
+                              </div>
+                            )}
+                          </td>
+                          <td><span className="badge badge-blue">{item.category}</span></td>
+                          <td style={{ fontWeight: 800, fontSize: '1rem', color: isLow ? '#f59e0b' : 'var(--text-main)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span>{item.quantity} uds</span>
+                              <div style={{ display: 'inline-flex', gap: '3px' }}>
+                                <button 
+                                  className="btn-icon" 
+                                  style={{ width: '22px', height: '22px' }}
+                                  onClick={() => onUpdateInventoryStock(item.id, -1)}
+                                  title="Restar 1 unidad"
+                                >
+                                  <Minus size={11} />
+                                </button>
+                                <button 
+                                  className="btn-icon" 
+                                  style={{ width: '22px', height: '22px' }}
+                                  onClick={() => onUpdateInventoryStock(item.id, 1)}
+                                  title="Sumar 1 unidad"
+                                >
+                                  <Plus size={11} />
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                          <td>{item.minThreshold} uds</td>
+                          <td>S/ {Number(item.unitCost).toFixed(2)}</td>
+                          <td>{item.supplier}</td>
+                          <td>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
+                              <Clock size={12} /> {item.leadTimeDays || 15} días
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge ${isLow ? 'badge-yellow' : 'badge-green'}`}>
+                              {isLow ? '⚠️ Stock Bajo' : '✓ Óptimo'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <button 
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '3px 8px', fontSize: '0.72rem', gap: '4px' }}
+                                onClick={() => handlePublishInventoryToCatalog(item)}
+                                title="Publicar este insumo como producto oficial en el Catálogo Comercial"
+                              >
+                                <ShoppingBag size={12} />
+                                <span>Publicar en Catálogo</span>
+                              </button>
+                              <button 
+                                className="btn-icon" 
+                                style={{ width: '26px', height: '26px', color: '#ef4444' }}
+                                onClick={() => onRequestDelete && onRequestDelete(item, 'Insumo')}
+                                title="Eliminar insumo (Auditoría)"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* PESTAÑA 3: PROVEEDORES & LOGÍSTICA                                        */}
+      {/* ========================================================================= */}
+      {activeSubTab === 'suppliers' && (
+        <div className="suppliers-subtab">
+          <div className="card">
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h3 className="card-title" style={{ margin: 0 }}>
+                  <Truck size={18} color="var(--primary-600)" />
+                  <span>Directorio de Proveedores y Logística de Reabastecimiento</span>
+                </h3>
+                <span className="badge badge-blue">{suppliers.length} Proveedores Validados</span>
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={handleOpenAddSupplier}>
+                <Plus size={14} />
+                <span>Agregar Proveedor</span>
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '16px' }}>
+              {suppliers.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '36px 16px', gridColumn: '1 / -1', color: 'var(--text-muted)' }}>
+                  <Truck size={36} style={{ opacity: 0.3, marginBottom: '10px' }} />
+                  <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '4px' }}>No hay proveedores registrados</h4>
+                  <p style={{ fontSize: '0.84rem', margin: '0 auto 16px auto', maxWidth: '420px' }}>
+                    Registra proveedores locales o internacionales para llevar el control de insumos, costos, tiempos de entrega y contacto.
+                  </p>
+                  <button className="btn btn-primary btn-sm" onClick={handleOpenAddSupplier}>
+                    <Plus size={14} /> Agregar Proveedor
+                  </button>
+                </div>
+              ) : (
+                suppliers.map(sup => (
+                  <div 
+                    key={sup.id}
+                    style={{
+                      backgroundColor: 'var(--bg-input)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '16px',
+                      border: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <h4 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }}>{sup.name}</h4>
+                        <span style={{ fontSize: '0.8rem' }}>{sup.reliability}</span>
+                      </div>
+
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                        📦 <strong>Suministra:</strong> {sup.itemSupplied}
+                      </div>
+
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                        <div>⏱️ <strong>Tiempo estimado:</strong> {sup.leadTime}</div>
+                        <div>💰 <strong>Costo estimado:</strong> {sup.unitCostAvg}</div>
+                        <div>📦 <strong>Pedido mínimo:</strong> {sup.minOrder}</div>
+                        <div>📞 <strong>Contacto:</strong> {sup.contact || 'No especificado'}</div>
+                      </div>
+
+                      {sup.notes && (
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
+                          💡 {sup.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
+                      <button 
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '4px 10px', fontSize: '0.76rem', gap: '4px' }}
+                        onClick={() => handleOpenEditSupplier(sup)}
+                      >
+                        <Edit size={12} />
+                        <span>Editar</span>
+                      </button>
+                      <button 
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '4px 10px', fontSize: '0.76rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', gap: '4px' }}
+                        onClick={() => onRequestDelete && onRequestDelete(sup, 'Proveedor')}
+                      >
+                        <Trash2 size={12} />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 1: CREADOR DE PACKS Y PROMOCIONES (UNIR PRODUCTOS)                  */}
+      {/* ========================================================================= */}
+      {isPackModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsPackModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Gift size={22} color="var(--primary-600)" />
+                <h3 className="modal-title">Armar Pack Promocional o Combo Comercial</h3>
+              </div>
+              <button className="close-btn" onClick={() => setIsPackModalOpen(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSavePack}>
+              <div className="form-group">
+                <label className="form-label">Nombre del Pack o Promoción:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="Ej: Pack Dúo Restaurante (2 Tarjetas Google NFC + 1 Base Acrílica)"
+                  value={packForm.name}
+                  onChange={(e) => setPackForm({ ...packForm, name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Código SKU del Pack:</label>
+                    <button 
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '3px 8px', gap: '4px' }}
+                      onClick={() => setPackForm(prev => ({ ...prev, sku: generateRandomSku('LNK-PACK') }))}
+                    >
+                      <Shuffle size={12} /> 🎲 Aleatorio
+                    </button>
+                  </div>
+                  <input 
+                    type="text" 
+                    className="form-control code-mono"
+                    value={packForm.sku}
+                    onChange={(e) => setPackForm({ ...packForm, sku: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Insignia / Badge Promocional:</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    placeholder="Ej: 🔥 Pack Dúo, Ahorra S/ 20, 2x1..."
+                    value={packForm.badge}
+                    onChange={(e) => setPackForm({ ...packForm, badge: e.target.value })}
+                  />
+                  {/* Chips de badges rápidos */}
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
+                    {['🔥 Pack Dúo', '⭐ Más Vendido', '🎁 2x1 Especial', '💰 Ahorra S/ 20', '🚀 Pack Corporativo'].map(b => (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => setPackForm({ ...packForm, badge: b })}
+                        style={{
+                          fontSize: '0.7rem',
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-full)',
+                          border: '1px solid var(--border-color)',
+                          background: packForm.badge === b ? 'var(--primary-600)' : 'var(--bg-input)',
+                          color: packForm.badge === b ? '#ffffff' : 'var(--text-muted)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* SELECCIÓN DE COMPONENTES DEL PACK */}
+              <div className="form-group" style={{ marginTop: '10px' }}>
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>📦 Componentes e Insumos Físicos que Integran este Pack:</span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                    {packForm.bundleComponents.length} insumos seleccionados
+                  </span>
+                </label>
+
+                {/* Lista de Insumos disponibles para agregar rápido */}
+                <div style={{ 
+                  backgroundColor: 'var(--bg-input)', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: 'var(--radius-md)', 
+                  padding: '10px',
+                  maxHeight: '130px',
+                  overflowY: 'auto',
+                  marginBottom: '10px'
+                }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                    Haz clic en cualquier insumo de tu almacén para añadirlo al pack:
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {inventory.map(inv => (
+                      <button
+                        key={inv.id}
+                        type="button"
+                        onClick={() => handleAddComponentToPack(inv)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '4px 8px',
+                          fontSize: '0.76rem',
+                          color: 'var(--text-main)',
+                          cursor: 'pointer'
+                        }}
+                        title={`Costo: S/ ${Number(inv.unitCost || 0).toFixed(2)} | Stock: ${inv.quantity} uds`}
+                      >
+                        <Plus size={12} color="var(--primary-600)" />
+                        <span>{inv.name}</span>
+                        <span style={{ color: 'var(--text-subtle)', fontSize: '0.7rem' }}>
+                          (S/ {Number(inv.unitCost || 0).toFixed(2)})
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tabla de componentes seleccionados */}
+                {packForm.bundleComponents.length > 0 ? (
+                  <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: 'var(--bg-input)', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                          <th style={{ padding: '8px 12px' }}>Insumo / Pieza</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Cantidad</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Costo Unit.</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Subtotal Costo</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'center' }}>Quitar</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {packForm.bundleComponents.map(c => (
+                          <tr key={c.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <td style={{ padding: '8px 12px' }}>
+                              <strong>{c.name}</strong>
+                              <div className="code-mono" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{c.sku}</div>
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateComponentQty(c.id, -1)}
+                                  className="btn-icon"
+                                  style={{ width: '22px', height: '22px' }}
+                                >
+                                  <Minus size={11} />
+                                </button>
+                                <span style={{ fontWeight: 800, minWidth: '20px' }}>{c.quantity}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateComponentQty(c.id, 1)}
+                                  className="btn-icon"
+                                  style={{ width: '22px', height: '22px' }}
+                                >
+                                  <Plus size={11} />
+                                </button>
+                              </div>
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                              S/ {c.unitCost.toFixed(2)}
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>
+                              S/ {(c.unitCost * c.quantity).toFixed(2)}
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveComponent(c.id)}
+                                style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ padding: '16px', textAlign: 'center', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.08)', borderRadius: 'var(--radius-md)', fontSize: '0.84rem' }}>
+                    ⚠️ Haz clic en al menos 1 insumo arriba para unirlo a este pack.
+                  </div>
+                )}
+              </div>
+
+              {/* CÁLCULO FINANCIERO REACTIVO EN VIVO */}
+              <div className="promo-calc-box">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <strong style={{ fontSize: '0.88rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <DollarSign size={16} color="var(--primary-600)" />
+                    Estructura de Precios y Ganancia del Pack
+                  </strong>
+                  <span className="badge badge-green" style={{ fontSize: '0.72rem' }}>
+                    Margen Estimado: {packMarginPct}%
+                  </span>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.78rem' }}>Costo Total Insumos:</label>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--google-red)' }}>
+                      S/ {packTotalCost.toFixed(2)}
+                    </div>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
+                      Suma de costos de las piezas
+                    </span>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.78rem' }}>Precio Regular Sugerido:</label>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-muted)' }}>
+                      S/ {packSuggestedRegularPrice.toFixed(2)}
+                    </div>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
+                      Suma si se vendieran por separado
+                    </span>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: '0.78rem' }}>Precio Promoción (S/):</label>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      className="form-control"
+                      style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-main)' }}
+                      value={packForm.promoPrice}
+                      onChange={(e) => setPackForm({ ...packForm, promoPrice: e.target.value })}
+                      required
+                    />
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
+                      Precio final para el cliente
+                    </span>
+                  </div>
+                </div>
+
+                {/* Resumen de Ahorro y Ganancia */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed var(--border-subtle)', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--google-green)', fontWeight: 700 }}>
+                    🎉 Ahorro al cliente: S/ {packSavings.toFixed(2)} ({packDiscountPct}% OFF)
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: 800 }}>
+                    💰 Ganancia Neta por Pack: <span style={{ color: 'var(--primary-600)' }}>S/ {packProfit.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* DESCRIPCIÓN COMERCIAL */}
+              <div className="form-group" style={{ marginTop: '14px' }}>
+                <label className="form-label">Descripción Comercial & Beneficios:</label>
+                <textarea 
+                  className="form-control"
+                  rows="2"
+                  value={packForm.description}
+                  onChange={(e) => setPackForm({ ...packForm, description: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsPackModalOpen(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  <Gift size={15} />
+                  <span>Publicar Pack Promocional</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: NUEVO PRODUCTO INDIVIDUAL                                        */}
+      {/* ========================================================================= */}
+      {isNewProductModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsNewProductModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Registrar Producto en Catálogo Oficial</h3>
+              <button className="close-btn" onClick={() => setIsNewProductModalOpen(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleCreateProduct}>
+              <div className="form-group">
+                <label className="form-label">Nombre del Producto:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="Ej: Tarjeta Google NFC Cuadrado ESP..."
+                  value={newProductForm.name}
+                  onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Código SKU:</label>
+                    <button 
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '3px 8px', gap: '4px' }}
+                      onClick={() => setNewProductForm(prev => ({ ...prev, sku: generateRandomSku('LNK-PROD') }))}
+                    >
+                      <Shuffle size={12} /> 🎲 Aleatorio
+                    </button>
+                  </div>
+                  <input 
+                    type="text" 
+                    className="form-control code-mono"
+                    value={newProductForm.sku}
+                    onChange={(e) => setNewProductForm({ ...newProductForm, sku: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Categoría:</label>
+                  <select 
+                    className="form-control"
+                    value={newProductForm.category}
+                    onChange={(e) => setNewProductForm({ ...newProductForm, category: e.target.value })}
+                  >
+                    <option value="Individual">Modelo Individual (Tarjeta NFC)</option>
+                    <option value="Pack">Pack Promocional</option>
+                    <option value="Innovacion">Nueva Innovación Tecnológica</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Precio de Venta Oficial (S/):</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    className="form-control"
+                    placeholder="Ej: 69.00"
+                    value={newProductForm.price}
+                    onChange={(e) => setNewProductForm({ ...newProductForm, price: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Costo Unitario por Defecto (S/):</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    className="form-control"
+                    placeholder="Ej: 13.00"
+                    value={newProductForm.cost}
+                    onChange={(e) => setNewProductForm({ ...newProductForm, cost: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Stock en Almacén (Uds):</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    className="form-control"
+                    value={newProductForm.stock}
+                    onChange={(e) => setNewProductForm({ ...newProductForm, stock: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Etiqueta Destacada (Badge):</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    placeholder="Ej: Más Vendido, Top 2026..."
+                    value={newProductForm.badge}
+                    onChange={(e) => setNewProductForm({ ...newProductForm, badge: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Descripción del Producto:</label>
+                <textarea 
+                  className="form-control"
+                  rows="3"
+                  value={newProductForm.description}
+                  onChange={(e) => setNewProductForm({ ...newProductForm, description: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsNewProductModalOpen(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Publicar en Catálogo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: AGREGAR INSUMO / SKU A INVENTARIO                                 */}
+      {/* ========================================================================= */}
       {isNewItemModalOpen && (
         <div className="modal-overlay" onClick={() => setIsNewItemModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">Agregar Insumo o Producto a Inventario</h3>
+              <h3 className="modal-title">Agregar Insumo Físico a Inventario</h3>
               <button className="close-btn" onClick={() => setIsNewItemModalOpen(false)}>✕</button>
             </div>
 
             <form onSubmit={handleCreateItem}>
               <div className="form-group">
-                <label className="form-label">Nombre del Insumo / Producto:</label>
+                <label className="form-label">Nombre del Insumo / Material:</label>
                 <input 
                   type="text" 
                   className="form-control"
-                  placeholder="Ej: Displays de mesa en L acrílico cristal"
+                  placeholder="Ej: Base de Acrílico Cristal en L para Displays"
                   value={newItemForm.name}
                   onChange={(e) => setNewItemForm({ ...newItemForm, name: e.target.value })}
                   required
@@ -751,36 +1739,19 @@ export default function InventoryView({
                     <button 
                       type="button"
                       className="btn btn-secondary btn-sm"
-                      style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                      style={{ fontSize: '0.72rem', padding: '3px 8px', gap: '4px' }}
                       onClick={() => setNewItemForm(prev => ({ ...prev, sku: generateRandomSku('SKU-LNK') }))}
-                      title="Generar otro código SKU aleatorio"
                     >
-                      <Shuffle size={12} />
-                      <span>🎲 Generar Aleatorio</span>
+                      <Shuffle size={12} /> 🎲 Aleatorio
                     </button>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <input 
-                      type="text" 
-                      className="form-control code-mono"
-                      placeholder="SKU-LNK-XXXX"
-                      value={newItemForm.sku}
-                      onChange={(e) => setNewItemForm({ ...newItemForm, sku: e.target.value })}
-                      required
-                    />
-                    <button 
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{ padding: '0 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      onClick={() => setNewItemForm(prev => ({ ...prev, sku: generateRandomSku('SKU-LNK') }))}
-                      title="Regenerar SKU aleatorio"
-                    >
-                      <RefreshCw size={14} />
-                    </button>
-                  </div>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                    ✓ Generado automáticamente de forma aleatoria. Puedes editarlo o pulsar el botón para otro código.
-                  </span>
+                  <input 
+                    type="text" 
+                    className="form-control code-mono"
+                    value={newItemForm.sku}
+                    onChange={(e) => setNewItemForm({ ...newItemForm, sku: e.target.value })}
+                    required
+                  />
                 </div>
 
                 <div className="form-group">
@@ -801,7 +1772,7 @@ export default function InventoryView({
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Cantidad Inicial (Stock):</label>
+                  <label className="form-label">Cantidad Inicial (Stock Físico):</label>
                   <input 
                     type="number" 
                     className="form-control"
@@ -847,57 +1818,22 @@ export default function InventoryView({
                 </div>
               </div>
 
-              {/* Proveedor Principal con Combobox Inteligente y Búsqueda en Base de Datos */}
+              {/* Combobox de Proveedor */}
               <div className="form-group" ref={comboboxRef} style={{ position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                   <label className="form-label" style={{ margin: 0 }}>Proveedor Principal:</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="badge badge-blue" style={{ fontSize: '0.68rem', padding: '1px 7px' }}>
-                      {dbSuppliersList.length} en base de datos
-                    </span>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        setSupplierForm(prev => ({
-                          ...prev,
-                          name: newItemForm.supplier || '',
-                          itemSupplied: newItemForm.name || newItemForm.category || ''
-                        }));
-                        setIsSupplierModalOpen(true);
-                      }}
-                      style={{ 
-                        background: 'transparent', 
-                        border: 'none', 
-                        color: 'var(--primary-600)', 
-                        fontSize: '0.72rem', 
-                        fontWeight: 600, 
-                        cursor: 'pointer', 
-                        padding: 0, 
-                        textDecoration: 'underline' 
-                      }}
-                      title="Registrar un nuevo proveedor formal en el directorio"
-                    >
-                      + Registrar en Directorio
-                    </button>
-                  </div>
+                  <span className="badge badge-blue" style={{ fontSize: '0.68rem', padding: '1px 7px' }}>
+                    {dbSuppliersList.length} en base de datos
+                  </span>
                 </div>
 
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <Search 
-                    size={16} 
-                    style={{ 
-                      position: 'absolute', 
-                      left: '12px', 
-                      color: 'var(--text-muted)', 
-                      pointerEvents: 'none',
-                      zIndex: 2
-                    }} 
-                  />
+                  <Search size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)', pointerEvents: 'none', zIndex: 2 }} />
                   <input 
                     type="text" 
                     className="form-control"
-                    style={{ paddingLeft: '36px', paddingRight: '64px' }}
-                    placeholder={dbSuppliersList.length > 0 ? "Buscar proveedor en base de datos o escribir..." : "Escribir nombre del proveedor..."}
+                    style={{ paddingLeft: '36px', paddingRight: '40px' }}
+                    placeholder="Buscar o escribir nombre del proveedor..."
                     value={newItemForm.supplier}
                     onFocus={() => {
                       setSupplierFilterQuery(newItemForm.supplier || '');
@@ -907,349 +1843,59 @@ export default function InventoryView({
                       const val = e.target.value;
                       setNewItemForm(prev => ({ ...prev, supplier: val }));
                       setSupplierFilterQuery(val);
-                      setSelectedSupplierId(null);
                       setSupplierComboboxOpen(true);
                     }}
                     autoComplete="off"
                   />
-                  <div style={{ position: 'absolute', right: '8px', display: 'flex', alignItems: 'center', gap: '2px', zIndex: 2 }}>
-                    {newItemForm.supplier && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setNewItemForm(prev => ({ ...prev, supplier: '' }));
-                          setSelectedSupplierId(null);
-                          setSupplierFilterQuery('');
-                          setSupplierComboboxOpen(true);
-                        }}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer',
-                          padding: '4px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        title="Limpiar campo"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSupplierComboboxOpen(prev => {
-                          const next = !prev;
-                          if (next) {
-                            setSupplierFilterQuery(newItemForm.supplier || '');
-                          }
-                          return next;
-                        });
-                      }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        padding: '4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      title="Desplegar lista de proveedores"
-                    >
-                      <ChevronDown 
-                        size={16} 
-                        style={{ 
-                          transform: supplierComboboxOpen ? 'rotate(180deg)' : 'none', 
-                          transition: 'transform 0.2s ease' 
-                        }} 
-                      />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSupplierComboboxOpen(prev => !prev)}
+                    style={{ position: 'absolute', right: '8px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px' }}
+                  >
+                    <ChevronDown size={16} />
+                  </button>
                 </div>
 
-                {/* Menú Desplegable Flotante del Combobox - 100% Sólido y Opaco */}
                 {supplierComboboxOpen && (
-                  <div 
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 4px)',
-                      left: 0,
-                      right: 0,
-                      backgroundColor: '#0c1322',
-                      backgroundImage: 'linear-gradient(180deg, #111a33 0%, #0c1322 100%)',
-                      border: '1px solid #1e3a8a',
-                      borderRadius: 'var(--radius-md)',
-                      boxShadow: '0 20px 45px -5px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.12)',
-                      zIndex: 1050,
-                      maxHeight: '280px',
-                      overflowY: 'auto',
-                      padding: '6px',
-                      opacity: 1
-                    }}
-                  >
-                    {/* Encabezado del Dropdown */}
-                    <div 
-                      style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center', 
-                        padding: '8px 10px', 
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                        backgroundColor: '#0c1322',
-                        marginBottom: '6px',
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 2
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Proveedores en Base ({filteredSuppliers.length})
-                        </span>
-                        {supplierFilterQuery && filteredSuppliers.length < dbSuppliersList.length && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSupplierFilterQuery('');
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#60a5fa',
-                              fontSize: '0.70rem',
-                              cursor: 'pointer',
-                              padding: 0,
-                              textDecoration: 'underline'
-                            }}
-                          >
-                            Ver todos ({dbSuppliersList.length})
-                          </button>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSupplierComboboxOpen(false);
-                          setSupplierForm(prev => ({
-                            ...prev,
-                            name: newItemForm.supplier || '',
-                            itemSupplied: newItemForm.name || newItemForm.category || ''
-                          }));
-                          setIsSupplierModalOpen(true);
-                        }}
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    backgroundColor: 'var(--bg-card-solid)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: 'var(--shadow-lg)',
+                    marginTop: '4px',
+                    maxHeight: '180px',
+                    overflowY: 'auto'
+                  }}>
+                    {filteredSuppliers.map(s => (
+                      <div
+                        key={s.id}
+                        onClick={() => handleSelectSupplier(s)}
                         style={{
-                          background: 'rgba(0, 102, 255, 0.15)',
-                          border: '1px solid rgba(0, 102, 255, 0.4)',
-                          color: '#60a5fa',
-                          borderRadius: '4px',
-                          padding: '3px 9px',
-                          fontSize: '0.70rem',
-                          fontWeight: 600,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        + Registrar Nuevo
-                      </button>
-                    </div>
-
-                    {/* Lista de Opciones */}
-                    {filteredSuppliers.length > 0 ? (
-                      filteredSuppliers.map(sup => {
-                        const isSelected = selectedSupplierId 
-                          ? sup.id === selectedSupplierId 
-                          : (matchedSupplier && matchedSupplier.id === sup.id);
-
-                        return (
-                          <div
-                            key={sup.id}
-                            onClick={() => handleSelectSupplier(sup)}
-                            style={{
-                              padding: '9px 12px',
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              backgroundColor: isSelected ? 'rgba(0, 102, 255, 0.28)' : '#101a2f',
-                              border: isSelected ? '1px solid #0066ff' : '1px solid rgba(255, 255, 255, 0.08)',
-                              boxShadow: isSelected ? '0 0 10px rgba(0, 102, 255, 0.2)' : 'none',
-                              transition: 'all 0.15s ease',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '4px',
-                              marginBottom: '5px'
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isSelected) e.currentTarget.style.backgroundColor = '#182746';
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isSelected) e.currentTarget.style.backgroundColor = '#101a2f';
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <strong style={{ fontSize: '0.86rem', color: isSelected ? '#60a5fa' : 'var(--text-main)' }}>
-                                  {sup.name}
-                                </strong>
-                                {sup.isRegistered ? (
-                                  <span className="badge badge-blue" style={{ fontSize: '0.66rem', padding: '1px 6px' }}>
-                                    Directorio
-                                  </span>
-                                ) : (
-                                  <span className="badge badge-purple" style={{ fontSize: '0.66rem', padding: '1px 6px' }}>
-                                    Inventario
-                                  </span>
-                                )}
-                              </div>
-                              {isSelected && <Check size={16} color="#60a5fa" />}
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#38bdf8' }}>
-                              <span>📦 <strong>Suministra:</strong> {sup.itemSupplied}</span>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              <span>⏱️ {sup.leadTime}</span>
-                              <span>{sup.reliability}</span>
-                              {sup.unitCostAvg && <span>💰 {sup.unitCostAvg}</span>}
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: '#101a2f', borderRadius: 'var(--radius-sm)' }}>
-                        <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem' }}>
-                          No hay proveedor con "<strong>{supplierFilterQuery || newItemForm.supplier}</strong>" en la base.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setSupplierComboboxOpen(false)}
-                          className="btn btn-secondary btn-sm"
-                          style={{ fontSize: '0.74rem', padding: '4px 10px', margin: '0 auto' }}
-                        >
-                          ✓ Usar "{newItemForm.supplier}" de forma manual
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Footer de Ayuda */}
-                    <div 
-                      style={{ 
-                        borderTop: '1px solid rgba(255, 255, 255, 0.1)', 
-                        padding: '8px 10px 4px 10px', 
-                        marginTop: '4px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontSize: '0.72rem',
-                        color: 'var(--text-muted)',
-                        backgroundColor: '#0c1322',
-                        position: 'sticky',
-                        bottom: 0,
-                        zIndex: 2
-                      }}
-                    >
-                      <span>💡 Selecciona un proveedor o escribe uno manual.</span>
-                      <button
-                        type="button"
-                        onClick={() => setSupplierComboboxOpen(false)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#60a5fa',
+                          padding: '8px 12px',
                           cursor: 'pointer',
-                          fontWeight: 600,
-                          fontSize: '0.72rem'
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          borderBottom: '1px solid var(--border-subtle)',
+                          fontSize: '0.82rem'
                         }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-input)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                       >
-                        Cerrar
-                      </button>
-                    </div>
+                        <div>
+                          <strong>{s.name}</strong>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{s.itemSupplied}</div>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--primary-600)' }}>{s.leadTime}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
-
-                {/* Indicador de Estado del Proveedor Seleccionado */}
-                {matchedSupplier ? (
-                  <div 
-                    style={{ 
-                      marginTop: '6px', 
-                      padding: '6px 10px', 
-                      backgroundColor: 'rgba(16, 185, 129, 0.08)', 
-                      border: '1px solid rgba(16, 185, 129, 0.25)', 
-                      borderRadius: 'var(--radius-sm)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      fontSize: '0.74rem'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981' }}>
-                      <CheckCircle size={13} />
-                      <span>
-                        <strong>Proveedor verificado en base:</strong> {matchedSupplier.name} ({matchedSupplier.itemSupplied}) • Reposición: {matchedSupplier.leadTime}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                      {matchedSupplier.reliability || 'Activo'}
-                    </span>
-                  </div>
-                ) : newItemForm.supplier && newItemForm.supplier.trim() ? (
-                  <div 
-                    style={{ 
-                      marginTop: '6px', 
-                      padding: '6px 10px', 
-                      backgroundColor: 'rgba(245, 158, 11, 0.08)', 
-                      border: '1px solid rgba(245, 158, 11, 0.25)', 
-                      borderRadius: 'var(--radius-sm)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      fontSize: '0.74rem'
-                    }}
-                  >
-                    <span style={{ color: '#f59e0b' }}>
-                      ℹ️ Proveedor manual no registrado aún en el directorio.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSupplierForm(prev => ({
-                          ...prev,
-                          name: newItemForm.supplier,
-                          itemSupplied: newItemForm.name || newItemForm.category || ''
-                        }));
-                        setIsSupplierModalOpen(true);
-                      }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--primary-600)',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        padding: 0,
-                        textDecoration: 'underline',
-                        fontSize: '0.72rem'
-                      }}
-                    >
-                      + Registrar en Directorio
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Enlace de Recompra Rápida (URL):</label>
-                <input 
-                  type="url" 
-                  className="form-control"
-                  placeholder="https://aliexpress.com/..."
-                  value={newItemForm.reorderUrl}
-                  onChange={(e) => setNewItemForm({ ...newItemForm, reorderUrl: e.target.value })}
-                />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
@@ -1265,7 +1911,9 @@ export default function InventoryView({
         </div>
       )}
 
-      {/* MODAL: Crear / Editar Proveedor */}
+      {/* ========================================================================= */}
+      {/* MODAL 4: CREAR / EDITAR PROVEEDOR                                         */}
+      {/* ========================================================================= */}
       {isSupplierModalOpen && (
         <div className="modal-overlay" onClick={() => setIsSupplierModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
@@ -1303,139 +1951,83 @@ export default function InventoryView({
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Tiempo Estimado de Entrega:</label>
+                  <label className="form-label">Tiempo de Entrega (Días):</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ flex: 1 }}>
-                      <input 
-                        type="number" 
-                        min="1"
-                        step="1"
-                        className="form-control"
-                        placeholder="Mín (ej: 10)"
-                        value={supplierForm.leadTimeMin}
-                        onChange={(e) => setSupplierForm({ ...supplierForm, leadTimeMin: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>a</span>
-                    <div style={{ flex: 1 }}>
-                      <input 
-                        type="number" 
-                        min="1"
-                        step="1"
-                        className="form-control"
-                        placeholder="Máx (ej: 15)"
-                        value={supplierForm.leadTimeMax}
-                        onChange={(e) => setSupplierForm({ ...supplierForm, leadTimeMax: e.target.value })}
-                      />
-                    </div>
-                    <span style={{ 
-                      padding: '0 12px', 
-                      height: '38px',
-                      backgroundColor: 'var(--bg-input)', 
-                      border: '1px solid var(--border-subtle)', 
-                      borderRadius: 'var(--radius-sm)', 
-                      color: 'var(--text-muted)', 
-                      fontSize: '0.82rem', 
-                      fontWeight: 600,
-                      display: 'flex', 
-                      alignItems: 'center' 
-                    }}>
-                      días
-                    </span>
+                    <input 
+                      type="number" 
+                      min="1"
+                      className="form-control"
+                      placeholder="Mín (ej: 3)"
+                      value={supplierForm.leadTimeMin}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, leadTimeMin: e.target.value })}
+                      required
+                    />
+                    <span style={{ color: 'var(--text-muted)' }}>a</span>
+                    <input 
+                      type="number" 
+                      min="1"
+                      className="form-control"
+                      placeholder="Máx (ej: 5)"
+                      value={supplierForm.leadTimeMax}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, leadTimeMax: e.target.value })}
+                    />
                   </div>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                    ✓ Solo números: {supplierForm.leadTimeMin ? `${supplierForm.leadTimeMin}${supplierForm.leadTimeMax ? ` - ${supplierForm.leadTimeMax}` : ''} días` : 'Ingresa los días'}
-                  </span>
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">Costo Unitario Promedio:</label>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <div style={{ display: 'flex' }}>
                     <select 
                       className="form-control"
-                      style={{ 
-                        width: '100px', 
-                        borderRadius: 'var(--radius-sm) 0 0 var(--radius-sm)', 
-                        borderRight: 'none',
-                        fontWeight: 700,
-                        backgroundColor: 'var(--bg-input)'
-                      }}
+                      style={{ width: '85px', borderRadius: 'var(--radius-sm) 0 0 var(--radius-sm)' }}
                       value={supplierForm.costCurrency}
                       onChange={(e) => setSupplierForm({ ...supplierForm, costCurrency: e.target.value })}
                     >
-                      <option value="S/">S/ (PEN)</option>
-                      <option value="$">$ (USD)</option>
+                      <option value="S/">S/</option>
+                      <option value="$">$</option>
                     </select>
                     <input 
                       type="number" 
                       step="0.01" 
                       min="0"
                       className="form-control"
-                      style={{ borderRadius: '0 var(--radius-sm) var(--radius-sm) 0', fontWeight: 600 }}
-                      placeholder="0.00"
+                      style={{ borderRadius: '0 var(--radius-sm) var(--radius-sm) 0' }}
                       value={supplierForm.unitCostValue}
                       onChange={(e) => setSupplierForm({ ...supplierForm, unitCostValue: e.target.value })}
                       required
                     />
                   </div>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                    ✓ Restringido a moneda: {supplierForm.costCurrency} {Number(supplierForm.unitCostValue || 0).toFixed(2)} por unidad
-                  </span>
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Pedido Mínimo:</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ flex: '1 1 110px' }}>
-                      <input 
-                        type="number" 
-                        min="1"
-                        step="1"
-                        className="form-control"
-                        placeholder="Cantidad (ej: 15)"
-                        value={supplierForm.minOrderQty}
-                        onChange={(e) => setSupplierForm({ ...supplierForm, minOrderQty: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div style={{ flex: '1 1 150px' }}>
-                      <select 
-                        className="form-control"
-                        value={supplierForm.minOrderUnit}
-                        onChange={(e) => setSupplierForm({ ...supplierForm, minOrderUnit: e.target.value })}
-                      >
-                        <option value="unidades">📦 Unidades (uds)</option>
-                        <option value="millares">🏢 Millares (1,000 uds)</option>
-                        <option value="paquetes">🎁 Paquetes / Packs</option>
-                        <option value="piezas">🧩 Piezas (pzs)</option>
-                        <option value="cajas">📦 Cajas</option>
-                        <option value="metros">📏 Metros (m)</option>
-                        <option value="lotes">🏷️ Lotes</option>
-                        <option value="otro">✍️ Otro tipo...</option>
-                      </select>
-                    </div>
-                  </div>
-                  {supplierForm.minOrderUnit === 'otro' && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
                     <input 
-                      type="text"
+                      type="number" 
+                      min="1"
                       className="form-control"
-                      style={{ marginTop: '6px' }}
-                      placeholder="Escribe el tipo de unidad (ej: rollos, sets, etc.)"
-                      value={supplierForm.customMinOrderUnit}
-                      onChange={(e) => setSupplierForm({ ...supplierForm, customMinOrderUnit: e.target.value })}
+                      style={{ width: '100px' }}
+                      value={supplierForm.minOrderQty}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, minOrderQty: e.target.value })}
                       required
                     />
-                  )}
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                    ✓ Pedido mínimo: {supplierForm.minOrderQty || '0'} {supplierForm.minOrderUnit === 'otro' ? (supplierForm.customMinOrderUnit || '...') : supplierForm.minOrderUnit}
-                  </span>
+                    <select 
+                      className="form-control"
+                      value={supplierForm.minOrderUnit}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, minOrderUnit: e.target.value })}
+                    >
+                      <option value="unidades">Unidades (uds)</option>
+                      <option value="millares">Millares</option>
+                      <option value="paquetes">Paquetes</option>
+                      <option value="piezas">Piezas</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Calificación / Confiabilidad:</label>
+                  <label className="form-label">Confiabilidad:</label>
                   <select 
                     className="form-control"
                     value={supplierForm.reliability}
@@ -1444,28 +2036,26 @@ export default function InventoryView({
                     <option value="⭐⭐⭐⭐⭐ (Excelente)">⭐⭐⭐⭐⭐ (Excelente)</option>
                     <option value="⭐⭐⭐⭐ (Alta)">⭐⭐⭐⭐ (Alta)</option>
                     <option value="⭐⭐⭐ (Media)">⭐⭐⭐ (Media)</option>
-                    <option value="⭐⭐ (Baja)">⭐⭐ (Baja)</option>
                   </select>
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Contacto (Teléfono, WhatsApp, Correo o Chat):</label>
+                <label className="form-label">Contacto (WhatsApp / Teléfono / Correo):</label>
                 <input 
                   type="text" 
                   className="form-control"
-                  placeholder="Ej: Sr. Víctor +51 981 234 567"
+                  placeholder="Ej: +51 981 234 567 (Atención taller)"
                   value={supplierForm.contact}
                   onChange={(e) => setSupplierForm({ ...supplierForm, contact: e.target.value })}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">Notas Logísticas / Recomendaciones:</label>
+                <label className="form-label">Notas Logísticas:</label>
                 <textarea 
                   className="form-control"
-                  rows={2}
-                  placeholder="Ej: Pedir con anticipación para delivery a taller."
+                  rows="2"
                   value={supplierForm.notes}
                   onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })}
                 />

@@ -3,18 +3,11 @@ import confetti from 'canvas-confetti';
 import { 
   Kanban, 
   Plus, 
-  MessageSquare, 
   Phone, 
   MapPin, 
-  DollarSign, 
-  User, 
-  Calendar, 
   CheckCircle2, 
-  ArrowRight, 
-  Sparkles,
-  Building,
-  Check,
-  Trash2
+  Sparkles, 
+  Trash2 
 } from 'lucide-react';
 
 const STAGES = [
@@ -36,6 +29,7 @@ export default function KanbanView({
   const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+  const [mobileStageFilter, setMobileStageFilter] = useState('all');
 
   // Formulario nuevo lead
   const [newLeadForm, setNewLeadForm] = useState({
@@ -150,9 +144,47 @@ export default function KanbanView({
         </button>
       </div>
 
+      {/* Selector Táctil de Fases en Móvil */}
+      <div 
+        style={{ 
+          display: 'flex', 
+          gap: '6px', 
+          overflowX: 'auto', 
+          whiteSpace: 'nowrap',
+          paddingBottom: '8px', 
+          marginBottom: '14px',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
+        <button 
+          type="button"
+          className={`btn btn-sm ${mobileStageFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setMobileStageFilter('all')}
+          style={{ fontSize: '0.78rem', padding: '5px 12px', flexShrink: 0 }}
+        >
+          Todas las Fases ({leads.length})
+        </button>
+        {STAGES.map(stage => {
+          const count = leads.filter(l => l.stage === stage.id).length;
+          return (
+            <button 
+              key={stage.id}
+              type="button"
+              className={`btn btn-sm ${mobileStageFilter === stage.id ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setMobileStageFilter(stage.id)}
+              style={{ fontSize: '0.78rem', padding: '5px 12px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: stage.color }} />
+              <span>{stage.label.split('.')[1] || stage.label}</span>
+              <span style={{ opacity: 0.8, fontWeight: 700 }}>({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Tablero Kanban Full Width */}
       <div className="kanban-board">
-        {STAGES.map(stage => {
+        {(mobileStageFilter === 'all' ? STAGES : STAGES.filter(s => s.id === mobileStageFilter)).map(stage => {
           const stageLeads = leads.filter(l => l.stage === stage.id);
           const totalValue = stageLeads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
 

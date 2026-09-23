@@ -8,7 +8,8 @@ import {
   PanelLeftClose, 
   PanelLeftOpen, 
   MapPin, 
-  RotateCcw 
+  RotateCcw,
+  Menu
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -34,10 +35,21 @@ export default function Navbar({
 }) {
   return (
     <header className="top-navbar">
-      {/* Sección Izquierda: Toggle + Estado Socios + Nube */}
+      {/* Sección Izquierda: Toggle Móvil / Desktop + Brand + Estado Socios */}
       <div className="nav-title-section">
+        {/* Botón Menú Hamburguesa Móvil (Visible solo en pantallas < 900px) */}
         <button 
-          className="btn-icon" 
+          className="btn-icon mobile-menu-btn" 
+          onClick={toggleMobileMenu}
+          title="Abrir menú de navegación"
+          style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md)', flexShrink: 0 }}
+        >
+          <Menu size={20} />
+        </button>
+
+        {/* Botón Colapsar Sidebar Desktop (Visible en pantallas >= 900px) */}
+        <button 
+          className="btn-icon desktop-sidebar-btn" 
           onClick={toggleSidebar}
           title={sidebarCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
           style={{ width: '38px', height: '38px', borderRadius: 'var(--radius-md)', flexShrink: 0 }}
@@ -45,24 +57,29 @@ export default function Navbar({
           {sidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
         </button>
 
-        {/* Brand Tag sutil si la barra lateral está colapsada */}
-        {sidebarCollapsed && (
-          <div 
-            onClick={() => setCurrentTab('dashboard')} 
-            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '6px', marginRight: '6px' }}
-          >
-            <span style={{ fontSize: '1.2rem' }}>⚡</span>
-            <span style={{ fontWeight: 800, fontSize: '1rem', letterSpacing: '-0.02em' }}>
-              Linkeo<span className="brand-ges-tag">Ges</span>
-            </span>
-          </div>
-        )}
+        {/* Brand Tag: visible siempre en móvil y cuando el sidebar está colapsado en desktop */}
+        <div 
+          onClick={() => setCurrentTab('dashboard')} 
+          style={{ 
+            cursor: 'pointer', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '6px', 
+            marginRight: '4px' 
+          }}
+          title="Ir al Panel General"
+        >
+          <span style={{ fontSize: '1.15rem' }}>⚡</span>
+          <span style={{ fontWeight: 800, fontSize: '0.98rem', letterSpacing: '-0.02em' }}>
+            Linkeo<span className="brand-ges-tag">Ges</span>
+          </span>
+        </div>
 
         {/* Separador vertical limpio */}
-        <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-subtle)', margin: '0 12px', flexShrink: 0 }} />
+        <div className="nav-separator navbar-partner-statuses" />
 
-        {/* Indicador de Disponibilidad de Socios */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        {/* Indicador de Disponibilidad de Socios (Oculto en móvil < 820px, visible en Sidebar Drawer) */}
+        <div className="navbar-partner-statuses">
           {/* Luis Romero */}
           <div 
             onClick={onOpenProfile}
@@ -137,17 +154,17 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Sección Derecha: Acciones en Línea con Márgenes y Separación Clara */}
+      {/* Sección Derecha: Acciones Rápidas (Adaptadas para Móvil) */}
       <div className="nav-actions">
-        {/* Grupo 1: Herramientas y Datos */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Grupo Secundario: Distritos y Excel (Se ocultan en móvil < 640px, disponibles en Sidebar Drawer) */}
+        <div className="nav-secondary-actions">
           {/* Botón Maestro Distritos */}
           {onOpenMasterData && (
             <button 
               className="btn btn-secondary btn-sm"
               onClick={onOpenMasterData}
               title="Gestionar distritos atendidos de Lima"
-              style={{ height: '38px', padding: '0 13px', fontSize: '0.84rem' }}
+              style={{ height: '38px', padding: '0 12px', fontSize: '0.84rem' }}
             >
               <MapPin size={14} />
               <span>Distritos</span>
@@ -159,56 +176,58 @@ export default function Navbar({
             className="btn btn-outline-excel btn-sm" 
             onClick={onExportExcel}
             title="Exportar base de datos a Excel (.xlsx)"
-            style={{ height: '38px', padding: '0 13px', fontSize: '0.84rem' }}
+            style={{ height: '38px', padding: '0 12px', fontSize: '0.84rem' }}
           >
             <Download size={14} />
             <span>Excel</span>
           </button>
         </div>
 
-        {/* Separador vertical 1 */}
-        <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-subtle)', margin: '0 6px', flexShrink: 0 }} />
+        <div className="nav-separator nav-secondary-actions" />
 
-        {/* Grupo 2: Acciones Principales (Ventas y Gastos) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Botón Nueva Venta (Principal) */}
+        {/* Grupo Principal: Nueva Venta (Siempre visible) + Nuevo Gasto (Secundario en móvil) */}
+        <div className="nav-primary-actions">
+          {/* Botón Nueva Venta (Principal, visible en móvil) */}
           <button 
             className="btn btn-primary btn-sm" 
             onClick={onOpenNewSale} 
             title="Registrar nueva venta con chip NFC y Place ID"
-            style={{ height: '38px', padding: '0 16px', fontSize: '0.86rem', fontWeight: 700 }}
+            style={{ height: '38px', padding: '0 14px', fontSize: '0.84rem', fontWeight: 700 }}
           >
             <TrendingUp size={15} />
             <span>+ Venta</span>
           </button>
 
-          {/* Botón Nuevo Gasto */}
-          <button 
-            className="btn btn-secondary btn-sm" 
-            onClick={onOpenNewExpense} 
-            title="Registrar un gasto pagado para conciliación 50/50"
-            style={{ height: '38px', padding: '0 15px', fontSize: '0.86rem', fontWeight: 600 }}
-          >
-            <CreditCard size={15} />
-            <span>+ Gasto</span>
-          </button>
+          {/* Botón Nuevo Gasto (Oculto en móvil estrecho, accesible en Sidebar Drawer) */}
+          <div className="nav-secondary-actions">
+            <button 
+              className="btn btn-secondary btn-sm" 
+              onClick={onOpenNewExpense} 
+              title="Registrar un gasto pagado para conciliación 50/50"
+              style={{ height: '38px', padding: '0 13px', fontSize: '0.84rem', fontWeight: 600 }}
+            >
+              <CreditCard size={15} />
+              <span>+ Gasto</span>
+            </button>
+          </div>
         </div>
 
-        {/* Separador vertical 2 */}
-        <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--border-subtle)', margin: '0 6px', flexShrink: 0 }} />
+        <div className="nav-separator" />
 
-        {/* Grupo 3: Utilidades del Sistema y Perfil */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Grupo Utilidades y Perfil */}
+        <div className="nav-utility-actions">
           {/* Botón Reiniciar a 0 */}
           {onResetToZero && (
-            <button 
-              className="btn-icon" 
-              onClick={onResetToZero}
-              title="Restablecer registros operativos a 0 (Modo limpio)"
-              style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', flexShrink: 0 }}
-            >
-              <RotateCcw size={15} />
-            </button>
+            <div className="nav-secondary-actions">
+              <button 
+                className="btn-icon" 
+                onClick={onResetToZero}
+                title="Restablecer registros operativos a 0 (Modo limpio)"
+                style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', flexShrink: 0 }}
+              >
+                <RotateCcw size={15} />
+              </button>
+            </div>
           )}
 
           {/* Toggle Modo Oscuro / Claro */}
@@ -229,10 +248,10 @@ export default function Navbar({
               style={{ 
                 display: 'inline-flex', 
                 alignItems: 'center', 
-                gap: '8px', 
+                gap: '6px', 
                 borderColor: 'var(--primary-600)',
                 backgroundColor: 'rgba(0, 102, 255, 0.1)',
-                padding: '0 14px',
+                padding: '0 10px',
                 height: '38px',
                 borderRadius: 'var(--radius-md)',
                 flexShrink: 0,
@@ -241,7 +260,9 @@ export default function Navbar({
               title="Ver perfil de socio y cerrar sesión"
             >
               <span style={{ fontSize: '1.05rem' }}>{currentUser.avatar}</span>
-              <span style={{ fontWeight: 700 }}>{currentUser.name.split(' ')[0]}</span>
+              <span className="nav-user-name" style={{ fontWeight: 700 }}>
+                {currentUser.name.split(' ')[0]}
+              </span>
             </button>
           )}
         </div>

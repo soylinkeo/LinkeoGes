@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || 'https://ntzkjkvgtytlobvbplov.supabase.co';
+const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50emtqa3ZndHl0bG9idmJwbG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxMTkxNzgsImV4cCI6MjEwNTY5NTE3OH0.qHF9gTv-gazjmEHkStQAqWek3iADbxLye3JwGPtoaTU';
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
@@ -227,35 +227,53 @@ export const mappers = {
     description: e.description || ''
   }),
 
-  productToFront: (p) => ({
-    id: p.id,
-    name: p.name,
-    sku: p.sku,
-    category: p.category,
-    type: p.type,
-    price: Number(p.price),
-    cost: Number(p.cost),
-    margin: Number(p.margin),
-    marginPct: Number(p.margin_pct || 0),
-    badge: p.badge || '',
-    description: p.description || '',
-    imageUrl: p.image_url || ''
-  }),
+  productToFront: (p) => {
+    let bundleItems = [];
+    let cleanDescription = p.description || '';
+    if (cleanDescription.includes('||BUNDLE:')) {
+      try {
+        const parts = cleanDescription.split('||BUNDLE:');
+        cleanDescription = parts[0].trim();
+        bundleItems = JSON.parse(parts[1].replace(/\|\|$/, '').trim());
+      } catch (e) {}
+    }
+    return {
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      category: p.category,
+      type: p.type || (bundleItems.length > 0 ? 'pack' : 'individual'),
+      price: Number(p.price),
+      cost: Number(p.cost),
+      margin: Number(p.margin),
+      marginPct: Number(p.margin_pct || 0),
+      badge: p.badge || '',
+      description: cleanDescription,
+      imageUrl: p.image_url || '',
+      bundleItems: bundleItems
+    };
+  },
 
-  productToDb: (p) => ({
-    id: p.id,
-    name: p.name,
-    sku: p.sku,
-    category: p.category,
-    type: p.type,
-    price: Number(p.price),
-    cost: Number(p.cost),
-    margin: Number(p.margin),
-    margin_pct: Number(p.marginPct || 0),
-    badge: p.badge || '',
-    description: p.description || '',
-    image_url: p.imageUrl || ''
-  }),
+  productToDb: (p) => {
+    let dbDescription = p.description || '';
+    if (p.bundleItems && Array.isArray(p.bundleItems) && p.bundleItems.length > 0) {
+      dbDescription = `${dbDescription.trim()} ||BUNDLE:${JSON.stringify(p.bundleItems)}||`;
+    }
+    return {
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      category: p.category,
+      type: p.type || (p.bundleItems && p.bundleItems.length > 0 ? 'pack' : 'individual'),
+      price: Number(p.price) || 0,
+      cost: Number(p.cost) || 0,
+      margin: Number(p.margin) || 0,
+      margin_pct: Number(p.marginPct || p.margin_pct || 0),
+      badge: p.badge || '',
+      description: dbDescription,
+      image_url: p.imageUrl || p.image_url || ''
+    };
+  },
 
   auditLogToFront: (a) => ({
     id: a.id,
@@ -305,7 +323,9 @@ export const dbService = {
         eventsRes,
         prodRes,
         distRes,
-        auditRes
+        auditRes,
+        projRes,
+        planRes
       ] = await Promise.all([
         supabase.from('sales').select('*').order('created_at', { ascending: false }),
         supabase.from('expenses').select('*').order('created_at', { ascending: false }),
@@ -316,7 +336,9 @@ export const dbService = {
         supabase.from('calendar_events').select('*').order('date', { ascending: true }),
         supabase.from('products').select('*').order('created_at', { ascending: false }),
         supabase.from('districts').select('*').order('name', { ascending: true }),
-        supabase.from('audit_logs').select('*').order('timestamp', { ascending: false }).limit(50)
+        supabase.from('audit_logs').select('*').order('timestamp', { ascending: false }).limit(50),
+        supabase.from('projections').select('*').eq('id', 'current').maybeSingle(),
+        supabase.from('plan_30_days').select('*').eq('id', 'current').maybeSingle()
       ]);
 
       return {
@@ -329,7 +351,9 @@ export const dbService = {
         calendarEvents: eventsRes.data ? eventsRes.data.map(mappers.eventToFront) : [],
         products: prodRes.data ? prodRes.data.map(mappers.productToFront) : [],
         districts: distRes.data && distRes.data.length > 0 ? distRes.data.map(d => d.name) : null,
-        auditLogs: auditRes.data ? auditRes.data.map(mappers.auditLogToFront) : []
+        auditLogs: auditRes.data ? auditRes.data.map(mappers.auditLogToFront) : [],
+        projections: projRes?.data?.data || null,
+        plan30Days: planRes?.data?.tasks || null
       };
     } catch (err) {
       console.warn('Error fetching all initial data from Supabase:', err);
@@ -374,5 +398,92 @@ export const dbService = {
       console.warn(`Exception updating ${table}:`, e);
       return null;
     }
+  },
+
+  // Persistencia de Proyecciones en Base de Datos Supabase
+  async saveProjections(projectionsData) {
+    if (!isSupabaseConfigured || !supabase) return false;
+    try {
+      const { error } = await supabase
+        .from('projections')
+        .upsert({ id: 'current', data: projectionsData, updated_at: new Date().toISOString() });
+      if (error) console.warn('Error saving projections to Supabase:', error);
+      return !error;
+    } catch (e) {
+      console.warn('Exception saving projections to Supabase:', e);
+      return false;
+    }
+  },
+
+  // Persistencia del Plan 30 Días en Base de Datos Supabase
+  async savePlan30Days(tasks) {
+    if (!isSupabaseConfigured || !supabase) return false;
+    try {
+      const { error } = await supabase
+        .from('plan_30_days')
+        .upsert({ id: 'current', tasks, updated_at: new Date().toISOString() });
+      if (error) console.warn('Error saving plan_30_days to Supabase:', error);
+      return !error;
+    } catch (e) {
+      console.warn('Exception saving plan_30_days to Supabase:', e);
+      return false;
+    }
+  },
+
+  // Persistencia de Catálogo y Packs Promocionales
+  async saveProduct(product) {
+    if (!isSupabaseConfigured || !supabase) return null;
+    try {
+      const payload = mappers.productToDb(product);
+      const { data, error } = await supabase.from('products').upsert(payload).select();
+      if (error) console.warn('Error saving product to Supabase:', error);
+      return data;
+    } catch (e) {
+      console.warn('Exception saving product to Supabase:', e);
+      return null;
+    }
+  },
+
+  async deleteProduct(productId) {
+    if (!isSupabaseConfigured || !supabase) return false;
+    return await this.delete('products', productId);
+  },
+
+  // Persistencia de Stock Físico e Insumos (Inventario)
+  async saveInventoryItem(item) {
+    if (!isSupabaseConfigured || !supabase) return null;
+    try {
+      const payload = mappers.inventoryToDb(item);
+      const { data, error } = await supabase.from('inventory').upsert(payload).select();
+      if (error) console.warn('Error saving inventory item to Supabase:', error);
+      return data;
+    } catch (e) {
+      console.warn('Exception saving inventory item to Supabase:', e);
+      return null;
+    }
+  },
+
+  async deleteInventoryItem(itemId) {
+    if (!isSupabaseConfigured || !supabase) return false;
+    return await this.delete('inventory', itemId);
+  },
+
+  // Persistencia de Proveedores
+  async saveSupplier(supplier) {
+    if (!isSupabaseConfigured || !supabase) return null;
+    try {
+      const payload = mappers.supplierToDb(supplier);
+      const { data, error } = await supabase.from('suppliers').upsert(payload).select();
+      if (error) console.warn('Error saving supplier to Supabase:', error);
+      return data;
+    } catch (e) {
+      console.warn('Exception saving supplier to Supabase:', e);
+      return null;
+    }
+  },
+
+  async deleteSupplier(supplierId) {
+    if (!isSupabaseConfigured || !supabase) return false;
+    return await this.delete('suppliers', supplierId);
   }
 };

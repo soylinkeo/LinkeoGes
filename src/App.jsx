@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   PARTNERS, 
@@ -19,7 +19,8 @@ import {
 } from './data/initialData';
 import { exportLinkeoGesToExcel } from './utils/excelExport';
 import { getAccountingMonth, ACCOUNTING_MONTHS } from './utils/dateUtils';
-import { Edit3, Package } from 'lucide-react';
+import { computeDynamicTargets } from './utils/projectionsUtils';
+import { Edit3 } from 'lucide-react';
 
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -62,7 +63,7 @@ export default function App() {
     return localStorage.getItem('linkeoges_theme') || 'dark';
   });
 
-  // Usuario autenticado (Luis Romero por defecto si ya inició o null para login)
+  // Usuario autenticado (null para exigir login en cualquier navegador/dispositivo nuevo)
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('linkeoges_auth_user');
     if (saved) {
@@ -78,13 +79,7 @@ export default function App() {
         return u;
       } catch (e) {}
     }
-    return {
-      id: 'luis',
-      name: 'Luis Romero',
-      role: 'Co-Fundador & Co-CEO | Dirección General (Comercial & Operaciones)',
-      avatar: '👨‍💼',
-      badge: 'Co-CEO / Socio 50%'
-    };
+    return null;
   });
 
   // Modales de sesión y maestros
@@ -289,6 +284,8 @@ export default function App() {
     }
   };
 
+  const isCloudLoadedRef = useRef(!isSupabaseConfigured);
+
   // Sincronización en la Nube con Supabase (Persistencia multi-dispositivo y en tiempo real)
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -297,16 +294,101 @@ export default function App() {
     const loadCloudData = async () => {
       const data = await dbService.fetchAllInitialData();
       if (!isMounted || !data) return;
-      if (data.sales && data.sales.length > 0) setSales(data.sales);
-      if (data.expenses && data.expenses.length > 0) setExpenses(data.expenses);
-      if (data.leads && data.leads.length > 0) setLeads(data.leads);
-      if (data.nfcCards && data.nfcCards.length > 0) setNfcCards(data.nfcCards);
-      if (data.inventory && data.inventory.length > 0) setInventory(data.inventory);
-      if (data.suppliers && data.suppliers.length > 0) setSuppliers(data.suppliers);
-      if (data.calendarEvents && data.calendarEvents.length > 0) setCalendarEvents(data.calendarEvents);
-      if (data.products && data.products.length > 0) setProducts(data.products);
+
+      // 1. Conciliar y sincronizar gastos (Expenses)
+      if (data.expenses && data.expenses.length > 0) {
+        const cloudIds = new Set(data.expenses.map(e => e.id));
+        const localUnsynced = expenses.filter(e => !cloudIds.has(e.id));
+        if (localUnsynced.length > 0) {
+          localUnsynced.forEach(e => dbService.insert('expenses', e, mappers.expenseToDb));
+          setExpenses([...data.expenses, ...localUnsynced]);
+        } else {
+          setExpenses(data.expenses);
+        }
+      } else if (expenses && expenses.length > 0) {
+        expenses.forEach(e => dbService.insert('expenses', e, mappers.expenseToDb));
+      }
+
+      // 2. Conciliar y sincronizar ventas (Sales)
+      if (data.sales && data.sales.length > 0) {
+        const cloudIds = new Set(data.sales.map(s => s.id));
+        const localUnsynced = sales.filter(s => !cloudIds.has(s.id));
+        if (localUnsynced.length > 0) {
+          localUnsynced.forEach(s => dbService.insert('sales', s, mappers.saleToDb));
+          setSales([...data.sales, ...localUnsynced]);
+        } else {
+          setSales(data.sales);
+        }
+      } else if (sales && sales.length > 0) {
+        sales.forEach(s => dbService.insert('sales', s, mappers.saleToDb));
+      }
+
+      // 3. Conciliar prospectos (Leads)
+      if (data.leads && data.leads.length > 0) {
+        const cloudIds = new Set(data.leads.map(l => l.id));
+        const localUnsynced = leads.filter(l => !cloudIds.has(l.id));
+        if (localUnsynced.length > 0) {
+          localUnsynced.forEach(l => dbService.insert('leads', l, mappers.leadToDb));
+          setLeads([...data.leads, ...localUnsynced]);
+        } else {
+          setLeads(data.leads);
+        }
+      } else if (leads && leads.length > 0) {
+        leads.forEach(l => dbService.insert('leads', l, mappers.leadToDb));
+      }
+
+      // 4. Conciliar chips NFC
+      if (data.nfcCards && data.nfcCards.length > 0) {
+        setNfcCards(data.nfcCards);
+      } else if (nfcCards && nfcCards.length > 0) {
+        nfcCards.forEach(c => dbService.insert('nfc_cards', c, mappers.nfcToDb));
+      }
+
+      // 5. Conciliar inventario
+      if (data.inventory && data.inventory.length > 0) {
+        setInventory(data.inventory);
+      } else if (inventory && inventory.length > 0) {
+        inventory.forEach(i => dbService.insert('inventory', i, mappers.inventoryToDb));
+      }
+
+      // 6. Conciliar catálogo de productos
+      if (data.products && data.products.length > 0) {
+        setProducts(data.products);
+      } else if (products && products.length > 0) {
+        products.forEach(p => dbService.insert('products', p, mappers.productToDb));
+      }
+
+      // 7. Conciliar proveedores
+      if (data.suppliers && data.suppliers.length > 0) {
+        setSuppliers(data.suppliers);
+      } else if (suppliers && suppliers.length > 0) {
+        suppliers.forEach(s => dbService.insert('suppliers', s, mappers.supplierToDb));
+      }
+
+      // 8. Conciliar eventos de agenda
+      if (data.calendarEvents && data.calendarEvents.length > 0) {
+        setCalendarEvents(data.calendarEvents);
+      } else if (calendarEvents && calendarEvents.length > 0) {
+        calendarEvents.forEach(ev => dbService.insert('calendar_events', ev, mappers.eventToDb));
+      }
+
+      // 9. Distritos y Auditoría
       if (data.districts && data.districts.length > 0) setDistricts(data.districts);
       if (data.auditLogs && data.auditLogs.length > 0) setAuditLogs(data.auditLogs);
+
+      // 10. Proyecciones y Plan 30 Días
+      if (data.projections) {
+        setProjectionsData(data.projections);
+      } else {
+        dbService.saveProjections(projectionsData);
+      }
+      if (data.plan30Days && data.plan30Days.length > 0) {
+        setPlan30Days(data.plan30Days);
+      } else if (plan30Days && plan30Days.length > 0) {
+        dbService.savePlan30Days(plan30Days);
+      }
+
+      isCloudLoadedRef.current = true;
     };
 
     loadCloudData();
@@ -428,6 +510,9 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('linkeoges_plan_30', JSON.stringify(plan30Days));
+    if (isSupabaseConfigured && isCloudLoadedRef.current) {
+      dbService.savePlan30Days(plan30Days);
+    }
   }, [plan30Days]);
 
   useEffect(() => {
@@ -448,6 +533,9 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('linkeoges_projections', JSON.stringify(projectionsData));
+    if (isSupabaseConfigured && isCloudLoadedRef.current) {
+      dbService.saveProjections(projectionsData);
+    }
   }, [projectionsData]);
 
   // Función universal para registrar auditoría
@@ -493,6 +581,11 @@ export default function App() {
     halfExpense,
     debtLuisToKevin
   };
+
+  // Metas financieras dinámicas calculadas reactivamente desde el escenario de Proyecciones
+  const dynamicTargets = useMemo(() => {
+    return computeDynamicTargets(projectionsData, FINANCIAL_TARGETS);
+  }, [projectionsData]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -650,13 +743,56 @@ export default function App() {
       ]
     };
 
-    // Descontar inventario de tarjetas vírgenes
-    setInventory(prev => prev.map(item => {
-      if (item.sku === 'SKU-NTAG215-RAW') {
-        return { ...item, quantity: Math.max(0, item.quantity - qty) };
-      }
-      return item;
-    }));
+    // Descontar inventario físico de forma inteligente (soporte para Packs Promocionales y productos individuales)
+    if (prod.bundleItems && Array.isArray(prod.bundleItems) && prod.bundleItems.length > 0) {
+      setInventory(prev => {
+        return prev.map(invItem => {
+          const bundleMatch = prod.bundleItems.find(bi => 
+            (bi.id && bi.id === invItem.id) || 
+            (bi.sku && bi.sku === invItem.sku) ||
+            (bi.name && invItem.name && bi.name.trim().toLowerCase() === invItem.name.trim().toLowerCase())
+          );
+          if (bundleMatch) {
+            const deductQty = (Number(bundleMatch.quantity) || 1) * qty;
+            const updated = { ...invItem, quantity: Math.max(0, (Number(invItem.quantity) || 0) - deductQty) };
+            if (isSupabaseConfigured) {
+              dbService.saveInventoryItem(updated);
+            }
+            return updated;
+          }
+          return invItem;
+        });
+      });
+    } else {
+      setInventory(prev => {
+        let matched = false;
+        const updatedList = prev.map(invItem => {
+          if ((invItem.sku && prod.sku && invItem.sku === prod.sku) || (invItem.id && invItem.id === prod.id)) {
+            matched = true;
+            const updated = { ...invItem, quantity: Math.max(0, (Number(invItem.quantity) || 0) - qty) };
+            if (isSupabaseConfigured) {
+              dbService.saveInventoryItem(updated);
+            }
+            return updated;
+          }
+          return invItem;
+        });
+        if (!matched) {
+          return updatedList.map(invItem => {
+            if (!matched && (invItem.sku === 'SKU-NTAG215-RAW' || invItem.category?.includes('Chips') || invItem.name?.toLowerCase().includes('tarjeta'))) {
+              matched = true;
+              const updated = { ...invItem, quantity: Math.max(0, (Number(invItem.quantity) || 0) - qty) };
+              if (isSupabaseConfigured) {
+                dbService.saveInventoryItem(updated);
+              }
+              return updated;
+            }
+            return invItem;
+          });
+        }
+        return updatedList;
+      });
+    }
 
     setSales([newSale, ...sales]);
     setNfcCards([newCard, ...nfcCards]);
@@ -1081,9 +1217,11 @@ export default function App() {
 
   // Handlers para Inventario y Productos
   const handleUpdateInventoryStock = (itemId, delta) => {
+    let itemToSync = null;
     setInventory(prev => prev.map(item => {
       if (item.id === itemId) {
-        const newQty = Math.max(0, item.quantity + delta);
+        const newQty = Math.max(0, (Number(item.quantity) || 0) + delta);
+        itemToSync = { ...item, quantity: newQty };
         logAudit({
           actionType: 'Modificación',
           entityType: 'Insumo',
@@ -1091,14 +1229,20 @@ export default function App() {
           entityName: item.name,
           reason: `Ajuste manual de stock (${delta > 0 ? '+' : ''}${delta}). Nuevo stock: ${newQty} uds.`
         });
-        return { ...item, quantity: newQty };
+        return itemToSync;
       }
       return item;
     }));
+    if (isSupabaseConfigured && itemToSync) {
+      dbService.saveInventoryItem(itemToSync);
+    }
   };
 
   const handleAddNewInventoryItem = (newItem) => {
     setInventory([...inventory, newItem]);
+    if (isSupabaseConfigured) {
+      dbService.saveInventoryItem(newItem);
+    }
     logAudit({
       actionType: 'Creación',
       entityType: 'Insumo',
@@ -1111,7 +1255,7 @@ export default function App() {
   const handleAddNewProduct = (newProd) => {
     setProducts([...products, newProd]);
     if (isSupabaseConfigured) {
-      dbService.insert('products', newProd, mappers.productToDb);
+      dbService.saveProduct(newProd);
     }
     logAudit({
       actionType: 'Creación',
@@ -1122,11 +1266,25 @@ export default function App() {
     });
   };
 
+  const handleEditProduct = (updatedProd) => {
+    setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
+    if (isSupabaseConfigured) {
+      dbService.saveProduct(updatedProd);
+    }
+    logAudit({
+      actionType: 'Modificación',
+      entityType: 'Producto',
+      entityId: updatedProd.id,
+      entityName: updatedProd.name,
+      reason: `Producto o pack actualizado. Precio: S/ ${Number(updatedProd.price).toFixed(2)}.`
+    });
+  };
+
   // Handlers para Proveedores (Full CRUD & Auditoría)
   const handleAddNewSupplier = (newSup) => {
     setSuppliers([newSup, ...suppliers]);
     if (isSupabaseConfigured) {
-      dbService.insert('suppliers', newSup, mappers.supplierToDb);
+      dbService.saveSupplier(newSup);
     }
     logAudit({
       actionType: 'Creación',
@@ -1139,6 +1297,9 @@ export default function App() {
 
   const handleEditSupplier = (updatedSup) => {
     setSuppliers(prev => prev.map(s => s.id === updatedSup.id ? updatedSup : s));
+    if (isSupabaseConfigured) {
+      dbService.saveSupplier(updatedSup);
+    }
     logAudit({
       actionType: 'Modificación',
       entityType: 'Proveedor',
@@ -1171,14 +1332,54 @@ export default function App() {
         cascadeDetails += ` [Cascada: Tarjeta NFC ${cardId} desvinculada y eliminada]`;
       }
 
-      // 3. Devolver la unidad física al inventario (reversión de stock)
-      setInventory(prev => prev.map(inv => {
-        if (inv.sku === 'SKU-NTAG215-RAW') {
-          return { ...inv, quantity: inv.quantity + (Number(item.quantity) || 1) };
-        }
-        return inv;
-      }));
-      cascadeDetails += ` [Cascada: ${item.quantity || 1} tarjeta virgen devuelta al inventario físico]`;
+      // 3. Devolver la unidad física al inventario (reversión de stock inteligente)
+      const soldProd = products.find(p => p.id === item.productId || p.name === item.productName);
+      const saleQty = Number(item.quantity) || 1;
+      if (soldProd?.bundleItems && soldProd.bundleItems.length > 0) {
+        setInventory(prev => {
+          return prev.map(invItem => {
+            const bundleMatch = soldProd.bundleItems.find(bi => 
+              (bi.id && bi.id === invItem.id) || 
+              (bi.sku && bi.sku === invItem.sku) ||
+              (bi.name && invItem.name && bi.name.trim().toLowerCase() === invItem.name.trim().toLowerCase())
+            );
+            if (bundleMatch) {
+              const returnQty = (Number(bundleMatch.quantity) || 1) * saleQty;
+              const updated = { ...invItem, quantity: (Number(invItem.quantity) || 0) + returnQty };
+              if (isSupabaseConfigured) dbService.saveInventoryItem(updated);
+              return updated;
+            }
+            return invItem;
+          });
+        });
+        cascadeDetails += ` [Cascada: Componentes del Pack devueltos al inventario físico]`;
+      } else {
+        setInventory(prev => {
+          let restored = false;
+          const updatedList = prev.map(inv => {
+            if (soldProd?.sku && inv.sku === soldProd.sku) {
+              restored = true;
+              const updated = { ...inv, quantity: (Number(inv.quantity) || 0) + saleQty };
+              if (isSupabaseConfigured) dbService.saveInventoryItem(updated);
+              return updated;
+            }
+            return inv;
+          });
+          if (!restored) {
+            return updatedList.map(inv => {
+              if (!restored && (inv.sku === 'SKU-NTAG215-RAW' || inv.name?.toLowerCase().includes('tarjeta'))) {
+                restored = true;
+                const updated = { ...inv, quantity: (Number(inv.quantity) || 0) + saleQty };
+                if (isSupabaseConfigured) dbService.saveInventoryItem(updated);
+                return updated;
+              }
+              return inv;
+            });
+          }
+          return updatedList;
+        });
+        cascadeDetails += ` [Cascada: ${saleQty} unidad(es) física(s) devuelta(s) al inventario]`;
+      }
 
     } else if (entityType === 'Gasto') {
       setExpenses(prev => prev.filter(e => e.id !== item.id));
@@ -1495,17 +1696,21 @@ export default function App() {
       inventory,
       leads,
       plan30Days,
-      targets: FINANCIAL_TARGETS
+      targets: dynamicTargets
     });
   };
 
+  // Si no hay usuario autenticado, renderizar exclusivamente el Login modal bloqueando el acceso
+  if (!currentUser) {
+    return (
+      <div className={`theme-${theme}`}>
+        <LoginModal onLoginSuccess={handleLoginSuccess} />
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
-      {/* Modal de Login (si no hay sesión) */}
-      {!currentUser && (
-        <LoginModal onLoginSuccess={handleLoginSuccess} />
-      )}
-
       {/* Modal de Perfil de Usuario */}
       {isProfileModalOpen && (
         <UserProfileModal
@@ -1528,6 +1733,7 @@ export default function App() {
           }}
           onLogout={handleLogout}
           partnerBalance={partnerBalance}
+          logAudit={logAudit}
         />
       )}
 
@@ -1553,7 +1759,16 @@ export default function App() {
         expenses={expenses}
         collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobileMenu={() => setMobileMenuOpen(false)}
         onOpenMasterData={() => setIsMasterDataModalOpen(true)}
+        partnersState={partnersState}
+        currentUser={currentUser}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
+        isCloudReady={isSupabaseConfigured}
+        onOpenNewSale={() => setIsNewSaleModalOpen(true)}
+        onOpenNewExpense={() => setIsNewExpenseModalOpen(true)}
+        onExportExcel={handleExportExcel}
       />
 
       {/* Contenido Principal */}
@@ -1594,7 +1809,7 @@ export default function App() {
               nfcCards={nfcCards}
               inventory={inventory}
               leads={leads}
-              targets={FINANCIAL_TARGETS}
+              targets={dynamicTargets}
               partnerBalance={partnerBalance}
               setCurrentTab={setCurrentTab}
               onOpenCardDetails={(card) => {
@@ -1657,17 +1872,20 @@ export default function App() {
             />
           )}
 
-          {/* MÓDULO 6: Inventario & Proveedores */}
-          {currentTab === 'inventory' && (
+          {/* MÓDULO 6: Almacén & Inventario Integral (Catálogo, Packs Promocionales, Insumos Físicos y Proveedores) */}
+          {(currentTab === 'inventory' || currentTab === 'products') && (
             <InventoryView 
               inventory={inventory}
+              products={products}
               suppliers={suppliers}
               onUpdateInventoryStock={handleUpdateInventoryStock}
               onAddNewInventoryItem={handleAddNewInventoryItem}
+              onAddNewProduct={handleAddNewProduct}
               onAddNewSupplier={handleAddNewSupplier}
               onEditSupplier={handleEditSupplier}
               onOpenNewExpense={() => setIsNewExpenseModalOpen(true)}
               onRequestDelete={handleRequestDelete}
+              initialSubTab={currentTab === 'products' ? 'catalog' : 'catalog'}
             />
           )}
 
@@ -1684,7 +1902,7 @@ export default function App() {
               onExportExcel={handleExportExcel}
               partnerBalance={partnerBalance}
               onSettlePartnerDebt={handleSettlePartnerDebt}
-              targets={FINANCIAL_TARGETS}
+              targets={dynamicTargets}
               onRequestDelete={handleRequestDelete}
               onAddNewProduct={handleAddNewProduct}
               onUpdateInventoryStock={handleUpdateInventoryStock}
@@ -1707,15 +1925,6 @@ export default function App() {
               logAudit={logAudit}
               currentUser={currentUser}
               setCurrentTab={setCurrentTab}
-            />
-          )}
-
-          {/* MÓDULO 9: Catálogo de Productos */}
-          {currentTab === 'products' && (
-            <ProductsCatalogView 
-              products={products}
-              onAddNewProduct={handleAddNewProduct}
-              onRequestDelete={handleRequestDelete}
             />
           )}
 

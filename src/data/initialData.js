@@ -20,19 +20,193 @@ export const PARTNERS = {
   }
 };
 
-export const INITIAL_PRODUCTS = [];
-
 export const INITIAL_EXPENSES = [];
-
 export const INITIAL_SALES = [];
-
 export const INITIAL_NFC_CARDS = [];
-
 export const INITIAL_LEADS = [];
 
-export const INITIAL_INVENTORY = [];
+export const INITIAL_INVENTORY = [
+  {
+    id: 'inv-1',
+    sku: 'SKU-LNK-1367',
+    name: 'Tarjeta Google NFC Cuadrado ING',
+    category: 'CHIPS / INSUMOS',
+    quantity: 1,
+    minThreshold: 10,
+    unitCost: 60.00,
+    supplier: 'HACHANI_UN Official Store',
+    leadTimeDays: 13,
+    status: 'bajo',
+    reorderUrl: 'https://es.aliexpress.com/',
+    notes: 'Insumo de tarjeta cuadrada con chip NTAG215 versión inglés.'
+  },
+  {
+    id: 'inv-2',
+    sku: 'SKU-LNK-6781',
+    name: 'Tarjeta Google NFC Cuadrado ESP',
+    category: 'CHIPS / INSUMOS',
+    quantity: 2,
+    minThreshold: 10,
+    unitCost: 60.00,
+    supplier: 'NFC Marketing',
+    leadTimeDays: 13,
+    status: 'bajo',
+    reorderUrl: 'https://es.aliexpress.com/',
+    notes: 'Insumo de tarjeta cuadrada con chip NTAG215 versión español.'
+  },
+  {
+    id: 'inv-3',
+    sku: 'SKU-LNK-9972',
+    name: 'Tarjeta Google NFC L ESP',
+    category: 'CHIPS / INSUMOS',
+    quantity: 2,
+    minThreshold: 10,
+    unitCost: 80.00,
+    supplier: 'NFC Marketing',
+    leadTimeDays: 13,
+    status: 'bajo',
+    reorderUrl: 'https://es.aliexpress.com/',
+    notes: 'Insumo formato vertical L para mostrador y mesa con chip NTAG215.'
+  },
+  {
+    id: 'inv-4',
+    sku: 'SKU-LNK-BASE',
+    name: 'Base Acrílica Display de Mesa',
+    category: 'DISPLAY / SOPORTE',
+    quantity: 15,
+    minThreshold: 5,
+    unitCost: 10.00,
+    supplier: 'Acrílicos Lima Centro',
+    leadTimeDays: 2,
+    status: 'optimo',
+    reorderUrl: '',
+    notes: 'Soporte transparente para exhibición de tarjetas en barras y recepción.'
+  },
+  {
+    id: 'inv-5',
+    sku: 'SKU-LNK-PKGK',
+    name: 'Kit de Packaging & Sobres Premium',
+    category: 'PACKAGING / EMPAQUE',
+    quantity: 40,
+    minThreshold: 10,
+    unitCost: 3.00,
+    supplier: 'Empaques Express Lima',
+    leadTimeDays: 1,
+    status: 'optimo',
+    reorderUrl: '',
+    notes: 'Sobre negro mate con sticker holográfico oficial Linkeo.'
+  }
+];
 
-export const INITIAL_SUPPLIERS = [];
+export const INITIAL_PRODUCTS = [
+  {
+    id: 'prod-ind-1',
+    name: 'Tarjeta Google NFC Cuadrado ESP',
+    sku: 'SKU-LNK-6781',
+    category: 'Modelos Individuales',
+    type: 'individual',
+    price: 60.00,
+    cost: 13.00,
+    margin: 47.00,
+    marginPct: 78.33,
+    badge: 'Popular',
+    description: 'Tarjeta inteligente con chip NTAG215 para reseñas de Google en español. Diseñada para mostrador y barras de restaurantes.',
+    bundleItems: []
+  },
+  {
+    id: 'prod-ind-2',
+    name: 'Tarjeta Google NFC Formato L ESP',
+    sku: 'SKU-LNK-9972',
+    category: 'Modelos Individuales',
+    type: 'individual',
+    price: 80.00,
+    cost: 13.00,
+    margin: 67.00,
+    marginPct: 83.75,
+    badge: 'Premium',
+    description: 'Display vertical en ángulo L de alto impacto visual para caja y recepción con reseña directa de Google Maps.',
+    bundleItems: []
+  },
+  {
+    id: 'prod-pack-1',
+    name: 'Pack Restaurante Dúo (2 Tarjetas NFC)',
+    sku: 'SKU-PACK-DUO',
+    category: 'Packs Promocionales',
+    type: 'pack',
+    price: 100.00,
+    cost: 26.00,
+    margin: 74.00,
+    marginPct: 74.00,
+    badge: 'Ahorro S/ 20',
+    description: 'Promoción especial para locales con dos puntos de contacto (Caja + Barra). Incluye 2 tarjetas inteligentes configuradas.',
+    bundleItems: [
+      { id: 'inv-2', sku: 'SKU-LNK-6781', name: 'Tarjeta Google NFC Cuadrado ESP', quantity: 2 }
+    ]
+  },
+  {
+    id: 'prod-pack-2',
+    name: 'Combo Corporativo Trío (3 Tarjetas + Display)',
+    sku: 'SKU-PACK-TRIO',
+    category: 'Packs Promocionales',
+    type: 'pack',
+    price: 160.00,
+    cost: 49.00,
+    margin: 111.00,
+    marginPct: 69.38,
+    badge: 'Más Vendido',
+    description: 'Combo empresarial: 2 Tarjetas Cuadradas + 1 Tarjeta Formato L + 1 Base acrílica para locales gastronómicos o retail.',
+    bundleItems: [
+      { id: 'inv-2', sku: 'SKU-LNK-6781', name: 'Tarjeta Google NFC Cuadrado ESP', quantity: 2 },
+      { id: 'inv-3', sku: 'SKU-LNK-9972', name: 'Tarjeta Google NFC L ESP', quantity: 1 },
+      { id: 'inv-4', sku: 'SKU-LNK-BASE', name: 'Base Acrílica Display de Mesa', quantity: 1 }
+    ]
+  }
+];
+
+export const INITIAL_SUPPLIERS = [
+  {
+    id: 'supp-1',
+    name: 'HACHANI_UN Official Store',
+    category: 'Importador AliExpress (China)',
+    contactPerson: 'AliExpress Direct',
+    phone: '+86 138 0000 0000',
+    email: 'support@aliexpress.com',
+    country: 'China',
+    leadTimeDays: 13,
+    minOrderQty: 10,
+    status: 'Activo',
+    paymentTerms: 'Tarjeta de Crédito / PayPal',
+    notes: 'Chips NTAG215 vírgenes y acrílicos grabados por lote.'
+  },
+  {
+    id: 'supp-2',
+    name: 'NFC Marketing',
+    category: 'Distribuidor Especializado NFC',
+    contactPerson: 'Ventas Lima',
+    phone: '+51 987 654 321',
+    email: 'ventas@nfcmarketing.pe',
+    country: 'Perú',
+    leadTimeDays: 2,
+    minOrderQty: 5,
+    status: 'Activo',
+    paymentTerms: 'Transferencia BCP / Yape',
+    notes: 'Insumos de entrega rápida local en Lima.'
+  },
+  {
+    id: 'supp-3',
+    name: 'Acrílicos Lima Centro',
+    category: 'Fabricante de Bases y Displays',
+    contactPerson: 'Taller San Juan',
+    phone: '+51 999 111 222',
+    email: 'pedidos@acrilicoslima.pe',
+    country: 'Perú',
+    leadTimeDays: 2,
+    minOrderQty: 10,
+    status: 'Activo',
+    paymentTerms: 'Contado 50% adelanto',
+    notes: 'Corte láser y doblado en caliente de acrílico cristal 3mm.'
+  }
+];
 
 // Plantilla de referencia con las 27 tareas estratégicas del Excel Control de Gastos NFC.xlsx
 export const EXCEL_PLAN_30_DAYS_TEMPLATE = [

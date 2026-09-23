@@ -6,13 +6,10 @@ import {
   AlertTriangle, 
   Users, 
   CheckCircle2, 
-  ArrowUpRight, 
   QrCode, 
-  Calendar,
-  ExternalLink,
-  Sparkles,
-  ShoppingBag,
-  Trash2
+  ExternalLink, 
+  ShoppingBag, 
+  Trash2 
 } from 'lucide-react';
 
 export default function DashboardView({
@@ -42,6 +39,10 @@ export default function DashboardView({
 
   const revenueTarget = targets.monthlyRevenueEstimate || 5100;
   const revenueProgressPct = Math.min(100, Math.round((totalSalesAmount / revenueTarget) * 100));
+
+  const profitTarget = targets.monthlyProfitTarget || 4000;
+  const profitProgressPct = Math.min(100, Math.max(0, Math.round((netProfit / profitTarget) * 100)));
+  const partnerShareTarget = targets.targetPerPartner || (profitTarget / 2);
 
   // Alertas de inventario
   const lowStockItems = inventory.filter(i => i.quantity <= i.minThreshold);
@@ -74,6 +75,46 @@ export default function DashboardView({
             <span>+ Registrar Venta</span>
           </button>
         </div>
+      </div>
+
+      {/* Sincronización con Proyecciones Financieras */}
+      <div 
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          padding: '12px 18px',
+          background: 'linear-gradient(90deg, rgba(59, 130, 246, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%)',
+          border: '1px solid rgba(59, 130, 246, 0.22)',
+          borderRadius: 'var(--radius-md)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '28px',
+            height: '28px',
+            borderRadius: '50%',
+            background: 'rgba(59, 130, 246, 0.18)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.95rem'
+          }}>
+            🎯
+          </div>
+          <span style={{ fontSize: '0.86rem', color: 'var(--text-main)' }}>
+            <strong>Metas vinculadas a Proyecciones:</strong> Facturación: <strong>S/ {revenueTarget.toFixed(2)}</strong> · Volumen: <strong>{unitsTarget} uds</strong> · Utilidad Neta: <strong>S/ {profitTarget.toFixed(2)}</strong> (S/ {partnerShareTarget.toFixed(2)} por socio al 50/50).
+          </span>
+        </div>
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={() => setCurrentTab('projections')}
+          style={{ fontSize: '0.78rem', padding: '5px 12px' }}
+        >
+          Ajustar en Proyecciones →
+        </button>
       </div>
 
       {/* Grid de KPIs Clave */}
@@ -130,10 +171,16 @@ export default function DashboardView({
             S/ {netProfit.toFixed(2)}
           </div>
           <div className="kpi-subtext">
-            <span>Margen S/ {totalGrossProfit.toFixed(2)} - Gastos S/ {totalExpenses.toFixed(2)}</span>
+            <span>Meta: S/ {profitTarget.toFixed(2)} (S/ {partnerShareTarget.toFixed(2)} c/u)</span>
+            <span style={{ fontWeight: 700, color: '#f59e0b' }}>
+              {profitProgressPct}%
+            </span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '10px' }}>
-            {expenses.length > 0 ? `${expenses.length} gastos operativos registrados` : 'Sin gastos operativos registrados'}
+          <div className="progress-bar-container">
+            <div className="progress-bar-fill" style={{ width: `${profitProgressPct}%`, background: '#f59e0b' }}></div>
+          </div>
+          <div style={{ fontSize: '0.74rem', color: 'var(--text-subtle)', marginTop: '8px' }}>
+            Margen S/ {totalGrossProfit.toFixed(2)} - Gastos S/ {totalExpenses.toFixed(2)}
           </div>
         </div>
 
@@ -168,7 +215,7 @@ export default function DashboardView({
       </div>
 
       {/* Sección Central de 2 Columnas */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' }}>
         
         {/* Columna Izquierda: Tarjetas NFC Activas & Enlaces */}
         <div className="card">
@@ -207,6 +254,8 @@ export default function DashboardView({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '10px',
                     padding: '14px 16px',
                     backgroundColor: 'var(--bg-input)',
                     borderRadius: 'var(--radius-md)',

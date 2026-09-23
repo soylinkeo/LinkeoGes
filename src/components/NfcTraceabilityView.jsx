@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { 
   Cpu, 
@@ -8,15 +8,11 @@ import {
   QrCode, 
   History, 
   Edit3, 
-  CheckCircle, 
-  AlertCircle, 
   Copy, 
   Check, 
   Smartphone,
   MapPin,
-  Calendar,
   Building,
-  RotateCcw,
   Trash2
 } from 'lucide-react';
 
@@ -313,7 +309,7 @@ export default function NfcTraceabilityView({
       </div>
 
       {/* Grid de Tarjetas NFC */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '16px' }}>
         {filteredCards.map(card => (
           <div 
             key={card.id} 

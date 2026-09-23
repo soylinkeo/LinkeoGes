@@ -3,15 +3,10 @@ import {
   FolderKanban, 
   CheckCircle2, 
   Clock, 
-  Layers, 
   Plus, 
   Edit3, 
   Trash2, 
-  ChevronRight, 
-  Sparkles, 
-  Users, 
-  Calendar,
-  AlertCircle
+  Sparkles 
 } from 'lucide-react';
 
 export default function ProjectLifecycleView({

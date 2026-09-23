@@ -4,19 +4,14 @@ import {
   Trash2, 
   RotateCcw, 
   Search, 
-  Filter, 
   Eye, 
-  Calendar, 
   User, 
-  FileText,
-  AlertTriangle,
-  History,
-  CheckCircle2,
-  PlusCircle,
-  Edit3,
-  Clock,
-  Sparkles,
-  Check
+  CheckCircle2, 
+  PlusCircle, 
+  Edit3, 
+  Clock, 
+  Sparkles, 
+  Check 
 } from 'lucide-react';
 
 export default function AuditView({

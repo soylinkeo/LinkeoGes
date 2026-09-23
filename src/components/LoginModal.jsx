@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, User, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { ShieldCheck, Lock, AlertCircle, ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { verifyUserPassword, PARTNERS_INFO } from '../services/authService';
 
 export default function LoginModal({ onLoginSuccess }) {
   const [selectedUser, setSelectedUser] = useState('luis');
@@ -7,34 +8,38 @@ export default function LoginModal({ onLoginSuccess }) {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   const users = [
-    {
-      id: 'luis',
-      name: 'Luis Romero',
-      role: 'Co-Fundador & Co-CEO | Dirección General (Comercial & Operaciones)',
-      avatar: '👨‍💼',
-      badge: 'Co-CEO / Socio 50%'
-    },
-    {
-      id: 'kevin',
-      name: 'Kevin Servat',
-      role: 'Co-Fundador & Co-CEO | Dirección General (Comercial & Operaciones)',
-      avatar: '🚀',
-      badge: 'Co-CEO / Socio 50%'
-    }
+    PARTNERS_INFO.luis,
+    PARTNERS_INFO.kevin
   ];
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (password.trim() !== '2109') {
-      setErrorMsg('Contraseña incorrecta. La clave compartida de acceso es 2109.');
+    if (!password) {
+      setErrorMsg('Por favor ingresa tu contraseña.');
       return;
     }
 
-    const userObj = users.find(u => u.id === selectedUser);
+    setIsLoading(true);
     setErrorMsg('');
-    onLoginSuccess(userObj, rememberMe);
+
+    try {
+      const { isValid, user } = await verifyUserPassword(selectedUser, password);
+      if (!isValid) {
+        setErrorMsg(`Contraseña incorrecta para ${PARTNERS_INFO[selectedUser]?.name || 'el socio'}.`);
+        setIsLoading(false);
+        return;
+      }
+
+      onLoginSuccess(user, rememberMe);
+    } catch (err) {
+      console.warn('Error al verificar login:', err);
+      setErrorMsg('Error al validar credenciales con la base de datos.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -208,8 +213,8 @@ export default function LoginModal({ onLoginSuccess }) {
               </button>
             </div>
             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
-              <span>Clave compartida socios: <strong>2109</strong></span>
-              <span style={{ color: '#10b981', fontWeight: 600 }}>✓ Acceso 50/50 Co-CEOs</span>
+              <span>Clave por defecto: <strong>2109</strong> (Modificable en Perfil)</span>
+              <span style={{ color: '#10b981', fontWeight: 600 }}>🔒 Cifrado SHA-256</span>
             </div>
           </div>
 
@@ -228,6 +233,7 @@ export default function LoginModal({ onLoginSuccess }) {
           <button 
             type="submit" 
             className="btn btn-primary"
+            disabled={isLoading}
             style={{
               width: '100%',
               height: '46px',
@@ -236,11 +242,22 @@ export default function LoginModal({ onLoginSuccess }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '8px'
+              gap: '8px',
+              opacity: isLoading ? 0.75 : 1,
+              cursor: isLoading ? 'not-allowed' : 'pointer'
             }}
           >
-            <span>Ingresar al Sistema</span>
-            <ArrowRight size={18} />
+            {isLoading ? (
+              <>
+                <Loader2 size={18} className="spin-animation" style={{ animation: 'spin 1s linear infinite' }} />
+                <span>Verificando Credenciales...</span>
+              </>
+            ) : (
+              <>
+                <span>Ingresar al Sistema</span>
+                <ArrowRight size={18} />
+              </>
+            )}
           </button>
         </form>
       </div>

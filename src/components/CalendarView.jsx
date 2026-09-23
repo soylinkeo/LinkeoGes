@@ -3,12 +3,8 @@ import {
   Calendar as CalendarIcon, 
   CalendarDays,
   Clock, 
-  CheckCircle, 
-  AlertCircle, 
   Plus, 
-  UserCheck, 
   Bell, 
-  MapPin, 
   Check, 
   Trash2, 
   Edit3 
@@ -162,7 +158,7 @@ export default function CalendarView({
       </div>
 
       {/* Grid de Contenido de Agenda */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' }}>
         {/* Columna 1: Citas y Tareas Programadas */}
         <div className="card">
           <div className="card-header">

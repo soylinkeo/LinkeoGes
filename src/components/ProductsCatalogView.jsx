@@ -3,16 +3,10 @@ import {
   ShoppingBag, 
   Plus, 
   Sparkles, 
-  Tag, 
-  TrendingUp, 
-  Package, 
-  Layers, 
-  CheckCircle, 
-  Percent, 
   Compass, 
-  Trash2,
-  Shuffle,
-  RefreshCw
+  Trash2, 
+  Shuffle, 
+  RefreshCw 
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
 
@@ -169,7 +163,7 @@ export default function ProductsCatalogView({
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
           {filteredProducts.map(prod => (
             <div 
               key={prod.id} 

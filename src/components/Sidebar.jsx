@@ -9,11 +9,13 @@ import {
   ShoppingBag,
   ExternalLink,
   ShieldCheck,
-  AlertTriangle,
   History,
   FolderKanban,
   MapPin,
-  TrendingUp
+  TrendingUp,
+  CreditCard,
+  Download,
+  X
 } from 'lucide-react';
 
 export default function Sidebar({ 
@@ -28,7 +30,16 @@ export default function Sidebar({
   expenses = [],
   collapsed = false,
   setCollapsed,
-  onOpenMasterData
+  mobileOpen = false,
+  onCloseMobileMenu,
+  onOpenMasterData,
+  partnersState,
+  currentUser,
+  onOpenProfile,
+  isCloudReady = false,
+  onOpenNewSale,
+  onOpenNewExpense,
+  onExportExcel
 }) {
   const navItems = [
     { 
@@ -64,10 +75,10 @@ export default function Sidebar({
     },
     { 
       id: 'inventory', 
-      label: 'Inventario & Proveedores', 
+      label: 'Almacén & Inventario', 
       icon: Boxes,
-      badge: inventoryAlertsCount > 0 ? '⚠️ Alerta' : null,
-      badgeColor: 'badge-yellow'
+      badge: inventoryAlertsCount > 0 ? '⚠️ Alerta' : (productsCount > 0 ? `${productsCount} prods` : null),
+      badgeColor: inventoryAlertsCount > 0 ? 'badge-yellow' : 'badge-blue'
     },
     { 
       id: 'finances', 
@@ -83,12 +94,6 @@ export default function Sidebar({
       badgeColor: 'badge-blue'
     },
     { 
-      id: 'products', 
-      label: 'Almacén & Catálogo (Precios)', 
-      icon: ShoppingBag,
-      badge: productsCount > 0 ? productsCount : null 
-    },
-    { 
       id: 'audit', 
       label: 'Auditoría & Bajas', 
       icon: History,
@@ -97,124 +102,274 @@ export default function Sidebar({
   ];
 
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-      <div className="sidebar-header">
-        <div 
-          className="sidebar-brand-badge" 
-          onClick={() => setCollapsed && setCollapsed(!collapsed)}
-          style={{ cursor: 'pointer' }}
-          title={collapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
-        >
-          <ShieldCheck size={22} />
+    <>
+      {/* Fondo Desenfocado (Backdrop) para cerrar el menú en celular al tocar fuera */}
+      <div 
+        className={`sidebar-backdrop ${mobileOpen ? 'active' : ''}`}
+        onClick={() => onCloseMobileMenu && onCloseMobileMenu()}
+        aria-hidden="true"
+      />
+
+      <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
+        <div className="sidebar-header">
+          <div 
+            className="sidebar-brand-badge" 
+            onClick={() => setCollapsed && setCollapsed(!collapsed)}
+            style={{ cursor: 'pointer' }}
+            title={collapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
+          >
+            <ShieldCheck size={22} />
+          </div>
+          {!collapsed && (
+            <div className="sidebar-brand-text">
+              <h1>
+                Linkeo<span className="brand-ges-tag">Ges</span>
+              </h1>
+              <span className="sidebar-subtitle">Sistema Operativo</span>
+            </div>
+          )}
+
+          {/* Botón Cerrar Drawer Móvil */}
+          <button 
+            className="btn-icon mobile-close-btn"
+            onClick={() => onCloseMobileMenu && onCloseMobileMenu()}
+            style={{ 
+              display: 'none', 
+              marginLeft: 'auto', 
+              width: '32px', 
+              height: '32px',
+              borderRadius: 'var(--radius-md)'
+            }}
+            title="Cerrar menú"
+          >
+            <X size={18} />
+          </button>
         </div>
-        {!collapsed && (
-          <div className="sidebar-brand-text">
-            <h1>
-              Linkeo<span className="brand-ges-tag">Ges</span>
-            </h1>
-            <span className="sidebar-subtitle">Sistema Operativo</span>
+
+        {/* Sección Rápida de Socios en Menú Móvil */}
+        {partnersState && (
+          <div 
+            className="mobile-drawer-partners" 
+            style={{ 
+              padding: '10px 14px', 
+              borderBottom: '1px solid var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}
+          >
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', fontWeight: 700, textTransform: 'uppercase' }}>
+              Estado de Co-CEOs
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div 
+                onClick={() => { if (onOpenProfile) onOpenProfile(); if (onCloseMobileMenu) onCloseMobileMenu(); }}
+                style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  padding: '4px 10px', 
+                  borderRadius: 'var(--radius-full)',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  border: `1px solid ${currentUser?.id === 'luis' ? 'var(--primary-600)' : 'rgba(16, 185, 129, 0.25)'}`,
+                  fontSize: '0.76rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span>
+                <span style={{ fontWeight: 700 }}>Luis:</span>
+                <span style={{ color: 'var(--google-green)' }}>{partnersState.luis?.status || 'Disponible'}</span>
+              </div>
+
+              <div 
+                onClick={() => { if (onOpenProfile) onOpenProfile(); if (onCloseMobileMenu) onCloseMobileMenu(); }}
+                style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  padding: '4px 10px', 
+                  borderRadius: 'var(--radius-full)',
+                  background: 'rgba(59, 130, 246, 0.1)',
+                  border: `1px solid ${currentUser?.id === 'kevin' ? 'var(--primary-600)' : 'rgba(59, 130, 246, 0.25)'}`,
+                  fontSize: '0.76rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#38bdf8' }}></span>
+                <span style={{ fontWeight: 700 }}>Kevin:</span>
+                <span style={{ color: '#38bdf8' }}>{partnersState.kevin?.status || 'Guardia'}</span>
+              </div>
+            </div>
           </div>
         )}
-      </div>
 
-      <nav className="sidebar-nav">
-        {navItems.map(item => {
-          const Icon = item.icon;
-          const isActive = currentTab === item.id;
-          return (
-            <button
-              key={item.id}
-              className={`nav-item ${isActive ? 'active' : ''}`}
-              onClick={() => setCurrentTab(item.id)}
+        <nav className="sidebar-nav">
+          {navItems.map(item => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.id;
+            return (
+              <button
+                key={item.id}
+                className={`nav-item ${isActive ? 'active' : ''}`}
+                onClick={() => {
+                  setCurrentTab(item.id);
+                  if (onCloseMobileMenu) onCloseMobileMenu();
+                }}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+                {item.badge && (
+                  <span className={`nav-badge ${item.badgeColor || ''}`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="sidebar-footer">
+          {/* Botones de Acción Rápida en Móvil */}
+          <div 
+            style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr', 
+              gap: '6px', 
+              marginBottom: '8px' 
+            }}
+          >
+            {onOpenNewSale && (
+              <button 
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => { onOpenNewSale(); if (onCloseMobileMenu) onCloseMobileMenu(); }}
+                style={{ padding: '6px 8px', fontSize: '0.76rem', justifyContent: 'center' }}
+              >
+                <TrendingUp size={13} />
+                <span>+ Venta</span>
+              </button>
+            )}
+
+            {onOpenNewExpense && (
+              <button 
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => { onOpenNewExpense(); if (onCloseMobileMenu) onCloseMobileMenu(); }}
+                style={{ padding: '6px 8px', fontSize: '0.76rem', justifyContent: 'center' }}
+              >
+                <CreditCard size={13} />
+                <span>+ Gasto</span>
+              </button>
+            )}
+          </div>
+
+          {/* Widget Cuentas Claras */}
+          <div className="partners-compact-card">
+            <div className="partners-compact-header">
+              <span>Cuentas Claras</span>
+              <span style={{ fontSize: '0.68rem', color: '#10b981' }}>50% / 50%</span>
+            </div>
+
+            <div style={{ fontSize: '0.8rem', marginBottom: '4px', color: 'var(--text-muted)' }}>
+              Estado de Aportes:
+            </div>
+
+            <div style={{ 
+              fontSize: '0.85rem', 
+              fontWeight: 700, 
+              color: (partnerBalance?.debtLuisToKevin || 0) > 0 ? '#f59e0b' : (partnerBalance?.debtLuisToKevin || 0) < 0 ? '#38bdf8' : '#10b981',
+              padding: '4px 0',
+              lineHeight: 1.2
+            }}>
+              {(partnerBalance?.debtLuisToKevin || 0) > 0 
+                ? `Luis Romero debe debitar S/ ${partnerBalance.debtLuisToKevin.toFixed(2)} a Kevin Servat`
+                : (partnerBalance?.debtLuisToKevin || 0) < 0
+                ? `Kevin Servat debe debitar S/ ${Math.abs(partnerBalance.debtLuisToKevin).toFixed(2)} a Luis Romero`
+                : 'Balance equilibrado (50/50)'
+              }
+            </div>
+
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px' }}>
+              {expenses && expenses.length > 0 
+                ? `Último gasto: S/ ${Number(expenses[0].amount).toFixed(2)} (${expenses[0].paidBy === 'luis' ? 'Luis' : 'Kevin'})`
+                : 'Sin gastos registrados'}
+            </div>
+          </div>
+
+          {/* Acceso a Maestro de Distritos */}
+          {onOpenMasterData && (
+            <button 
+              type="button"
+              className="nav-item"
+              onClick={() => {
+                onOpenMasterData();
+                if (onCloseMobileMenu) onCloseMobileMenu();
+              }}
+              style={{ 
+                padding: '8px 12px', 
+                fontSize: '0.8rem', 
+                color: 'var(--text-main)',
+                backgroundColor: 'rgba(0, 102, 255, 0.08)',
+                border: '1px solid rgba(0, 102, 255, 0.25)',
+                borderRadius: 'var(--radius-md)',
+                marginBottom: '6px',
+                cursor: 'pointer',
+                width: '100%',
+                justifyContent: 'flex-start'
+              }}
             >
-              <Icon size={18} />
-              <span>{item.label}</span>
-              {item.badge && (
-                <span className={`nav-badge ${item.badgeColor || ''}`}>
-                  {item.badge}
-                </span>
-              )}
+              <MapPin size={15} color="var(--primary-600)" />
+              <span>Maestro Distritos Lima</span>
             </button>
-          );
-        })}
-      </nav>
+          )}
 
-      <div className="sidebar-footer">
-        {/* Widget Cuentas Claras */}
-        <div className="partners-compact-card">
-          <div className="partners-compact-header">
-            <span>Cuentas Claras</span>
-            <span style={{ fontSize: '0.68rem', color: '#10b981' }}>50% / 50%</span>
-          </div>
+          {/* Exportar Excel */}
+          {onExportExcel && (
+            <button 
+              type="button"
+              className="nav-item"
+              onClick={() => {
+                onExportExcel();
+                if (onCloseMobileMenu) onCloseMobileMenu();
+              }}
+              style={{ 
+                padding: '8px 12px', 
+                fontSize: '0.8rem', 
+                color: 'var(--text-main)',
+                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: 'var(--radius-md)',
+                marginBottom: '6px',
+                cursor: 'pointer',
+                width: '100%',
+                justifyContent: 'flex-start'
+              }}
+            >
+              <Download size={15} color="var(--google-green)" />
+              <span>Exportar Todo a Excel</span>
+            </button>
+          )}
 
-          <div style={{ fontSize: '0.8rem', marginBottom: '4px', color: 'var(--text-muted)' }}>
-            Estado de Aportes:
-          </div>
-
-          <div style={{ 
-            fontSize: '0.85rem', 
-            fontWeight: 700, 
-            color: (partnerBalance?.debtLuisToKevin || 0) > 0 ? '#f59e0b' : (partnerBalance?.debtLuisToKevin || 0) < 0 ? '#38bdf8' : '#10b981',
-            padding: '4px 0',
-            lineHeight: 1.2
-          }}>
-            {(partnerBalance?.debtLuisToKevin || 0) > 0 
-              ? `Luis Romero debe debitar S/ ${partnerBalance.debtLuisToKevin.toFixed(2)} a Kevin Servat`
-              : (partnerBalance?.debtLuisToKevin || 0) < 0
-              ? `Kevin Servat debe debitar S/ ${Math.abs(partnerBalance.debtLuisToKevin).toFixed(2)} a Luis Romero`
-              : 'Balance equilibrado (50/50)'
-            }
-          </div>
-
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px' }}>
-            {expenses && expenses.length > 0 
-              ? `Último gasto: S/ ${Number(expenses[0].amount).toFixed(2)} (${expenses[0].paidBy === 'luis' ? 'Luis' : 'Kevin'})`
-              : 'Sin gastos registrados'}
-          </div>
-        </div>
-
-        {/* Acceso a Maestro de Distritos */}
-        {onOpenMasterData && (
-          <button 
-            type="button"
+          {/* Enlace al sitio público */}
+          <a 
+            href="https://linkeocards.com/" 
+            target="_blank" 
+            rel="noopener noreferrer"
             className="nav-item"
-            onClick={onOpenMasterData}
             style={{ 
               padding: '8px 12px', 
               fontSize: '0.8rem', 
-              color: 'var(--text-main)',
-              backgroundColor: 'rgba(0, 102, 255, 0.08)',
-              border: '1px solid rgba(0, 102, 255, 0.25)',
-              borderRadius: 'var(--radius-md)',
-              marginBottom: '8px',
-              cursor: 'pointer',
-              width: '100%',
-              justifyContent: 'flex-start'
+              color: 'var(--text-muted)',
+              border: '1px dashed var(--border-subtle)',
+              borderRadius: 'var(--radius-md)'
             }}
           >
-            <MapPin size={15} color="var(--primary-600)" />
-            <span>Maestro Distritos Lima</span>
-          </button>
-        )}
-
-        {/* Enlace al sitio público */}
-        <a 
-          href="https://linkeocards.com/" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="nav-item"
-          style={{ 
-            padding: '8px 12px', 
-            fontSize: '0.8rem', 
-            color: 'var(--text-muted)',
-            border: '1px dashed var(--border-subtle)',
-            borderRadius: 'var(--radius-md)'
-          }}
-        >
-          <ExternalLink size={15} />
-          <span>Ver linkeocards.com</span>
-        </a>
-      </div>
-    </aside>
+            <ExternalLink size={15} />
+            <span>Ver linkeocards.com</span>
+          </a>
+        </div>
+      </aside>
+    </>
   );
 }
+
