@@ -38,6 +38,48 @@ const parseSupplierDays = (leadTime) => {
   return singleMatch ? parseInt(singleMatch[1], 10) : null;
 };
 
+// Helpers para parsear y formatear campos estructurados de proveedores
+const parseLeadTimeFields = (leadTimeStr) => {
+  if (!leadTimeStr) return { min: '3', max: '5' };
+  const str = String(leadTimeStr).trim();
+  const rangeMatch = str.match(/(\d+)\s*[-–a]\s*(\d+)/i);
+  if (rangeMatch) {
+    return { min: rangeMatch[1], max: rangeMatch[2] };
+  }
+  const singleMatch = str.match(/(\d+)/);
+  if (singleMatch) {
+    return { min: singleMatch[1], max: '' };
+  }
+  return { min: '3', max: '5' };
+};
+
+const parseCostFields = (costStr) => {
+  if (!costStr) return { currency: 'S/', value: '8.00' };
+  const str = String(costStr).trim();
+  const currency = str.includes('$') ? '$' : 'S/';
+  const numMatch = str.match(/(\d+(?:\.\d+)?)/);
+  return { currency, value: numMatch ? numMatch[1] : '8.00' };
+};
+
+const parseMinOrderFields = (minOrderStr) => {
+  if (!minOrderStr) return { qty: '20', unit: 'unidades', customUnit: '' };
+  const str = String(minOrderStr).trim();
+  const numMatch = str.match(/^(\d+)/);
+  const qty = numMatch ? numMatch[1] : '20';
+  const rest = str.replace(/^\d+/, '').trim().toLowerCase();
+
+  const standardUnits = ['unidades', 'millares', 'paquetes', 'piezas', 'cajas', 'metros', 'lotes'];
+  const matchedUnit = standardUnits.find(u => rest.includes(u.slice(0, 4)));
+
+  if (matchedUnit) {
+    return { qty, unit: matchedUnit, customUnit: '' };
+  }
+  if (rest) {
+    return { qty, unit: 'otro', customUnit: rest };
+  }
+  return { qty, unit: 'unidades', customUnit: '' };
+};
+
 export default function InventoryView({
   inventory = [],
   suppliers = [],
@@ -175,15 +217,19 @@ export default function InventoryView({
     setIsNewItemModalOpen(true);
   };
 
-  // Estado para Crear / Editar Proveedores
+  // Estado para Crear / Editar Proveedores con formato numérico y tipado estricto
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [supplierForm, setSupplierForm] = useState({
     name: '',
     itemSupplied: '',
-    leadTime: '3 - 5 días',
-    unitCostAvg: 'S/ 8.00',
-    minOrder: '20 unidades',
+    leadTimeMin: '3',
+    leadTimeMax: '5',
+    costCurrency: 'S/',
+    unitCostValue: '8.00',
+    minOrderQty: '20',
+    minOrderUnit: 'unidades',
+    customMinOrderUnit: '',
     contact: '',
     reliability: '⭐⭐⭐⭐⭐ (Excelente)',
     notes: ''
@@ -194,9 +240,13 @@ export default function InventoryView({
     setSupplierForm({
       name: '',
       itemSupplied: '',
-      leadTime: '3 - 5 días',
-      unitCostAvg: 'S/ 8.00',
-      minOrder: '20 unidades',
+      leadTimeMin: '3',
+      leadTimeMax: '5',
+      costCurrency: 'S/',
+      unitCostValue: '8.00',
+      minOrderQty: '20',
+      minOrderUnit: 'unidades',
+      customMinOrderUnit: '',
       contact: '',
       reliability: '⭐⭐⭐⭐⭐ (Excelente)',
       notes: ''
@@ -206,12 +256,20 @@ export default function InventoryView({
 
   const handleOpenEditSupplier = (sup) => {
     setEditingSupplier(sup);
+    const { min: lMin, max: lMax } = parseLeadTimeFields(sup.leadTime);
+    const { currency: cCurr, value: cVal } = parseCostFields(sup.unitCostAvg);
+    const { qty: mQty, unit: mUnit, customUnit: mCustom } = parseMinOrderFields(sup.minOrder);
+
     setSupplierForm({
       name: sup.name || '',
       itemSupplied: sup.itemSupplied || '',
-      leadTime: sup.leadTime || '',
-      unitCostAvg: sup.unitCostAvg || '',
-      minOrder: sup.minOrder || '',
+      leadTimeMin: lMin || (sup.leadTimeDays ? String(sup.leadTimeDays) : '3'),
+      leadTimeMax: lMax || '',
+      costCurrency: cCurr,
+      unitCostValue: cVal || '8.00',
+      minOrderQty: mQty || (sup.minOrderQty ? String(sup.minOrderQty) : '20'),
+      minOrderUnit: mUnit,
+      customMinOrderUnit: mCustom,
       contact: sup.contact || '',
       reliability: sup.reliability || '⭐⭐⭐⭐⭐ (Excelente)',
       notes: sup.notes || ''
@@ -221,28 +279,71 @@ export default function InventoryView({
 
   const handleSaveSupplier = (e) => {
     e.preventDefault();
+
+    // 1. Formatear Tiempo Estimado de Entrega (solo números contabilizables)
+    const minDays = parseInt(supplierForm.leadTimeMin, 10);
+    const maxDays = parseInt(supplierForm.leadTimeMax, 10);
+    let formattedLeadTime = '3 - 5 días';
+    let avgDays = 5;
+
+    if (!isNaN(minDays) && !isNaN(maxDays)) {
+      formattedLeadTime = `${minDays} - ${maxDays} días`;
+      avgDays = Math.round((minDays + maxDays) / 2);
+    } else if (!isNaN(minDays)) {
+      formattedLeadTime = `${minDays} días`;
+      avgDays = minDays;
+    } else if (!isNaN(maxDays)) {
+      formattedLeadTime = `${maxDays} días`;
+      avgDays = maxDays;
+    }
+
+    // 2. Formatear Costo Unitario Promedio (con moneda garantizada y valor numérico)
+    const costVal = parseFloat(supplierForm.unitCostValue);
+    const formattedCost = !isNaN(costVal)
+      ? `${supplierForm.costCurrency} ${costVal.toFixed(2)}`
+      : `${supplierForm.costCurrency} 0.00`;
+
+    // 3. Formatear Pedido Mínimo (cantidad numérica + tipo de unidad)
+    const orderQty = parseInt(supplierForm.minOrderQty, 10) || 1;
+    const orderUnit = supplierForm.minOrderUnit === 'otro'
+      ? (supplierForm.customMinOrderUnit.trim() || 'unidades')
+      : supplierForm.minOrderUnit;
+    const formattedMinOrder = `${orderQty} ${orderUnit}`;
+
+    const supplierPayload = {
+      name: supplierForm.name.trim(),
+      itemSupplied: supplierForm.itemSupplied.trim(),
+      leadTime: formattedLeadTime,
+      leadTimeDays: avgDays,
+      unitCostAvg: formattedCost,
+      minOrder: formattedMinOrder,
+      minOrderQty: orderQty,
+      contact: supplierForm.contact.trim(),
+      reliability: supplierForm.reliability,
+      notes: supplierForm.notes.trim()
+    };
+
     if (editingSupplier) {
       if (onEditSupplier) {
         onEditSupplier({
           ...editingSupplier,
-          ...supplierForm
+          ...supplierPayload
         });
       }
     } else {
       const newSup = {
         id: `sup-${Date.now()}`,
-        ...supplierForm
+        ...supplierPayload
       };
       if (onAddNewSupplier) {
         onAddNewSupplier(newSup);
       }
       // Si el modal de nuevo ítem está abierto, vincular de inmediato este nuevo proveedor
       if (isNewItemModalOpen) {
-        const leadDays = parseSupplierDays(newSup.leadTime) || 15;
         setNewItemForm(prev => ({
           ...prev,
           supplier: newSup.name,
-          leadTimeDays: leadDays
+          leadTimeDays: avgDays
         }));
         setSupplierFilterQuery(newSup.name);
       }
@@ -1123,37 +1224,134 @@ export default function InventoryView({
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Tiempo Estimado de Entrega:</label>
-                  <input 
-                    type="text" 
-                    className="form-control"
-                    placeholder="Ej: 3 - 5 días"
-                    value={supplierForm.leadTime}
-                    onChange={(e) => setSupplierForm({ ...supplierForm, leadTime: e.target.value })}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <input 
+                        type="number" 
+                        min="1"
+                        step="1"
+                        className="form-control"
+                        placeholder="Mín (ej: 10)"
+                        value={supplierForm.leadTimeMin}
+                        onChange={(e) => setSupplierForm({ ...supplierForm, leadTimeMin: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>a</span>
+                    <div style={{ flex: 1 }}>
+                      <input 
+                        type="number" 
+                        min="1"
+                        step="1"
+                        className="form-control"
+                        placeholder="Máx (ej: 15)"
+                        value={supplierForm.leadTimeMax}
+                        onChange={(e) => setSupplierForm({ ...supplierForm, leadTimeMax: e.target.value })}
+                      />
+                    </div>
+                    <span style={{ 
+                      padding: '0 12px', 
+                      height: '38px',
+                      backgroundColor: 'var(--bg-input)', 
+                      border: '1px solid var(--border-subtle)', 
+                      borderRadius: 'var(--radius-sm)', 
+                      color: 'var(--text-muted)', 
+                      fontSize: '0.82rem', 
+                      fontWeight: 600,
+                      display: 'flex', 
+                      alignItems: 'center' 
+                    }}>
+                      días
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
+                    ✓ Solo números: {supplierForm.leadTimeMin ? `${supplierForm.leadTimeMin}${supplierForm.leadTimeMax ? ` - ${supplierForm.leadTimeMax}` : ''} días` : 'Ingresa los días'}
+                  </span>
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">Costo Unitario Promedio:</label>
-                  <input 
-                    type="text" 
-                    className="form-control"
-                    placeholder="Ej: S/ 8.00 - S/ 9.00"
-                    value={supplierForm.unitCostAvg}
-                    onChange={(e) => setSupplierForm({ ...supplierForm, unitCostAvg: e.target.value })}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <select 
+                      className="form-control"
+                      style={{ 
+                        width: '100px', 
+                        borderRadius: 'var(--radius-sm) 0 0 var(--radius-sm)', 
+                        borderRight: 'none',
+                        fontWeight: 700,
+                        backgroundColor: 'var(--bg-input)'
+                      }}
+                      value={supplierForm.costCurrency}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, costCurrency: e.target.value })}
+                    >
+                      <option value="S/">S/ (PEN)</option>
+                      <option value="$">$ (USD)</option>
+                    </select>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      min="0"
+                      className="form-control"
+                      style={{ borderRadius: '0 var(--radius-sm) var(--radius-sm) 0', fontWeight: 600 }}
+                      placeholder="0.00"
+                      value={supplierForm.unitCostValue}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, unitCostValue: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
+                    ✓ Restringido a moneda: {supplierForm.costCurrency} {Number(supplierForm.unitCostValue || 0).toFixed(2)} por unidad
+                  </span>
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Pedido Mínimo:</label>
-                  <input 
-                    type="text" 
-                    className="form-control"
-                    placeholder="Ej: 20 unidades"
-                    value={supplierForm.minOrder}
-                    onChange={(e) => setSupplierForm({ ...supplierForm, minOrder: e.target.value })}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: '1 1 110px' }}>
+                      <input 
+                        type="number" 
+                        min="1"
+                        step="1"
+                        className="form-control"
+                        placeholder="Cantidad (ej: 15)"
+                        value={supplierForm.minOrderQty}
+                        onChange={(e) => setSupplierForm({ ...supplierForm, minOrderQty: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div style={{ flex: '1 1 150px' }}>
+                      <select 
+                        className="form-control"
+                        value={supplierForm.minOrderUnit}
+                        onChange={(e) => setSupplierForm({ ...supplierForm, minOrderUnit: e.target.value })}
+                      >
+                        <option value="unidades">📦 Unidades (uds)</option>
+                        <option value="millares">🏢 Millares (1,000 uds)</option>
+                        <option value="paquetes">🎁 Paquetes / Packs</option>
+                        <option value="piezas">🧩 Piezas (pzs)</option>
+                        <option value="cajas">📦 Cajas</option>
+                        <option value="metros">📏 Metros (m)</option>
+                        <option value="lotes">🏷️ Lotes</option>
+                        <option value="otro">✍️ Otro tipo...</option>
+                      </select>
+                    </div>
+                  </div>
+                  {supplierForm.minOrderUnit === 'otro' && (
+                    <input 
+                      type="text"
+                      className="form-control"
+                      style={{ marginTop: '6px' }}
+                      placeholder="Escribe el tipo de unidad (ej: rollos, sets, etc.)"
+                      value={supplierForm.customMinOrderUnit}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, customMinOrderUnit: e.target.value })}
+                      required
+                    />
+                  )}
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
+                    ✓ Pedido mínimo: {supplierForm.minOrderQty || '0'} {supplierForm.minOrderUnit === 'otro' ? (supplierForm.customMinOrderUnit || '...') : supplierForm.minOrderUnit}
+                  </span>
                 </div>
 
                 <div className="form-group">
