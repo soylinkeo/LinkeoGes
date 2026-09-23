@@ -34,8 +34,8 @@ import UserProfileModal from './components/UserProfileModal';
 import MasterDataModal from './components/MasterDataModal';
 import ProjectLifecycleView from './components/ProjectLifecycleView';
 
-// Clave de versión de base de datos local para forzar purga de datos mock antiguos
-const DATA_CLEAN_VERSION = 'v1_production_clean_all';
+// Clave de versión de base de datos local para forzar purga de datos mock antiguos (todo vacío desde 0)
+const DATA_CLEAN_VERSION = 'v2_production_clean_all';
 if (typeof window !== 'undefined' && localStorage.getItem('linkeoges_clean_version') !== DATA_CLEAN_VERSION) {
   localStorage.removeItem('linkeoges_sales');
   localStorage.removeItem('linkeoges_expenses');
@@ -47,6 +47,7 @@ if (typeof window !== 'undefined' && localStorage.getItem('linkeoges_clean_versi
   localStorage.removeItem('linkeoges_events');
   localStorage.removeItem('linkeoges_audit_logs');
   localStorage.removeItem('linkeoges_project_phases');
+  localStorage.removeItem('linkeoges_products');
   localStorage.setItem('linkeoges_clean_version', DATA_CLEAN_VERSION);
 }
 
@@ -210,7 +211,7 @@ export default function App() {
     contactPerson: '',
     phone: '',
     district: districts[0] || 'Miraflores',
-    productId: 'pack-2',
+    productId: products[0]?.id || '',
     quantity: 1,
     paymentMethod: 'Yape',
     soldBy: currentUser?.id || 'luis',
@@ -463,6 +464,10 @@ export default function App() {
   const handleAddNewSale = (e) => {
     e.preventDefault();
     const prod = products.find(p => p.id === newSaleForm.productId) || products[0];
+    if (!prod) {
+      alert('⚠️ No hay productos registrados en el Catálogo. Por favor agrega al menos un modelo o pack en la sección "Catálogo" antes de registrar una venta.');
+      return;
+    }
     const qty = Number(newSaleForm.quantity) || 1;
     const totalAmount = prod.price * qty;
     const totalCost = prod.cost * qty;
@@ -1293,12 +1298,17 @@ export default function App() {
                     className="form-control"
                     value={newSaleForm.productId}
                     onChange={(e) => setNewSaleForm({ ...newSaleForm, productId: e.target.value })}
+                    required
                   >
-                    {products.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — S/ {p.price.toFixed(2)}
-                      </option>
-                    ))}
+                    {products.length === 0 ? (
+                      <option value="">(Sin productos — Agrega en Catálogo)</option>
+                    ) : (
+                      products.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — S/ {p.price.toFixed(2)}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
