@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Boxes, 
   AlertTriangle, 
@@ -16,9 +16,27 @@ import {
   Edit,
   Shuffle,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Search,
+  ChevronDown,
+  Check,
+  X,
+  Building2
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
+
+// Función para parsear días de cadenas tipo "18 días", "3 - 5 días", etc.
+const parseSupplierDays = (leadTime) => {
+  if (typeof leadTime === 'number' && !isNaN(leadTime)) return leadTime;
+  if (!leadTime) return null;
+  const str = String(leadTime).trim();
+  const rangeMatch = str.match(/(\d+)\s*[-–a]\s*(\d+)/i);
+  if (rangeMatch) {
+    return Math.round((parseInt(rangeMatch[1], 10) + parseInt(rangeMatch[2], 10)) / 2);
+  }
+  const singleMatch = str.match(/(\d+)/);
+  return singleMatch ? parseInt(singleMatch[1], 10) : null;
+};
 
 export default function InventoryView({
   inventory = [],
@@ -30,6 +48,52 @@ export default function InventoryView({
   onOpenNewExpense,
   onRequestDelete
 }) {
+  // Consolidar lista única de proveedores de la base de datos (Directorio + Histórico de Inventario)
+  const dbSuppliersList = useMemo(() => {
+    const map = new Map();
+    // 1. Proveedores oficiales registrados en el Directorio
+    suppliers.forEach(s => {
+      if (s && s.name && s.name.trim()) {
+        const key = s.name.trim().toLowerCase();
+        map.set(key, {
+          id: s.id,
+          name: s.name.trim(),
+          itemSupplied: s.itemSupplied || s.category || 'Insumos varios',
+          leadTime: s.leadTime || (s.leadTimeDays ? `${s.leadTimeDays} días` : 'Entrega estándar'),
+          leadTimeDays: s.leadTimeDays || parseSupplierDays(s.leadTime) || 15,
+          unitCostAvg: s.unitCostAvg || '',
+          reliability: s.reliability || '⭐⭐⭐⭐⭐ (Excelente)',
+          contact: s.contact || s.phone || '',
+          notes: s.notes || '',
+          isRegistered: true
+        });
+      }
+    });
+
+    // 2. Proveedores registrados previamente en ítems de inventario que aún no estén en el directorio
+    inventory.forEach(inv => {
+      if (inv && inv.supplier && inv.supplier.trim()) {
+        const key = inv.supplier.trim().toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            id: `inv-sup-${key}`,
+            name: inv.supplier.trim(),
+            itemSupplied: inv.category || 'Material de inventario',
+            leadTime: inv.leadTimeDays ? `${inv.leadTimeDays} días` : 'Entrega estándar',
+            leadTimeDays: inv.leadTimeDays || 15,
+            unitCostAvg: inv.unitCost ? `S/ ${Number(inv.unitCost).toFixed(2)}` : '',
+            reliability: 'Histórico en Inventario',
+            contact: '',
+            notes: '',
+            isRegistered: false
+          });
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [suppliers, inventory]);
+
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
   const [newItemForm, setNewItemForm] = useState({
     sku: generateRandomSku('SKU-LNK'),
@@ -38,13 +102,62 @@ export default function InventoryView({
     quantity: 50,
     minThreshold: 20,
     unitCost: 4.00,
-    supplier: 'AliExpress Official RFID Store',
-    leadTimeDays: 18,
+    supplier: '',
+    leadTimeDays: 15,
     reorderUrl: '',
     notes: ''
   });
 
+  // Estados para el Combobox de Proveedor
+  const [supplierComboboxOpen, setSupplierComboboxOpen] = useState(false);
+  const [supplierFilterQuery, setSupplierFilterQuery] = useState('');
+  const comboboxRef = useRef(null);
+
+  // Cerrar menú al hacer clic fuera del combobox
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (comboboxRef.current && !comboboxRef.current.contains(e.target)) {
+        setSupplierComboboxOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtrado reactivo de proveedores
+  const filteredSuppliers = useMemo(() => {
+    const query = (supplierFilterQuery || '').trim().toLowerCase();
+    if (!query) return dbSuppliersList;
+    return dbSuppliersList.filter(s => 
+      s.name.toLowerCase().includes(query) ||
+      (s.itemSupplied && s.itemSupplied.toLowerCase().includes(query)) ||
+      (s.reliability && s.reliability.toLowerCase().includes(query))
+    );
+  }, [dbSuppliersList, supplierFilterQuery]);
+
+  // Proveedor verificado exacto en la base de datos si ya coincide
+  const matchedSupplier = useMemo(() => {
+    if (!newItemForm.supplier || !newItemForm.supplier.trim()) return null;
+    return dbSuppliersList.find(s => s.name.toLowerCase() === newItemForm.supplier.trim().toLowerCase());
+  }, [dbSuppliersList, newItemForm.supplier]);
+
+  const handleSelectSupplier = (sup) => {
+    const leadDays = sup.leadTimeDays || parseSupplierDays(sup.leadTime) || 15;
+    setNewItemForm(prev => ({
+      ...prev,
+      supplier: sup.name,
+      leadTimeDays: leadDays,
+      reorderUrl: prev.reorderUrl || (sup.notes && sup.notes.startsWith('http') ? sup.notes : prev.reorderUrl)
+    }));
+    setSupplierFilterQuery(sup.name);
+    setSupplierComboboxOpen(false);
+  };
+
   const handleOpenNewItemModal = () => {
+    const defaultSup = dbSuppliersList.length > 0 ? dbSuppliersList[0] : null;
+    const defaultSupName = defaultSup ? defaultSup.name : '';
+    const defaultLeadDays = defaultSup ? (defaultSup.leadTimeDays || 15) : 15;
+
     setNewItemForm(prev => ({
       ...prev,
       sku: generateRandomSku('SKU-LNK'),
@@ -52,9 +165,13 @@ export default function InventoryView({
       quantity: 50,
       minThreshold: 20,
       unitCost: 4.00,
+      supplier: defaultSupName,
+      leadTimeDays: defaultLeadDays,
       reorderUrl: '',
       notes: ''
     }));
+    setSupplierFilterQuery(defaultSupName);
+    setSupplierComboboxOpen(false);
     setIsNewItemModalOpen(true);
   };
 
@@ -118,6 +235,16 @@ export default function InventoryView({
       };
       if (onAddNewSupplier) {
         onAddNewSupplier(newSup);
+      }
+      // Si el modal de nuevo ítem está abierto, vincular de inmediato este nuevo proveedor
+      if (isNewItemModalOpen) {
+        const leadDays = parseSupplierDays(newSup.leadTime) || 15;
+        setNewItemForm(prev => ({
+          ...prev,
+          supplier: newSup.name,
+          leadTimeDays: leadDays
+        }));
+        setSupplierFilterQuery(newSup.name);
       }
     }
     setIsSupplierModalOpen(false);
@@ -190,7 +317,7 @@ export default function InventoryView({
           </button>
           <button className="btn btn-primary" onClick={handleOpenNewItemModal}>
             <Plus size={16} />
-            <span>+ Agregar Insumo / SKU</span>
+            <span>Agregar Insumo / SKU</span>
           </button>
         </div>
       </div>
@@ -383,7 +510,7 @@ export default function InventoryView({
             title="Registrar nuevo proveedor de insumos"
           >
             <Plus size={14} />
-            <span>+ Agregar Proveedor</span>
+            <span>Agregar Proveedor</span>
           </button>
         </div>
 
@@ -396,7 +523,7 @@ export default function InventoryView({
                 Registra proveedores locales o internacionales para llevar el control de insumos, costos, tiempos de entrega y contacto.
               </p>
               <button className="btn btn-primary btn-sm" onClick={handleOpenAddSupplier}>
-                <Plus size={14} /> + Agregar Proveedor
+                <Plus size={14} /> Agregar Proveedor
               </button>
             </div>
           ) : (
@@ -589,15 +716,348 @@ export default function InventoryView({
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Proveedor Principal:</label>
-                <input 
-                  type="text" 
-                  className="form-control"
-                  placeholder="AliExpress, Acrílicos Perú, etc."
-                  value={newItemForm.supplier}
-                  onChange={(e) => setNewItemForm({ ...newItemForm, supplier: e.target.value })}
-                />
+              {/* Proveedor Principal con Combobox Inteligente y Búsqueda en Base de Datos */}
+              <div className="form-group" ref={comboboxRef} style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Proveedor Principal:</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="badge badge-blue" style={{ fontSize: '0.68rem', padding: '1px 7px' }}>
+                      {dbSuppliersList.length} en base de datos
+                    </span>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setSupplierForm(prev => ({
+                          ...prev,
+                          name: newItemForm.supplier || '',
+                          itemSupplied: newItemForm.name || newItemForm.category || ''
+                        }));
+                        setIsSupplierModalOpen(true);
+                      }}
+                      style={{ 
+                        background: 'transparent', 
+                        border: 'none', 
+                        color: 'var(--primary-600)', 
+                        fontSize: '0.72rem', 
+                        fontWeight: 600, 
+                        cursor: 'pointer', 
+                        padding: 0, 
+                        textDecoration: 'underline' 
+                      }}
+                      title="Registrar un nuevo proveedor formal en el directorio"
+                    >
+                      + Registrar en Directorio
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Search 
+                    size={16} 
+                    style={{ 
+                      position: 'absolute', 
+                      left: '12px', 
+                      color: 'var(--text-muted)', 
+                      pointerEvents: 'none',
+                      zIndex: 2
+                    }} 
+                  />
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    style={{ paddingLeft: '36px', paddingRight: '64px' }}
+                    placeholder={dbSuppliersList.length > 0 ? "Buscar proveedor en base de datos o escribir..." : "Escribir nombre del proveedor..."}
+                    value={newItemForm.supplier}
+                    onFocus={() => {
+                      setSupplierFilterQuery(newItemForm.supplier || '');
+                      setSupplierComboboxOpen(true);
+                    }}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewItemForm(prev => ({ ...prev, supplier: val }));
+                      setSupplierFilterQuery(val);
+                      setSupplierComboboxOpen(true);
+                    }}
+                    autoComplete="off"
+                  />
+                  <div style={{ position: 'absolute', right: '8px', display: 'flex', alignItems: 'center', gap: '2px', zIndex: 2 }}>
+                    {newItemForm.supplier && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setNewItemForm(prev => ({ ...prev, supplier: '' }));
+                          setSupplierFilterQuery('');
+                          setSupplierComboboxOpen(true);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="Limpiar campo"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSupplierComboboxOpen(prev => !prev)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="Desplegar lista de proveedores"
+                    >
+                      <ChevronDown 
+                        size={16} 
+                        style={{ 
+                          transform: supplierComboboxOpen ? 'rotate(180deg)' : 'none', 
+                          transition: 'transform 0.2s ease' 
+                        }} 
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Menú Desplegable Flotante del Combobox */}
+                {supplierComboboxOpen && (
+                  <div 
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 4px)',
+                      left: 0,
+                      right: 0,
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-md)',
+                      boxShadow: '0 12px 28px rgba(0, 0, 0, 0.45), 0 4px 10px rgba(0, 0, 0, 0.25)',
+                      zIndex: 100,
+                      maxHeight: '270px',
+                      overflowY: 'auto',
+                      padding: '6px'
+                    }}
+                  >
+                    {/* Encabezado del Dropdown */}
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        padding: '6px 8px 8px 8px', 
+                        borderBottom: '1px solid var(--border-subtle)',
+                        marginBottom: '6px' 
+                      }}
+                    >
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Proveedores en Base ({filteredSuppliers.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSupplierComboboxOpen(false);
+                          setSupplierForm(prev => ({
+                            ...prev,
+                            name: newItemForm.supplier || '',
+                            itemSupplied: newItemForm.name || newItemForm.category || ''
+                          }));
+                          setIsSupplierModalOpen(true);
+                        }}
+                        style={{
+                          background: 'rgba(0, 102, 255, 0.12)',
+                          border: '1px solid rgba(0, 102, 255, 0.3)',
+                          color: 'var(--primary-600)',
+                          borderRadius: '4px',
+                          padding: '2px 8px',
+                          fontSize: '0.70rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        + Registrar Nuevo
+                      </button>
+                    </div>
+
+                    {/* Lista de Opciones */}
+                    {filteredSuppliers.length > 0 ? (
+                      filteredSuppliers.map(sup => {
+                        const isSelected = newItemForm.supplier.trim().toLowerCase() === sup.name.trim().toLowerCase();
+                        return (
+                          <div
+                            key={sup.id || sup.name}
+                            onClick={() => handleSelectSupplier(sup)}
+                            style={{
+                              padding: '8px 10px',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              backgroundColor: isSelected ? 'rgba(0, 102, 255, 0.15)' : 'transparent',
+                              border: isSelected ? '1px solid rgba(0, 102, 255, 0.3)' : '1px solid transparent',
+                              transition: 'background-color 0.15s',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '3px',
+                              marginBottom: '3px'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <strong style={{ fontSize: '0.84rem', color: isSelected ? 'var(--primary-600)' : 'var(--text-main)' }}>
+                                  {sup.name}
+                                </strong>
+                                {sup.isRegistered ? (
+                                  <span className="badge badge-blue" style={{ fontSize: '0.66rem', padding: '1px 5px' }}>
+                                    Directorio
+                                  </span>
+                                ) : (
+                                  <span className="badge badge-purple" style={{ fontSize: '0.66rem', padding: '1px 5px' }}>
+                                    Inventario
+                                  </span>
+                                )}
+                              </div>
+                              {isSelected && <Check size={14} color="var(--primary-600)" />}
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                              <span>📦 {sup.itemSupplied}</span>
+                              <span>⏱️ {sup.leadTime}</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={{ padding: '14px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        <p style={{ margin: '0 0 8px 0', fontSize: '0.80rem' }}>
+                          No hay proveedor con "<strong>{newItemForm.supplier}</strong>" en la base.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setSupplierComboboxOpen(false)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '0.74rem', padding: '3px 8px', margin: '0 auto' }}
+                        >
+                          ✓ Usar "{newItemForm.supplier}" de forma manual
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Footer de Ayuda */}
+                    <div 
+                      style={{ 
+                        borderTop: '1px solid var(--border-subtle)', 
+                        paddingTop: '6px', 
+                        marginTop: '4px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '0.72rem',
+                        color: 'var(--text-muted)',
+                        padding: '4px 6px 2px 6px'
+                      }}
+                    >
+                      <span>💡 Selecciona un proveedor o escribe uno manual.</span>
+                      <button
+                        type="button"
+                        onClick={() => setSupplierComboboxOpen(false)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--primary-600)',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          fontSize: '0.72rem'
+                        }}
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Indicador de Estado del Proveedor Seleccionado */}
+                {matchedSupplier ? (
+                  <div 
+                    style={{ 
+                      marginTop: '6px', 
+                      padding: '6px 10px', 
+                      backgroundColor: 'rgba(16, 185, 129, 0.08)', 
+                      border: '1px solid rgba(16, 185, 129, 0.25)', 
+                      borderRadius: 'var(--radius-sm)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '0.74rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981' }}>
+                      <CheckCircle size={13} />
+                      <span>
+                        <strong>Proveedor verificado en base:</strong> {matchedSupplier.name} ({matchedSupplier.itemSupplied}) • Reposición: {matchedSupplier.leadTime}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                      {matchedSupplier.reliability || 'Activo'}
+                    </span>
+                  </div>
+                ) : newItemForm.supplier && newItemForm.supplier.trim() ? (
+                  <div 
+                    style={{ 
+                      marginTop: '6px', 
+                      padding: '6px 10px', 
+                      backgroundColor: 'rgba(245, 158, 11, 0.08)', 
+                      border: '1px solid rgba(245, 158, 11, 0.25)', 
+                      borderRadius: 'var(--radius-sm)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '0.74rem'
+                    }}
+                  >
+                    <span style={{ color: '#f59e0b' }}>
+                      ℹ️ Proveedor manual no registrado aún en el directorio.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSupplierForm(prev => ({
+                          ...prev,
+                          name: newItemForm.supplier,
+                          itemSupplied: newItemForm.name || newItemForm.category || ''
+                        }));
+                        setIsSupplierModalOpen(true);
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--primary-600)',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: 0,
+                        textDecoration: 'underline',
+                        fontSize: '0.72rem'
+                      }}
+                    >
+                      + Registrar en Directorio
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               <div className="form-group">
