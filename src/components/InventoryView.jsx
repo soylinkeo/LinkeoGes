@@ -168,13 +168,17 @@ export default function InventoryView({
   return (
     <div className="inventory-view">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Boxes size={24} color="var(--primary-600)" />
-            <span>Control de Inventario & Alertas de Proveedores</span>
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <div style={{ background: 'rgba(0, 102, 255, 0.12)', padding: '8px', borderRadius: 'var(--radius-md)', color: 'var(--primary-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Boxes size={24} />
+            </div>
+            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0 }}>
+              Control de Inventario & Alertas de Proveedores
+            </h2>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
             Stock diferenciado de insumos vírgenes, acrílicos, empaques y tiempos de importación de AliExpress.
           </p>
         </div>

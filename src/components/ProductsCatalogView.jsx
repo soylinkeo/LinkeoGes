@@ -100,20 +100,24 @@ export default function ProductsCatalogView({
   return (
     <div className="products-catalog-view">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ShoppingBag size={24} color="var(--primary-600)" />
-            <span>Almacén & Catálogo Oficial de Productos (Precios y Costos por Defecto)</span>
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', maxWidth: '750px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <div style={{ background: 'rgba(0, 102, 255, 0.12)', padding: '8px', borderRadius: 'var(--radius-md)', color: 'var(--primary-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ShoppingBag size={24} />
+            </div>
+            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0 }}>
+              Almacén & Catálogo Oficial de Productos (Precios y Costos por Defecto)
+            </h2>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: '4px 0 0 0', maxWidth: '820px' }}>
             Registra aquí todos los tipos de productos e insumos de Linkeo (Tarjetas NFC, Displays, etc.) definiendo su <strong>Precio de Venta Oficial</strong> y su <strong>Costo Unitario por Defecto</strong>. Al registrar gastos o ventas, se cargarán automáticamente con la opción de modificarlos cuando lo necesites.
           </p>
         </div>
 
         <button className="btn btn-primary" onClick={handleOpenNewProductModal}>
           <Plus size={16} />
-          <span>+ Agregar Producto al Almacén</span>
+          <span>Agregar Producto al Almacén</span>
         </button>
       </div>
 

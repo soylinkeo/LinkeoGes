@@ -174,13 +174,17 @@ export default function FinanceView({
   return (
     <div className="finance-view">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <DollarSign size={24} color="var(--primary-600)" />
-            <span>Finanzas, Gastos & Cuentas Claras (50/50)</span>
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <div style={{ background: 'rgba(0, 102, 255, 0.12)', padding: '8px', borderRadius: 'var(--radius-md)', color: 'var(--primary-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <DollarSign size={24} />
+            </div>
+            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0 }}>
+              Finanzas, Gastos & Cuentas Claras (50/50)
+            </h2>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
             Control transparente de desembolsos, conciliación entre Luis Romero y Kevin Servat, y exportación limpia a Excel (.xlsx).
           </p>
         </div>

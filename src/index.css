@@ -167,7 +167,7 @@ button, input, select, textarea {
 }
 
 .content-body {
-  padding: 32px 44px;
+  padding: 22px 36px 36px 36px;
   width: 100%;
   max-width: 1560px;
   margin: 0 auto;
@@ -176,20 +176,20 @@ button, input, select, textarea {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  gap: 28px;
+  gap: 24px;
 }
 
 @media (max-width: 1200px) {
   .content-body {
-    padding: 24px 28px;
-    gap: 22px;
+    padding: 18px 24px 28px 24px;
+    gap: 20px;
   }
 }
 
 @media (max-width: 768px) {
   .content-body {
-    padding: 16px 16px;
-    gap: 18px;
+    padding: 14px 16px 20px 16px;
+    gap: 16px;
   }
 }
 

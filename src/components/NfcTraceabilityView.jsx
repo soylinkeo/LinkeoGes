@@ -241,13 +241,17 @@ export default function NfcTraceabilityView({
   return (
     <div className="nfc-traceability-view">
       {/* Cabecera del Módulo */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Cpu size={24} color="var(--primary-600)" />
-            <span>Trazabilidad de Chips y Enlaces (Core NFC)</span>
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <div style={{ background: 'rgba(0, 102, 255, 0.12)', padding: '8px', borderRadius: 'var(--radius-md)', color: 'var(--primary-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Cpu size={24} />
+            </div>
+            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0 }}>
+              Trazabilidad de Chips y Enlaces (Core NFC)
+            </h2>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
             Vinculación de ID físico de tarjeta, Place ID de Google, código QR y bitácora de soporte técnico.
           </p>
         </div>

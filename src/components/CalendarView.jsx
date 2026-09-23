@@ -113,13 +113,17 @@ export default function CalendarView({
   return (
     <div className="calendar-view">
       {/* Header Principal */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CalendarIcon size={24} color="var(--primary-600)" />
-            <span>Agenda & Enrutamiento de Visitas Presenciales</span>
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <div style={{ background: 'rgba(0, 102, 255, 0.12)', padding: '8px', borderRadius: 'var(--radius-md)', color: 'var(--primary-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CalendarIcon size={24} />
+            </div>
+            <h2 style={{ fontSize: '1.45rem', fontWeight: 800, margin: 0 }}>
+              Agenda & Enrutamiento de Visitas Presenciales
+            </h2>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
             Coordinación centralizada de demostraciones, visitas comerciales y soporte técnico 50/50 entre Luis Romero y Kevin Servat.
           </p>
         </div>
