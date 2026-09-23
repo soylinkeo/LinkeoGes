@@ -26,6 +26,7 @@ export default function FinanceView({
   products = [],
   inventory = [],
   onAddNewExpense,
+  onEditExpense,
   onAddNewSale,
   onExportExcel,
   partnerBalance = {},
@@ -39,6 +40,7 @@ export default function FinanceView({
   const [filterMonth, setFilterMonth] = useState('all');
   const [filterPartner, setFilterPartner] = useState('all');
   const [isNewExpenseModalOpen, setIsNewExpenseModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
 
   // Formulario nuevo gasto con producto vinculado y costo modificable
@@ -106,9 +108,79 @@ export default function FinanceView({
   const paidByLuis = expenses.filter(e => e.paidBy === 'luis').reduce((acc, e) => acc + Number(e.amount || 0), 0);
   const debt = partnerBalance.debtLuisToKevin || 0;
 
+  const handleOpenNewExpense = () => {
+    setEditingExpense(null);
+    const today = new Date().toISOString().slice(0, 10);
+    setExpenseForm({
+      date: today,
+      type: 'Gasto',
+      category: 'Compra de mercadería',
+      selectedProductId: '',
+      description: '',
+      quantity: 1,
+      unitCost: '',
+      isCustomCost: false,
+      amount: '',
+      paymentMethod: 'Tarjeta',
+      paidBy: 'luis',
+      month: getAccountingMonth(today),
+      notes: '',
+      addToInventory: true
+    });
+    setIsNewExpenseModalOpen(true);
+  };
+
+  const handleOpenEditExpense = (exp) => {
+    setEditingExpense(exp);
+    setExpenseForm({
+      date: exp.date || new Date().toISOString().slice(0, 10),
+      type: exp.type || 'Gasto',
+      category: exp.category || 'Compra de mercadería',
+      selectedProductId: exp.selectedProductId || '',
+      description: exp.description || '',
+      quantity: exp.quantity || 1,
+      unitCost: exp.unitCost !== null && exp.unitCost !== undefined ? String(exp.unitCost) : '',
+      isCustomCost: !!exp.isCustomCost,
+      amount: exp.amount !== null && exp.amount !== undefined ? String(exp.amount) : '',
+      paymentMethod: exp.paymentMethod || 'Tarjeta',
+      paidBy: exp.paidBy || 'luis',
+      month: exp.month || getAccountingMonth(exp.date || new Date().toISOString().slice(0, 10)),
+      notes: exp.notes || '',
+      addToInventory: false
+    });
+    setIsNewExpenseModalOpen(true);
+  };
+
   const handleCreateExpense = (e) => {
     e.preventDefault();
     const finalAmount = Number(expenseForm.amount) || 0;
+
+    if (editingExpense) {
+      const updatedExp = {
+        ...editingExpense,
+        date: expenseForm.date,
+        type: expenseForm.type,
+        category: expenseForm.category,
+        description: expenseForm.description,
+        amount: finalAmount,
+        paymentMethod: expenseForm.paymentMethod,
+        paidBy: expenseForm.paidBy,
+        month: expenseForm.month || getAccountingMonth(expenseForm.date),
+        notes: expenseForm.notes,
+        selectedProductId: expenseForm.selectedProductId || null,
+        unitCost: expenseForm.unitCost ? Number(expenseForm.unitCost) : null,
+        quantity: Number(expenseForm.quantity) || 1,
+        isCustomCost: expenseForm.isCustomCost
+      };
+
+      if (onEditExpense) {
+        onEditExpense(updatedExp);
+      }
+      setIsNewExpenseModalOpen(false);
+      setEditingExpense(null);
+      return;
+    }
+
     const newExp = {
       id: `exp-${Date.now()}`,
       date: expenseForm.date,
@@ -195,7 +267,7 @@ export default function FinanceView({
             <span>Exportar Todo a Excel (.xlsx)</span>
           </button>
 
-          <button className="btn btn-primary" onClick={() => setIsNewExpenseModalOpen(true)}>
+          <button className="btn btn-primary" onClick={handleOpenNewExpense}>
             <Plus size={16} />
             <span>Registrar Gasto</span>
           </button>
@@ -368,7 +440,7 @@ export default function FinanceView({
                 <th>Socio Responsable</th>
                 <th>Mes</th>
                 <th>Notas / Impacto en Caja</th>
-                <th style={{ textAlign: 'center' }}>Acción</th>
+                <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -396,14 +468,24 @@ export default function FinanceView({
                     {exp.notes || '—'}
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <button 
-                      className="btn-icon" 
-                      style={{ width: '28px', height: '28px', color: '#ef4444' }}
-                      onClick={() => onRequestDelete && onRequestDelete(exp, 'Gasto')}
-                      title="Eliminar gasto (con registro de auditoría)"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                      <button 
+                        className="btn-icon" 
+                        style={{ width: '28px', height: '28px', color: 'var(--primary-600)', borderColor: 'rgba(0, 102, 255, 0.3)' }}
+                        onClick={() => handleOpenEditExpense(exp)}
+                        title="Editar gasto"
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                      <button 
+                        className="btn-icon" 
+                        style={{ width: '28px', height: '28px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                        onClick={() => onRequestDelete && onRequestDelete(exp, 'Gasto')}
+                        title="Eliminar gasto (con registro de auditoría)"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -412,13 +494,15 @@ export default function FinanceView({
         </div>
       </div>
 
-      {/* MODAL: Nuevo Gasto */}
+      {/* MODAL: Crear / Editar Gasto */}
       {isNewExpenseModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewExpenseModalOpen(false)}>
+        <div className="modal-overlay" onClick={() => { setIsNewExpenseModalOpen(false); setEditingExpense(null); }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">Registrar Nuevo Gasto Operativo</h3>
-              <button className="close-btn" onClick={() => setIsNewExpenseModalOpen(false)}>✕</button>
+              <h3 className="modal-title">
+                {editingExpense ? 'Editar Registro de Gasto / Desembolso' : 'Registrar Nuevo Gasto Operativo'}
+              </h3>
+              <button className="close-btn" onClick={() => { setIsNewExpenseModalOpen(false); setEditingExpense(null); }}>✕</button>
             </div>
 
             <form onSubmit={handleCreateExpense}>
@@ -657,11 +741,11 @@ export default function FinanceView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewExpenseModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={() => { setIsNewExpenseModalOpen(false); setEditingExpense(null); }}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Guardar Gasto
+                  {editingExpense ? 'Guardar Cambios' : 'Guardar Gasto'}
                 </button>
               </div>
             </form>

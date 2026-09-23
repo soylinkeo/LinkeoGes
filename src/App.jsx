@@ -717,6 +717,26 @@ export default function App() {
     });
   };
 
+  const handleEditExpense = (updatedExp) => {
+    const expenseWithMonth = {
+      ...updatedExp,
+      month: updatedExp.month || getAccountingMonth(updatedExp.date || new Date().toISOString().slice(0, 10))
+    };
+    const oldExp = expenses.find(e => e.id === updatedExp.id);
+    setExpenses(prev => prev.map(e => e.id === updatedExp.id ? expenseWithMonth : e));
+    if (isSupabaseConfigured) {
+      dbService.update('expenses', updatedExp.id, expenseWithMonth, mappers.expenseToDb);
+    }
+    logAudit({
+      actionType: 'Modificación',
+      entityType: 'Gasto',
+      entityId: updatedExp.id,
+      entityName: `${expenseWithMonth.description} - S/ ${Number(expenseWithMonth.amount).toFixed(2)}`,
+      reason: `Modificación de gasto pagado por ${expenseWithMonth.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'} (Mes: ${expenseWithMonth.month}).`,
+      diff: `Antes: S/ ${Number(oldExp?.amount || 0).toFixed(2)} (${oldExp?.description || '—'}) -> Ahora: S/ ${Number(expenseWithMonth.amount).toFixed(2)} (${expenseWithMonth.description})`
+    });
+  };
+
   // Handlers para Tarjetas NFC
   const handleAddNewCard = (newCard) => {
     setNfcCards([newCard, ...nfcCards]);
@@ -1634,6 +1654,7 @@ export default function App() {
               products={products}
               inventory={inventory}
               onAddNewExpense={handleAddNewExpense}
+              onEditExpense={handleEditExpense}
               onAddNewSale={() => setIsNewSaleModalOpen(true)}
               onExportExcel={handleExportExcel}
               partnerBalance={partnerBalance}
