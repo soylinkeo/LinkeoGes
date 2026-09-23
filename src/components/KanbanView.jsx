@@ -24,7 +24,8 @@ export default function KanbanView({
   onUpdateLeadStage,
   onAddNewLead,
   onConvertLeadToSale,
-  onRequestDelete
+  onRequestDelete,
+  showToast
 }) {
   const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
@@ -47,8 +48,35 @@ export default function KanbanView({
     nextStepDate: new Date().toISOString().slice(0, 10)
   });
 
+  const handleCloseNewLeadModal = () => {
+    setNewLeadForm({
+      businessName: '',
+      rubro: 'Restaurante / Cafetería',
+      district: 'Miraflores',
+      address: '',
+      contactName: '',
+      phone: '',
+      interestedProduct: 'Pack Negocio',
+      estimatedValue: 100.00,
+      assignedTo: 'kevin',
+      notes: '',
+      nextStepNote: 'Enviar catálogo por WhatsApp',
+      nextStepDate: new Date().toISOString().slice(0, 10)
+    });
+    setIsNewLeadModalOpen(false);
+  };
+
+  const handleCloseConvertModal = () => {
+    setSelectedLead(null);
+    setIsConvertModalOpen(false);
+  };
+
   const handleStageChange = (leadId, newStage) => {
     onUpdateLeadStage(leadId, newStage);
+    const stageObj = STAGES.find(s => s.id === newStage);
+    if (showToast) {
+      showToast(`Fase actualizada: ${stageObj ? stageObj.label : newStage}`, 'info', 1800);
+    }
     if (newStage === 'entregado') {
       confetti({
         particleCount: 80,
@@ -78,21 +106,10 @@ export default function KanbanView({
     };
 
     onAddNewLead(newLead);
-    setIsNewLeadModalOpen(false);
-    setNewLeadForm({
-      businessName: '',
-      rubro: 'Restaurante / Cafetería',
-      district: 'Miraflores',
-      address: '',
-      contactName: '',
-      phone: '',
-      interestedProduct: 'Pack Negocio',
-      estimatedValue: 100.00,
-      assignedTo: 'kevin',
-      notes: '',
-      nextStepNote: 'Enviar catálogo por WhatsApp',
-      nextStepDate: new Date().toISOString().slice(0, 10)
-    });
+    if (showToast) {
+      showToast(`✅ Prospecto "${newLead.businessName}" añadido al embudo comercial`, 'success');
+    }
+    handleCloseNewLeadModal();
   };
 
   const handleOpenConvert = (lead) => {
@@ -102,8 +119,12 @@ export default function KanbanView({
 
   const handleConfirmConvert = () => {
     if (!selectedLead) return;
+    const name = selectedLead.businessName;
     onConvertLeadToSale(selectedLead);
-    setIsConvertModalOpen(false);
+    if (showToast) {
+      showToast(`🎉 ¡Venta generada! Lead "${name}" convertido y chip NFC emitido`, 'success');
+    }
+    handleCloseConvertModal();
     confetti({
       particleCount: 120,
       spread: 90,
@@ -306,11 +327,11 @@ export default function KanbanView({
 
       {/* MODAL: Nuevo Prospecto */}
       {isNewLeadModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewLeadModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseNewLeadModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Registrar Nuevo Prospecto B2B</h3>
-              <button className="close-btn" onClick={() => setIsNewLeadModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseNewLeadModal}>✕</button>
             </div>
 
             <form onSubmit={handleSaveNewLead}>
@@ -457,7 +478,7 @@ export default function KanbanView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewLeadModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseNewLeadModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -471,11 +492,11 @@ export default function KanbanView({
 
       {/* MODAL: Confirmar Conversión a Venta */}
       {isConvertModalOpen && selectedLead && (
-        <div className="modal-overlay" onClick={() => setIsConvertModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseConvertModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">🎉 Convertir Prospecto en Venta Real</h3>
-              <button className="close-btn" onClick={() => setIsConvertModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseConvertModal}>✕</button>
             </div>
 
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>
@@ -504,7 +525,7 @@ export default function KanbanView({
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button className="btn btn-secondary" onClick={() => setIsConvertModalOpen(false)}>
+              <button className="btn btn-secondary" onClick={handleCloseConvertModal}>
                 Cancelar
               </button>
               <button className="btn btn-success" onClick={handleConfirmConvert}>

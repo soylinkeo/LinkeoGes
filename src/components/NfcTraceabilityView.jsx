@@ -25,7 +25,8 @@ export default function NfcTraceabilityView({
   onRequestDelete,
   selectedCardModal,
   setSelectedCardModal,
-  onUpdateInventoryStock
+  onUpdateInventoryStock,
+  showToast
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDistrict, setFilterDistrict] = useState('all');
@@ -92,6 +93,29 @@ export default function NfcTraceabilityView({
     chipUid: '',
     discountStock: true
   });
+
+  const handleCloseEditModal = () => {
+    setEditingCard(null);
+    setSupportNote('');
+    setIsEditModalOpen(false);
+  };
+
+  const handleCloseNewCardModal = () => {
+    setNewCardForm({
+      model: products[0]?.name || (inventory[0]?.name || 'Tarjeta Google NFC'),
+      selectedProductId: products[0]?.id || '',
+      businessName: '',
+      category: 'Restaurante / Cafetería',
+      district: 'Miraflores',
+      address: '',
+      contactName: '',
+      contactPhone: '',
+      placeId: '',
+      chipUid: '',
+      discountStock: true
+    });
+    setIsNewCardModalOpen(false);
+  };
 
   useEffect(() => {
     if (selectedCardModal) {
@@ -169,7 +193,10 @@ export default function NfcTraceabilityView({
       history: updatedHistory
     });
 
-    setIsEditModalOpen(false);
+    if (showToast) {
+      showToast(`✅ Tarjeta "${editingCard.id}" actualizada exitosamente`, 'success');
+    }
+
     if (activeModalCard && activeModalCard.id === editingCard.id) {
       setActiveModalCard({
         ...editingCard,
@@ -177,6 +204,8 @@ export default function NfcTraceabilityView({
         history: updatedHistory
       });
     }
+
+    handleCloseEditModal();
   };
 
   const handleCreateNewCard = (e) => {
@@ -218,20 +247,10 @@ export default function NfcTraceabilityView({
     };
 
     onAddNewCard(newCard);
-    setIsNewCardModalOpen(false);
-    setNewCardForm({
-      model: products[0]?.name || (inventory[0]?.name || 'Tarjeta Google NFC'),
-      selectedProductId: products[0]?.id || '',
-      businessName: '',
-      category: 'Restaurante / Cafetería',
-      district: 'Miraflores',
-      address: '',
-      contactName: '',
-      contactPhone: '',
-      placeId: '',
-      chipUid: '',
-      discountStock: true
-    });
+    if (showToast) {
+      showToast(`✅ Tarjeta ${newId} (${newCard.businessName}) vinculada y registrada`, 'success');
+    }
+    handleCloseNewCardModal();
   };
 
   return (
@@ -556,11 +575,11 @@ export default function NfcTraceabilityView({
 
       {/* MODAL 2: Editar Enlace / Soporte Técnico */}
       {isEditModalOpen && editingCard && (
-        <div className="modal-overlay" onClick={() => setIsEditModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseEditModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Gestión de Enlace & Soporte: {editingCard.id}</h3>
-              <button className="close-btn" onClick={() => setIsEditModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseEditModal}>✕</button>
             </div>
 
             <form onSubmit={handleSaveEdit}>
@@ -634,7 +653,7 @@ export default function NfcTraceabilityView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseEditModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -648,11 +667,11 @@ export default function NfcTraceabilityView({
 
       {/* MODAL 3: Vincular Nueva Tarjeta NFC */}
       {isNewCardModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewCardModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseNewCardModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Vincular Nueva Tarjeta NFC</h3>
-              <button className="close-btn" onClick={() => setIsNewCardModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseNewCardModal}>✕</button>
             </div>
 
             <form onSubmit={handleCreateNewCard}>
@@ -858,7 +877,7 @@ export default function NfcTraceabilityView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewCardModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseNewCardModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">

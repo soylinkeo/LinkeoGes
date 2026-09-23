@@ -24,6 +24,12 @@ export default function DeleteConfirmModal({
   const itemName = item.name || item.businessName || item.title || item.description || item.saleNumber || item.id;
   const itemId = item.id || item.sku || item.saleNumber || '';
 
+  const handleClose = () => {
+    setDetailedReason('');
+    setReasonCategory('Error de ingreso / prueba');
+    onClose();
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const finalReason = `${reasonCategory}: ${detailedReason.trim() || 'Sin observaciones adicionales'}`;
@@ -36,11 +42,11 @@ export default function DeleteConfirmModal({
       deletedBy: activeId,
       deletedByName: activeName
     });
-    setDetailedReason('');
+    handleClose();
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
         <div className="modal-header" style={{ borderBottomColor: 'rgba(239, 68, 68, 0.3)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -63,7 +69,7 @@ export default function DeleteConfirmModal({
               <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Registro en Bitácora de Auditoría</span>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <button className="close-btn" onClick={handleClose}>✕</button>
         </div>
 
         {/* Advertencia de Auditoría */}
@@ -174,7 +180,7 @@ export default function DeleteConfirmModal({
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
+            <button type="button" className="btn btn-secondary" onClick={handleClose}>
               Cancelar
             </button>
             <button 

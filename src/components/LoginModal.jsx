@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ShieldCheck, Lock, AlertCircle, ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { verifyUserPassword, PARTNERS_INFO } from '../services/authService';
 
@@ -9,6 +9,7 @@ export default function LoginModal({ onLoginSuccess }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const passwordInputRef = useRef(null);
 
   const users = [
     PARTNERS_INFO.luis,
@@ -19,6 +20,7 @@ export default function LoginModal({ onLoginSuccess }) {
     e.preventDefault();
     if (!password) {
       setErrorMsg('Por favor ingresa tu contraseña.');
+      passwordInputRef.current?.focus();
       return;
     }
 
@@ -29,14 +31,20 @@ export default function LoginModal({ onLoginSuccess }) {
       const { isValid, user } = await verifyUserPassword(selectedUser, password);
       if (!isValid) {
         setErrorMsg(`Contraseña incorrecta para ${PARTNERS_INFO[selectedUser]?.name || 'el socio'}.`);
+        setPassword(''); // Limpia la celda inmediatamente ante error
+        passwordInputRef.current?.focus();
         setIsLoading(false);
         return;
       }
 
+      setPassword('');
+      setErrorMsg('');
       onLoginSuccess(user, rememberMe);
     } catch (err) {
       console.warn('Error al verificar login:', err);
       setErrorMsg('Error al validar credenciales con la base de datos.');
+      setPassword('');
+      passwordInputRef.current?.focus();
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +142,12 @@ export default function LoginModal({ onLoginSuccess }) {
                   <button
                     key={u.id}
                     type="button"
-                    onClick={() => { setSelectedUser(u.id); setErrorMsg(''); }}
+                    onClick={() => { 
+                      setSelectedUser(u.id); 
+                      setPassword(''); 
+                      setErrorMsg(''); 
+                      passwordInputRef.current?.focus(); 
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -179,6 +192,7 @@ export default function LoginModal({ onLoginSuccess }) {
                 }} 
               />
               <input 
+                ref={passwordInputRef}
                 type={showPassword ? 'text' : 'password'}
                 className="form-control"
                 placeholder="Ingresa clave (2109)"

@@ -87,7 +87,8 @@ export default function InventoryView({
   onEditSupplier,
   onOpenNewExpense,
   onRequestDelete,
-  initialSubTab = 'catalog'
+  initialSubTab = 'catalog',
+  showToast
 }) {
   // Subpestaña activa: 'catalog' (Catálogo & Packs) | 'stock' (Stock Físico & Insumos) | 'suppliers' (Proveedores)
   const [activeSubTab, setActiveSubTab] = useState(initialSubTab);
@@ -103,6 +104,80 @@ export default function InventoryView({
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState(null);
+
+  // Helpers de reseteo limpio de formularios
+  const handleClosePackModal = () => {
+    setPackForm({
+      name: '',
+      sku: generateRandomSku('LNK-PACK'),
+      badge: '🔥 Pack Dúo',
+      promoPrice: '',
+      bundleComponents: [],
+      description: ''
+    });
+    setIsPackModalOpen(false);
+  };
+
+  const handleCloseProductModal = () => {
+    setNewProductForm({
+      name: '',
+      sku: generateRandomSku('LNK-PROD'),
+      category: 'Individual',
+      type: 'NFC Inteligente',
+      price: '',
+      cost: 13.00,
+      stock: 20,
+      badge: 'Nuevo Producto',
+      description: ''
+    });
+    setIsNewProductModalOpen(false);
+  };
+
+  const handleCloseItemModal = () => {
+    setNewItemForm({
+      sku: generateRandomSku('SKU-LNK'),
+      name: '',
+      category: 'Chips / Insumos',
+      quantity: 50,
+      minThreshold: 20,
+      unitCost: 4.00,
+      supplier: '',
+      leadTimeDays: 15,
+      reorderUrl: '',
+      notes: ''
+    });
+    setSelectedSupplierId(null);
+    setSupplierFilterQuery('');
+    setSupplierComboboxOpen(false);
+    setIsNewItemModalOpen(false);
+  };
+
+  const handleCloseSupplierModal = () => {
+    setSupplierForm({
+      name: '',
+      itemSupplied: '',
+      leadTimeMin: '3',
+      leadTimeMax: '5',
+      costCurrency: 'S/',
+      unitCostValue: '8.00',
+      minOrderQty: '20',
+      minOrderUnit: 'unidades',
+      customMinOrderUnit: '',
+      contact: '',
+      reliability: '⭐⭐⭐⭐⭐ (Excelente)',
+      notes: ''
+    });
+    setEditingSupplier(null);
+    setIsSupplierModalOpen(false);
+  };
+
+  const handleStockClick = (item, delta) => {
+    onUpdateInventoryStock(item.id, delta);
+    const newQty = Math.max(0, (Number(item.quantity) || 0) + delta);
+    if (showToast) {
+      showToast(`Stock de "${item.name}": ${newQty} uds (${delta > 0 ? '+1' : '-1'})`, 'info', 1800);
+    }
+  };
 
   // -------------------------------------------------------------
   // PROVEEDORES CONSOLIDADOS
@@ -268,7 +343,11 @@ export default function InventoryView({
   const handleSavePack = (e) => {
     e.preventDefault();
     if (packForm.bundleComponents.length === 0) {
-      alert('⚠️ Por favor agrega al menos 1 insumo o producto al pack antes de guardarlo.');
+      if (showToast) {
+        showToast('⚠️ Agrega al menos 1 insumo al pack antes de guardarlo.', 'warning');
+      } else {
+        alert('⚠️ Por favor agrega al menos 1 insumo o producto al pack antes de guardarlo.');
+      }
       return;
     }
 
@@ -291,7 +370,10 @@ export default function InventoryView({
     };
 
     onAddNewProduct(newPack);
-    setIsPackModalOpen(false);
+    if (showToast) {
+      showToast(`Pack "${newPack.name}" creado y publicado en el catálogo`, 'success');
+    }
+    handleClosePackModal();
   };
 
   // -------------------------------------------------------------
@@ -365,7 +447,10 @@ export default function InventoryView({
     };
 
     onAddNewProduct(newProd);
-    setIsNewProductModalOpen(false);
+    if (showToast) {
+      showToast(`Producto "${newProd.name}" publicado en el catálogo oficial`, 'success');
+    }
+    handleCloseProductModal();
   };
 
   // -------------------------------------------------------------
@@ -464,7 +549,10 @@ export default function InventoryView({
     };
 
     onAddNewInventoryItem(item);
-    setIsNewItemModalOpen(false);
+    if (showToast) {
+      showToast(`Insumo "${item.name}" guardado en inventario (${item.quantity} uds)`, 'success');
+    }
+    handleCloseItemModal();
   };
 
   // -------------------------------------------------------------
@@ -571,11 +659,13 @@ export default function InventoryView({
 
     if (editingSupplier) {
       if (onEditSupplier) onEditSupplier({ ...editingSupplier, ...supplierPayload });
+      if (showToast) showToast(`Proveedor "${supplierPayload.name}" actualizado exitosamente`, 'success');
     } else {
       const newSup = { id: `sup-${Date.now()}`, ...supplierPayload };
       if (onAddNewSupplier) onAddNewSupplier(newSup);
+      if (showToast) showToast(`Proveedor "${supplierPayload.name}" registrado en el directorio`, 'success');
     }
-    setIsSupplierModalOpen(false);
+    handleCloseSupplierModal();
   };
 
   // -------------------------------------------------------------
@@ -1125,7 +1215,7 @@ export default function InventoryView({
                                 <button 
                                   className="btn-icon" 
                                   style={{ width: '22px', height: '22px' }}
-                                  onClick={() => onUpdateInventoryStock(item.id, -1)}
+                                  onClick={() => handleStockClick(item, -1)}
                                   title="Restar 1 unidad"
                                 >
                                   <Minus size={11} />
@@ -1133,7 +1223,7 @@ export default function InventoryView({
                                 <button 
                                   className="btn-icon" 
                                   style={{ width: '22px', height: '22px' }}
-                                  onClick={() => onUpdateInventoryStock(item.id, 1)}
+                                  onClick={() => handleStockClick(item, 1)}
                                   title="Sumar 1 unidad"
                                 >
                                   <Plus size={11} />
@@ -1286,14 +1376,14 @@ export default function InventoryView({
       {/* MODAL 1: CREADOR DE PACKS Y PROMOCIONES (UNIR PRODUCTOS)                  */}
       {/* ========================================================================= */}
       {isPackModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsPackModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleClosePackModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Gift size={22} color="var(--primary-600)" />
                 <h3 className="modal-title">Armar Pack Promocional o Combo Comercial</h3>
               </div>
-              <button className="close-btn" onClick={() => setIsPackModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleClosePackModal}>✕</button>
             </div>
 
             <form onSubmit={handleSavePack}>
@@ -1558,7 +1648,7 @@ export default function InventoryView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsPackModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleClosePackModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -1575,11 +1665,11 @@ export default function InventoryView({
       {/* MODAL 2: NUEVO PRODUCTO INDIVIDUAL                                        */}
       {/* ========================================================================= */}
       {isNewProductModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewProductModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseProductModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Registrar Producto en Catálogo Oficial</h3>
-              <button className="close-btn" onClick={() => setIsNewProductModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseProductModal}>✕</button>
             </div>
 
             <form onSubmit={handleCreateProduct}>
@@ -1696,7 +1786,7 @@ export default function InventoryView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewProductModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseProductModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -1712,11 +1802,11 @@ export default function InventoryView({
       {/* MODAL 3: AGREGAR INSUMO / SKU A INVENTARIO                                 */}
       {/* ========================================================================= */}
       {isNewItemModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewItemModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseItemModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Agregar Insumo Físico a Inventario</h3>
-              <button className="close-btn" onClick={() => setIsNewItemModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseItemModal}>✕</button>
             </div>
 
             <form onSubmit={handleCreateItem}>
@@ -1899,7 +1989,7 @@ export default function InventoryView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewItemModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseItemModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -1915,13 +2005,13 @@ export default function InventoryView({
       {/* MODAL 4: CREAR / EDITAR PROVEEDOR                                         */}
       {/* ========================================================================= */}
       {isSupplierModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsSupplierModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseSupplierModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div className="modal-header">
               <h3 className="modal-title">
                 {editingSupplier ? 'Editar Proveedor' : 'Registrar Nuevo Proveedor'}
               </h3>
-              <button className="close-btn" onClick={() => setIsSupplierModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseSupplierModal}>✕</button>
             </div>
 
             <form onSubmit={handleSaveSupplier}>
@@ -2062,7 +2152,7 @@ export default function InventoryView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsSupplierModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseSupplierModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">

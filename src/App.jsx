@@ -38,6 +38,7 @@ import LoginModal from './components/LoginModal';
 import UserProfileModal from './components/UserProfileModal';
 import MasterDataModal from './components/MasterDataModal';
 import ProjectLifecycleView from './components/ProjectLifecycleView';
+import ToastNotification from './components/ToastNotification';
 import { dbService, mappers, isSupabaseConfigured, supabase } from './services/supabase';
 
 // Clave de versión de base de datos local para forzar purga de datos mock antiguos (todo vacío desde 0)
@@ -85,6 +86,23 @@ export default function App() {
   // Modales de sesión y maestros
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMasterDataModalOpen, setIsMasterDataModalOpen] = useState(false);
+
+  // Sistema de Notificaciones Toast Flotantes & Ergonómicas
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = (message, type = 'success', duration = 3500) => {
+    const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    setToasts(prev => [...prev, { id, message, type }]);
+    if (duration > 0) {
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, duration);
+    }
+  };
+
+  const dismissToast = (id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   // Vista activa
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -668,7 +686,47 @@ export default function App() {
       reason: 'Restablecimiento de datos de demostración y pruebas.'
     });
 
-    alert('✓ Datos de demostración cargados exitosamente.');
+    showToast('✓ Datos de demostración cargados exitosamente.', 'success');
+  };
+
+  // Helper para cerrar y limpiar modal de Nueva Venta
+  const handleCloseNewSaleModal = () => {
+    setNewSaleForm({
+      clientName: '',
+      contactPerson: '',
+      phone: '',
+      district: districts[0] || 'Miraflores',
+      productId: products[0]?.id || '',
+      quantity: 1,
+      paymentMethod: 'Yape',
+      soldBy: currentUser?.id || 'luis',
+      googlePlaceId: '',
+      customUnitPrice: '',
+      customUnitCost: '',
+      isCustomPricing: false
+    });
+    setIsNewSaleModalOpen(false);
+  };
+
+  // Helper para cerrar y limpiar modal de Nuevo Gasto
+  const handleCloseNewExpenseModal = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    setGlobalExpenseForm({
+      date: today,
+      type: 'Gasto',
+      category: 'Compra de mercadería',
+      selectedProductId: '',
+      description: '',
+      quantity: 1,
+      unitCost: '',
+      isCustomCost: false,
+      amount: '',
+      paymentMethod: 'Tarjeta',
+      paidBy: currentUser?.id || 'luis',
+      month: getAccountingMonth(today),
+      notes: ''
+    });
+    setIsNewExpenseModalOpen(false);
   };
 
   // Handlers para Crear Venta
@@ -676,7 +734,7 @@ export default function App() {
     e.preventDefault();
     const prod = products.find(p => p.id === newSaleForm.productId) || products[0];
     if (!prod) {
-      alert('⚠️ No hay productos registrados en el Catálogo. Por favor agrega al menos un modelo o pack en la sección "Catálogo" antes de registrar una venta.');
+      showToast('⚠️ No hay productos en el Catálogo. Registra uno antes de crear la venta.', 'warning');
       return;
     }
     const qty = Number(newSaleForm.quantity) || 1;
@@ -796,7 +854,6 @@ export default function App() {
 
     setSales([newSale, ...sales]);
     setNfcCards([newCard, ...nfcCards]);
-    setIsNewSaleModalOpen(false);
 
     if (isSupabaseConfigured) {
       dbService.insert('sales', newSale, mappers.saleToDb);
@@ -818,20 +875,8 @@ export default function App() {
       origin: { y: 0.6 }
     });
 
-    setNewSaleForm({
-      clientName: '',
-      contactPerson: '',
-      phone: '',
-      district: districts[0] || 'Miraflores',
-      productId: products[0]?.id || '',
-      quantity: 1,
-      paymentMethod: 'Yape',
-      soldBy: currentUser?.id || 'luis',
-      googlePlaceId: '',
-      customUnitPrice: '',
-      customUnitCost: '',
-      isCustomPricing: false
-    });
+    showToast(`✅ Venta ${newSale.saleNumber} (${newSale.clientName}) registrada por S/ ${totalAmount.toFixed(2)}`, 'success');
+    handleCloseNewSaleModal();
   };
 
   // Handlers para Gastos
@@ -1465,6 +1510,7 @@ export default function App() {
     });
 
     setDeleteModalConfig({ isOpen: false, item: null, entityType: '' });
+    showToast(`🗑️ ${entityType} eliminado(a) y registrado en bitácora de auditoría`, 'info');
   };
 
   // Dar Visto Bueno / OK a Registro de Auditoría
@@ -1484,6 +1530,7 @@ export default function App() {
       }
       return log;
     }));
+    showToast('✓ Visto bueno registrado en auditoría', 'success');
   };
 
   // Dar Visto Bueno / OK a Todos los Registros Recientes
@@ -1503,6 +1550,7 @@ export default function App() {
       }
       return log;
     }));
+    showToast('✓ Todos los registros pendientes han sido aprobados', 'success');
   };
 
   // Restauración y Reversión de Auditoría (Netamente por el usuario de la cuenta)
@@ -1662,7 +1710,7 @@ export default function App() {
       return [restoreAuditEntry, ...updated];
     });
 
-    alert(`✓ Acción restaurada con éxito por ${activeUser.name}.`);
+    showToast(`✓ Acción restaurada con éxito por ${activeUser.name}.`, 'success');
   };
 
   const handleSettlePartnerDebt = ({ amount, note, fromPartner, toPartner }) => {
@@ -1734,6 +1782,7 @@ export default function App() {
           onLogout={handleLogout}
           partnerBalance={partnerBalance}
           logAudit={logAudit}
+          showToast={showToast}
         />
       )}
 
@@ -1846,6 +1895,7 @@ export default function App() {
               setSelectedCardModal={setSelectedCardModal}
               onRequestDelete={handleRequestDelete}
               onUpdateInventoryStock={handleUpdateInventoryStock}
+              showToast={showToast}
             />
           )}
 
@@ -1857,6 +1907,7 @@ export default function App() {
               onAddNewLead={handleAddNewLead}
               onConvertLeadToSale={handleConvertLeadToSale}
               onRequestDelete={handleRequestDelete}
+              showToast={showToast}
             />
           )}
 
@@ -1869,6 +1920,7 @@ export default function App() {
               nfcCards={nfcCards}
               onRequestDelete={handleRequestDelete}
               districts={districts}
+              showToast={showToast}
             />
           )}
 
@@ -1886,6 +1938,7 @@ export default function App() {
               onOpenNewExpense={() => setIsNewExpenseModalOpen(true)}
               onRequestDelete={handleRequestDelete}
               initialSubTab={currentTab === 'products' ? 'catalog' : 'catalog'}
+              showToast={showToast}
             />
           )}
 
@@ -1906,6 +1959,7 @@ export default function App() {
               onRequestDelete={handleRequestDelete}
               onAddNewProduct={handleAddNewProduct}
               onUpdateInventoryStock={handleUpdateInventoryStock}
+              showToast={showToast}
             />
           )}
 
@@ -1925,6 +1979,7 @@ export default function App() {
               logAudit={logAudit}
               currentUser={currentUser}
               setCurrentTab={setCurrentTab}
+              showToast={showToast}
             />
           )}
 
@@ -1943,11 +1998,11 @@ export default function App() {
 
       {/* MODAL GLOBAL: Nueva Venta */}
       {isNewSaleModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewSaleModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseNewSaleModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Registrar Nueva Venta | LinkeoGes</h3>
-              <button className="close-btn" onClick={() => setIsNewSaleModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseNewSaleModal}>✕</button>
             </div>
 
             <form onSubmit={handleAddNewSale}>
@@ -2156,7 +2211,7 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewSaleModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseNewSaleModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -2170,11 +2225,11 @@ export default function App() {
 
       {/* MODAL GLOBAL: Nuevo Gasto */}
       {isNewExpenseModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewExpenseModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseNewExpenseModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Registrar Nuevo Gasto Operativo</h3>
-              <button className="close-btn" onClick={() => setIsNewExpenseModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseNewExpenseModal}>✕</button>
             </div>
 
             <form onSubmit={(e) => {
@@ -2201,23 +2256,8 @@ export default function App() {
                 handleUpdateInventoryStock(globalExpenseForm.selectedProductId, Number(globalExpenseForm.quantity) || 1);
               }
 
-              setIsNewExpenseModalOpen(false);
-              const today = new Date().toISOString().slice(0, 10);
-              setGlobalExpenseForm({
-                date: today,
-                type: 'Gasto',
-                category: 'Compra de mercadería',
-                selectedProductId: '',
-                description: '',
-                quantity: 1,
-                unitCost: '',
-                isCustomCost: false,
-                amount: '',
-                paymentMethod: 'Tarjeta',
-                paidBy: currentUser?.id || 'luis',
-                month: getAccountingMonth(today),
-                notes: ''
-              });
+              showToast(`✅ Gasto de S/ ${finalAmount.toFixed(2)} registrado exitosamente`, 'success');
+              handleCloseNewExpenseModal();
             }}>
               <div className="form-row">
                 <div className="form-group">
@@ -2452,7 +2492,7 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewExpenseModalOpen(false)}>Cancelar</button>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseNewExpenseModal}>Cancelar</button>
                 <button type="submit" className="btn btn-primary">Guardar Gasto</button>
               </div>
             </form>
@@ -2469,6 +2509,9 @@ export default function App() {
         onClose={() => setDeleteModalConfig({ isOpen: false, item: null, entityType: '' })}
         currentUser={currentUser}
       />
+
+      {/* NOTIFICACIONES TOAST GLOBALES */}
+      <ToastNotification toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

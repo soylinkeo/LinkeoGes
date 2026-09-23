@@ -42,7 +42,8 @@ export default function ProjectionsView({
   onRequestDelete,
   logAudit,
   currentUser,
-  setCurrentTab
+  setCurrentTab,
+  showToast
 }) {
   const [activeSubTab, setActiveSubTab] = useState('goals'); // 'goals', 'products', 'costs', 'funnel', 'plan30'
 
@@ -61,6 +62,28 @@ export default function ProjectionsView({
 
   const [isAddPlanModalOpen, setIsAddPlanModalOpen] = useState(false);
   const [isEditPlanModalOpen, setIsEditPlanModalOpen] = useState(false);
+
+  const handleCloseNewProductModal = () => {
+    setNewProjectedProductForm({
+      name: '',
+      sku: generateRandomSku('LNK-PROD'),
+      price: 60.00,
+      baseCost: 13.00,
+      mixPercent: 50,
+      isCustom: true
+    });
+    setIsNewProductModalOpen(false);
+  };
+
+  const handleCloseNewFixedCostModal = () => {
+    setNewFixedCostForm({ concept: '', amount: '', note: '' });
+    setIsNewFixedCostModalOpen(false);
+  };
+
+  const handleCloseNewInvestmentModal = () => {
+    setNewInvestmentForm({ concept: '', quantity: 1, unitCost: '' });
+    setIsNewInvestmentModalOpen(false);
+  };
 
   // Filtro semanal del Plan 30 Días
   const [planFilterWeek, setPlanFilterWeek] = useState('all');
@@ -496,20 +519,19 @@ export default function ProjectionsView({
       });
     }
 
-    setIsNewProductModalOpen(false);
-    setNewProjectedProductForm({
-      name: '',
-      sku: generateRandomSku('LNK-PROD'),
-      price: 60.00,
-      baseCost: 13.00,
-      mixPercent: 50,
-      isCustom: true
-    });
+    if (showToast) {
+      showToast(`✅ Modelo proyectado "${newProd.name}" agregado`, 'success');
+    }
+    handleCloseNewProductModal();
   };
 
   const handleImportProductFromCatalog = (product) => {
     if (projectedProducts.some(p => p.catalogId === product.id || p.name === product.name)) {
-      alert('Este producto ya forma parte del modelado de proyecciones.');
+      if (showToast) {
+        showToast('⚠️ Este producto ya forma parte del modelado de proyecciones.', 'warning');
+      } else {
+        alert('Este producto ya forma parte del modelado de proyecciones.');
+      }
       return;
     }
 
@@ -540,6 +562,9 @@ export default function ProjectionsView({
       });
     }
 
+    if (showToast) {
+      showToast(`✅ "${product.name}" importado al modelo de proyecciones`, 'success');
+    }
     setIsImportProductModalOpen(false);
   };
 
@@ -648,8 +673,10 @@ export default function ProjectionsView({
       });
     }
 
-    setIsNewFixedCostModalOpen(false);
-    setNewFixedCostForm({ concept: '', amount: '', note: '' });
+    if (showToast) {
+      showToast(`✅ Gasto fijo "${newCost.concept}" agregado`, 'success');
+    }
+    handleCloseNewFixedCostModal();
   };
 
   // Handlers para Inversión Inicial
@@ -724,8 +751,10 @@ export default function ProjectionsView({
       });
     }
 
-    setIsNewInvestmentModalOpen(false);
-    setNewInvestmentForm({ concept: '', quantity: 1, unitCost: '' });
+    if (showToast) {
+      showToast(`✅ Ítem de inversión "${newItem.concept}" agregado`, 'success');
+    }
+    handleCloseNewInvestmentModal();
   };
 
   const handleDeleteInvestmentItem = (item) => {
@@ -2239,14 +2268,14 @@ export default function ProjectionsView({
       {/* MODAL: PROYECTAR NUEVO PRODUCTO HIPOTÉTICO / FUTURO                       */}
       {/* ========================================================================= */}
       {isNewProductModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewProductModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseNewProductModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Sparkles size={18} color="var(--primary-600)" />
                 <span>Proyectar Nuevo Producto al Modelo</span>
               </h3>
-              <button className="close-btn" onClick={() => setIsNewProductModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseNewProductModal}>✕</button>
             </div>
 
             <form onSubmit={handleCreateNewProjectedProduct}>
@@ -2329,7 +2358,7 @@ export default function ProjectionsView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewProductModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseNewProductModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -2504,11 +2533,11 @@ export default function ProjectionsView({
       {/* MODAL: AGREGAR GASTO FIJO MENSUAL                                         */}
       {/* ========================================================================= */}
       {isNewFixedCostModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewFixedCostModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseNewFixedCostModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <div className="modal-header">
               <h3 className="modal-title">Agregar Gasto Fijo Mensual</h3>
-              <button className="close-btn" onClick={() => setIsNewFixedCostModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseNewFixedCostModal}>✕</button>
             </div>
 
             <form onSubmit={handleAddFixedCost}>
@@ -2550,7 +2579,7 @@ export default function ProjectionsView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewFixedCostModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseNewFixedCostModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -2625,11 +2654,11 @@ export default function ProjectionsView({
       {/* MODAL: AGREGAR ÍTEM DE INVERSIÓN INICIAL                                  */}
       {/* ========================================================================= */}
       {isNewInvestmentModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewInvestmentModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseNewInvestmentModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <div className="modal-header">
               <h3 className="modal-title">Agregar Ítem a Inversión Inicial</h3>
-              <button className="close-btn" onClick={() => setIsNewInvestmentModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseNewInvestmentModal}>✕</button>
             </div>
 
             <form onSubmit={handleAddInvestmentItem}>
@@ -2674,7 +2703,7 @@ export default function ProjectionsView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewInvestmentModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseNewInvestmentModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">

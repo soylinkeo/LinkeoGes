@@ -28,6 +28,7 @@ export default function MasterDataModal({
 
     if (districts.some(d => d.toLowerCase() === trimmed.toLowerCase())) {
       setErrorMsg(`"${trimmed}" ya se encuentra registrado en el maestro.`);
+      setNewDistrictName('');
       setSuccessMsg('');
       return false;
     }

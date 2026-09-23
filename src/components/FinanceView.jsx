@@ -27,7 +27,8 @@ export default function FinanceView({
   targets = {},
   onRequestDelete,
   onAddNewProduct,
-  onUpdateInventoryStock
+  onUpdateInventoryStock,
+  showToast
 }) {
   const [filterMonth, setFilterMonth] = useState('all');
   const [filterPartner, setFilterPartner] = useState('all');
@@ -143,6 +144,32 @@ export default function FinanceView({
     setIsNewExpenseModalOpen(true);
   };
 
+  const handleCloseExpenseModal = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    setExpenseForm({
+      date: today,
+      type: 'Gasto',
+      category: 'Compra de mercadería',
+      selectedProductId: '',
+      description: '',
+      quantity: 1,
+      unitCost: '',
+      isCustomCost: false,
+      amount: '',
+      paymentMethod: 'Tarjeta',
+      paidBy: 'luis',
+      month: getAccountingMonth(today),
+      notes: '',
+      addToInventory: true
+    });
+    setEditingExpense(null);
+    setIsNewExpenseModalOpen(false);
+  };
+
+  const handleCloseSettleModal = () => {
+    setIsSettleModalOpen(false);
+  };
+
   const handleCreateExpense = (e) => {
     e.preventDefault();
     const finalAmount = Number(expenseForm.amount) || 0;
@@ -168,8 +195,10 @@ export default function FinanceView({
       if (onEditExpense) {
         onEditExpense(updatedExp);
       }
-      setIsNewExpenseModalOpen(false);
-      setEditingExpense(null);
+      if (showToast) {
+        showToast(`✅ Gasto "${updatedExp.description || 'Gasto'}" actualizado exitosamente`, 'success');
+      }
+      handleCloseExpenseModal();
       return;
     }
 
@@ -197,35 +226,25 @@ export default function FinanceView({
       onUpdateInventoryStock(expenseForm.selectedProductId, Number(expenseForm.quantity) || 1);
     }
 
-    setIsNewExpenseModalOpen(false);
-    const today = new Date().toISOString().slice(0, 10);
-    setExpenseForm({
-      date: today,
-      type: 'Gasto',
-      category: 'Compra de mercadería',
-      selectedProductId: '',
-      description: '',
-      quantity: 1,
-      unitCost: '',
-      isCustomCost: false,
-      amount: '',
-      paymentMethod: 'Tarjeta',
-      paidBy: 'luis',
-      month: getAccountingMonth(today),
-      notes: '',
-      addToInventory: true
-    });
+    if (showToast) {
+      showToast(`✅ Gasto de S/ ${finalAmount.toFixed(2)} registrado exitosamente`, 'success');
+    }
+    handleCloseExpenseModal();
   };
 
   const handleConfirmSettle = (e) => {
     e.preventDefault();
+    const settleAmt = Number(settleAmount) || 0;
     onSettlePartnerDebt({
-      amount: Number(settleAmount) || 0,
+      amount: settleAmt,
       note: settleNote,
       fromPartner: debt > 0 ? 'luis' : 'kevin',
       toPartner: debt > 0 ? 'kevin' : 'luis'
     });
-    setIsSettleModalOpen(false);
+    if (showToast) {
+      showToast(`✅ Liquidación 50/50 por S/ ${settleAmt.toFixed(2)} registrada`, 'success');
+    }
+    handleCloseSettleModal();
   };
 
   // Filtrado de gastos
@@ -488,13 +507,13 @@ export default function FinanceView({
 
       {/* MODAL: Crear / Editar Gasto */}
       {isNewExpenseModalOpen && (
-        <div className="modal-overlay" onClick={() => { setIsNewExpenseModalOpen(false); setEditingExpense(null); }}>
+        <div className="modal-overlay" onClick={handleCloseExpenseModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">
                 {editingExpense ? 'Editar Registro de Gasto / Desembolso' : 'Registrar Nuevo Gasto Operativo'}
               </h3>
-              <button className="close-btn" onClick={() => { setIsNewExpenseModalOpen(false); setEditingExpense(null); }}>✕</button>
+              <button className="close-btn" onClick={handleCloseExpenseModal}>✕</button>
             </div>
 
             <form onSubmit={handleCreateExpense}>
@@ -733,7 +752,7 @@ export default function FinanceView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => { setIsNewExpenseModalOpen(false); setEditingExpense(null); }}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseExpenseModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -747,11 +766,11 @@ export default function FinanceView({
 
       {/* MODAL: Liquidación entre Socios */}
       {isSettleModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsSettleModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseSettleModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Registrar Liquidación de Balance 50/50</h3>
-              <button className="close-btn" onClick={() => setIsSettleModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseSettleModal}>✕</button>
             </div>
 
             <form onSubmit={handleConfirmSettle}>
@@ -783,7 +802,7 @@ export default function FinanceView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsSettleModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseSettleModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-success">

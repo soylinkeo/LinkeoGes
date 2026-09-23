@@ -16,7 +16,8 @@ export default function CalendarView({
   onEditEvent,
   nfcCards = [],
   onRequestDelete,
-  districts = []
+  districts = [],
+  showToast
 }) {
   const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false);
   const [isEditEventModalOpen, setIsEditEventModalOpen] = useState(false);
@@ -58,6 +59,26 @@ export default function CalendarView({
     return kevinCount < luisCount ? 'kevin' : 'luis';
   };
 
+  const handleCloseNewEventModal = () => {
+    setEventForm({
+      title: '',
+      partner: 'auto',
+      type: 'demo',
+      date: new Date().toISOString().slice(0, 10),
+      startTime: '19:30',
+      endTime: '20:30',
+      client: '',
+      district: districts[0] || 'Miraflores',
+      description: ''
+    });
+    setIsNewEventModalOpen(false);
+  };
+
+  const handleCloseEditEventModal = () => {
+    setEditingEvent(null);
+    setIsEditEventModalOpen(false);
+  };
+
   const handleSaveEvent = (e) => {
     e.preventDefault();
     const assigned = determineAssignedPartner(eventForm.date, eventForm.startTime, eventForm.partner);
@@ -76,18 +97,10 @@ export default function CalendarView({
     };
 
     onAddNewEvent(newEvent);
-    setIsNewEventModalOpen(false);
-    setEventForm({
-      title: '',
-      partner: 'auto',
-      type: 'demo',
-      date: new Date().toISOString().slice(0, 10),
-      startTime: '19:30',
-      endTime: '20:30',
-      client: '',
-      district: districts[0] || 'Miraflores',
-      description: ''
-    });
+    if (showToast) {
+      showToast(`📅 Cita "${newEvent.title}" agendada exitosamente`, 'success');
+    }
+    handleCloseNewEventModal();
   };
 
   const handleOpenEditEvent = (evt) => {
@@ -102,8 +115,10 @@ export default function CalendarView({
     if (onEditEvent) {
       onEditEvent(editingEvent);
     }
-    setIsEditEventModalOpen(false);
-    setEditingEvent(null);
+    if (showToast) {
+      showToast(`📅 Cita "${editingEvent.title}" actualizada exitosamente`, 'success');
+    }
+    handleCloseEditEventModal();
   };
 
   return (
@@ -298,11 +313,11 @@ export default function CalendarView({
 
       {/* MODAL: Nueva Cita / Enrutamiento */}
       {isNewEventModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewEventModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseNewEventModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Agendar Cita o Tarea con Enrutador Inteligente</h3>
-              <button className="close-btn" onClick={() => setIsNewEventModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseNewEventModal}>✕</button>
             </div>
 
             <form onSubmit={handleSaveEvent}>
@@ -418,7 +433,7 @@ export default function CalendarView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsNewEventModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseNewEventModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
@@ -432,11 +447,11 @@ export default function CalendarView({
 
       {/* MODAL: Editar Cita / Evento */}
       {isEditEventModalOpen && editingEvent && (
-        <div className="modal-overlay" onClick={() => setIsEditEventModalOpen(false)}>
+        <div className="modal-overlay" onClick={handleCloseEditEventModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Editar Cita o Tarea Agendada</h3>
-              <button className="close-btn" onClick={() => setIsEditEventModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={handleCloseEditEventModal}>✕</button>
             </div>
 
             <form onSubmit={handleSaveEditEvent}>
@@ -549,7 +564,7 @@ export default function CalendarView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsEditEventModalOpen(false)}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseEditEventModal}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">

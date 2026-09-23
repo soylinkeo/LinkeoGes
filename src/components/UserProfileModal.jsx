@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { LogOut, ShieldCheck, DollarSign, KeyRound, Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { changeUserPassword } from '../services/authService';
 
@@ -10,7 +10,8 @@ export default function UserProfileModal({
   onStatusChange,
   onLogout,
   partnerBalance = {},
-  logAudit
+  logAudit,
+  showToast
 }) {
   const [showSecuritySection, setShowSecuritySection] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -21,6 +22,20 @@ export default function UserProfileModal({
   const [passError, setPassError] = useState('');
   const [passSuccess, setPassSuccess] = useState('');
   const [isChangingPass, setIsChangingPass] = useState(false);
+
+  const currentPassRef = useRef(null);
+  const newPassRef = useRef(null);
+  const confirmPassRef = useRef(null);
+
+  const handleModalClose = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPassError('');
+    setPassSuccess('');
+    setShowSecuritySection(false);
+    if (onClose) onClose();
+  };
 
   if (!isOpen || !currentUser) return null;
 
@@ -45,18 +60,27 @@ export default function UserProfileModal({
 
     if (!currentPassword) {
       setPassError('Por favor ingresa tu contraseña actual.');
+      currentPassRef.current?.focus();
       return;
     }
     if (!newPassword || newPassword.trim().length < 4) {
       setPassError('La nueva contraseña debe tener al menos 4 caracteres.');
+      setNewPassword('');
+      setConfirmPassword('');
+      newPassRef.current?.focus();
       return;
     }
     if (newPassword !== confirmPassword) {
       setPassError('La confirmación de la nueva contraseña no coincide.');
+      setConfirmPassword('');
+      confirmPassRef.current?.focus();
       return;
     }
     if (newPassword === currentPassword) {
       setPassError('La nueva contraseña no puede ser idéntica a la actual.');
+      setNewPassword('');
+      setConfirmPassword('');
+      newPassRef.current?.focus();
       return;
     }
 
@@ -68,6 +92,9 @@ export default function UserProfileModal({
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
+        if (showToast) {
+          showToast('Contraseña de acceso actualizada correctamente', 'success');
+        }
         if (logAudit) {
           logAudit({
             actionType: 'Seguridad',
@@ -79,14 +106,18 @@ export default function UserProfileModal({
         }
       }
     } catch (err) {
-      setPassError(err.message || 'Error al actualizar la contraseña.');
+      const msg = err.message || 'Error al actualizar la contraseña.';
+      setPassError(msg);
+      // Limpiar celda de contraseña actual si falló la verificación
+      setCurrentPassword('');
+      currentPassRef.current?.focus();
     } finally {
       setIsChangingPass(false);
     }
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleModalClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -96,7 +127,7 @@ export default function UserProfileModal({
               <span style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{currentUser.role}</span>
             </div>
           </div>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <button className="close-btn" onClick={handleModalClose}>✕</button>
         </div>
 
         <div style={{ padding: '4px 0' }}>
@@ -270,6 +301,7 @@ export default function UserProfileModal({
                   </label>
                   <div style={{ position: 'relative' }}>
                     <input 
+                      ref={currentPassRef}
                       type={showCurrentPass ? 'text' : 'password'}
                       className="form-control"
                       placeholder="Ingresa tu clave actual (def: 2109)"
@@ -304,6 +336,7 @@ export default function UserProfileModal({
                   </label>
                   <div style={{ position: 'relative' }}>
                     <input 
+                      ref={newPassRef}
                       type={showNewPass ? 'text' : 'password'}
                       className="form-control"
                       placeholder="Nueva contraseña secreta"
@@ -338,6 +371,7 @@ export default function UserProfileModal({
                     Confirmar Nueva Contraseña:
                   </label>
                   <input 
+                    ref={confirmPassRef}
                     type={showNewPass ? 'text' : 'password'}
                     className="form-control"
                     placeholder="Repite la nueva contraseña"
@@ -395,7 +429,7 @@ export default function UserProfileModal({
             <button 
               type="button" 
               className="btn btn-primary"
-              onClick={onClose}
+              onClick={handleModalClose}
             >
               Listo
             </button>
