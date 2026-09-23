@@ -57,101 +57,25 @@ export default function Navbar({
           {sidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
         </button>
 
-        {/* Brand Tag: visible siempre en móvil y cuando el sidebar está colapsado en desktop */}
-        <div 
-          onClick={() => setCurrentTab('dashboard')} 
-          style={{ 
-            cursor: 'pointer', 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px', 
-            marginRight: '4px' 
-          }}
-          title="Ir al Panel General"
-        >
-          <span style={{ fontSize: '1.15rem' }}>⚡</span>
-          <span style={{ fontWeight: 800, fontSize: '0.98rem', letterSpacing: '-0.02em' }}>
-            Linkeo<span className="brand-ges-tag">Ges</span>
-          </span>
-        </div>
-
-        {/* Separador vertical limpio */}
-        <div className="nav-separator navbar-partner-statuses" />
-
-        {/* Indicador de Disponibilidad de Socios (Oculto en móvil < 820px, visible en Sidebar Drawer) */}
-        <div className="navbar-partner-statuses">
-          {/* Luis Romero */}
+        {/* Brand Tag: visible solo cuando el sidebar está colapsado en desktop */}
+        {sidebarCollapsed && (
           <div 
-            onClick={onOpenProfile}
+            onClick={() => setCurrentTab('dashboard')} 
             style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '8px', 
-              padding: '6px 14px', 
-              borderRadius: 'var(--radius-full)',
-              background: 'rgba(16, 185, 129, 0.08)',
-              border: `1px solid ${currentUser?.id === 'luis' ? 'var(--primary-600)' : 'rgba(16, 185, 129, 0.25)'}`,
-              fontSize: '0.82rem',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'all var(--transition-fast)'
-            }}
-            title="Clic para gestionar estado de Luis Romero (Co-CEO)"
-          >
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981', flexShrink: 0 }}></span>
-            <span style={{ fontWeight: 700 }}>Luis:</span>
-            <span style={{ color: 'var(--google-green)', fontWeight: 600 }}>
-              {partnersState?.luis?.status || 'Disponible'}
-            </span>
-          </div>
-
-          {/* Kevin Servat */}
-          <div 
-            onClick={onOpenProfile}
-            style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: '8px', 
-              padding: '6px 14px', 
-              borderRadius: 'var(--radius-full)',
-              background: 'rgba(59, 130, 246, 0.08)',
-              border: `1px solid ${currentUser?.id === 'kevin' ? 'var(--primary-600)' : 'rgba(59, 130, 246, 0.25)'}`,
-              fontSize: '0.82rem',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'all var(--transition-fast)'
-            }}
-            title="Clic para gestionar estado de Kevin Servat (Co-CEO)"
-          >
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#38bdf8', boxShadow: '0 0 8px #38bdf8', flexShrink: 0 }}></span>
-            <span style={{ fontWeight: 700 }}>Kevin:</span>
-            <span style={{ color: '#38bdf8', fontWeight: 600 }}>
-              {partnersState?.kevin?.status || 'Guardia'}
-            </span>
-          </div>
-
-          {/* Estado de Sincronización en la Nube Supabase */}
-          <div 
-            style={{
-              display: 'inline-flex', 
+              cursor: 'pointer', 
+              display: 'flex', 
               alignItems: 'center', 
               gap: '6px', 
-              fontSize: '0.8rem', 
-              padding: '6px 13px', 
-              borderRadius: 'var(--radius-full)', 
-              background: isCloudReady ? 'rgba(16, 185, 129, 0.08)' : 'rgba(234, 179, 8, 0.08)',
-              color: isCloudReady ? 'var(--google-green)' : '#eab308',
-              border: `1px solid ${isCloudReady ? 'rgba(16, 185, 129, 0.25)' : 'rgba(234, 179, 8, 0.25)'}`,
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              marginLeft: '4px'
+              marginLeft: '4px' 
             }}
-            title={isCloudReady ? 'Base de datos Supabase conectada y sincronizada en tiempo real' : 'Modo local (sin nube)'}
+            title="Ir al Panel General"
           >
-            <span>{isCloudReady ? '☁️' : '💾'}</span>
-            <span>{isCloudReady ? 'Supabase Nube' : 'Modo Local'}</span>
+            <span style={{ fontSize: '1.15rem' }}>⚡</span>
+            <span style={{ fontWeight: 800, fontSize: '0.98rem', letterSpacing: '-0.02em' }}>
+              Linkeo<span className="brand-ges-tag">Ges</span>
+            </span>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Sección Derecha: Acciones Rápidas (Adaptadas para Móvil) */}

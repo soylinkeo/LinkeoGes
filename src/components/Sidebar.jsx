@@ -146,20 +146,40 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Sección Rápida de Socios en Menú Móvil */}
-        {partnersState && (
+        {/* Sección de Socios Co-CEOs y Conectividad en la barra izquierda */}
+        {partnersState && !collapsed && (
           <div 
-            className="mobile-drawer-partners" 
+            className="sidebar-partners-section" 
             style={{ 
               padding: '10px 14px', 
               borderBottom: '1px solid var(--border-subtle)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '6px'
+              gap: '7px'
             }}
           >
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', fontWeight: 700, textTransform: 'uppercase' }}>
-              Estado de Co-CEOs
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Estado de Co-CEOs
+              </div>
+              <div 
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '0.68rem',
+                  padding: '2px 7px',
+                  borderRadius: 'var(--radius-full)',
+                  background: isCloudReady ? 'rgba(16, 185, 129, 0.12)' : 'rgba(234, 179, 8, 0.12)',
+                  color: isCloudReady ? 'var(--google-green)' : '#eab308',
+                  border: `1px solid ${isCloudReady ? 'rgba(16, 185, 129, 0.25)' : 'rgba(234, 179, 8, 0.25)'}`,
+                  fontWeight: 600
+                }}
+                title={isCloudReady ? 'Base de datos Supabase conectada y sincronizada' : 'Modo local (sin nube)'}
+              >
+                <span>{isCloudReady ? '☁️' : '💾'}</span>
+                <span>{isCloudReady ? 'Supabase Nube' : 'Local'}</span>
+              </div>
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <div 
@@ -168,17 +188,19 @@ export default function Sidebar({
                   display: 'inline-flex', 
                   alignItems: 'center', 
                   gap: '6px', 
-                  padding: '4px 10px', 
+                  padding: '5px 11px', 
                   borderRadius: 'var(--radius-full)',
                   background: 'rgba(16, 185, 129, 0.1)',
                   border: `1px solid ${currentUser?.id === 'luis' ? 'var(--primary-600)' : 'rgba(16, 185, 129, 0.25)'}`,
-                  fontSize: '0.76rem',
-                  cursor: 'pointer'
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)'
                 }}
+                title="Clic para gestionar estado de Luis Romero"
               >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981' }}></span>
                 <span style={{ fontWeight: 700 }}>Luis:</span>
-                <span style={{ color: 'var(--google-green)' }}>{partnersState.luis?.status || 'Disponible'}</span>
+                <span style={{ color: 'var(--google-green)', fontWeight: 600 }}>{partnersState.luis?.status || 'Disponible'}</span>
               </div>
 
               <div 
@@ -187,17 +209,19 @@ export default function Sidebar({
                   display: 'inline-flex', 
                   alignItems: 'center', 
                   gap: '6px', 
-                  padding: '4px 10px', 
+                  padding: '5px 11px', 
                   borderRadius: 'var(--radius-full)',
                   background: 'rgba(59, 130, 246, 0.1)',
                   border: `1px solid ${currentUser?.id === 'kevin' ? 'var(--primary-600)' : 'rgba(59, 130, 246, 0.25)'}`,
-                  fontSize: '0.76rem',
-                  cursor: 'pointer'
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)'
                 }}
+                title="Clic para gestionar estado de Kevin Servat"
               >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#38bdf8' }}></span>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#38bdf8', boxShadow: '0 0 6px #38bdf8' }}></span>
                 <span style={{ fontWeight: 700 }}>Kevin:</span>
-                <span style={{ color: '#38bdf8' }}>{partnersState.kevin?.status || 'Guardia'}</span>
+                <span style={{ color: '#38bdf8', fontWeight: 600 }}>{partnersState.kevin?.status || 'Guardia'}</span>
               </div>
             </div>
           </div>
