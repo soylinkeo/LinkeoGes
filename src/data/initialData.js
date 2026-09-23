@@ -30,78 +30,7 @@ export const INITIAL_NFC_CARDS = [];
 
 export const INITIAL_LEADS = [];
 
-export const INITIAL_INVENTORY = [
-  {
-    id: 'inv-1',
-    sku: 'SKU-NTAG215-RAW',
-    name: 'Tarjetas Vírgenes NFC (NTAG215)',
-    category: 'Chips / Insumos',
-    quantity: 0,
-    minThreshold: 20,
-    unitCost: 3.70,
-    supplier: '',
-    leadTimeDays: 18,
-    status: 'stock_bajo_alerta',
-    reorderUrl: 'https://aliexpress.com',
-    notes: 'Insumo base para grabación de enlaces Google Place ID.'
-  },
-  {
-    id: 'inv-2',
-    sku: 'SKU-DISP-ACRYLIC',
-    name: 'Displays de Mesa en L (Acrílico)',
-    category: 'Displays',
-    quantity: 0,
-    minThreshold: 10,
-    unitCost: 8.50,
-    supplier: '',
-    leadTimeDays: 4,
-    status: 'stock_bajo_alerta',
-    reorderUrl: '',
-    notes: 'Insumo display acrílico para mesas.'
-  },
-  {
-    id: 'inv-3',
-    sku: 'SKU-CARD-HORIZ-BLANK',
-    name: 'Tarjetas PVC Rígidas Horizontales',
-    category: 'Tarjetas Base',
-    quantity: 0,
-    minThreshold: 8,
-    unitCost: 5.00,
-    supplier: '',
-    leadTimeDays: 14,
-    status: 'stock_bajo_alerta',
-    reorderUrl: '',
-    notes: 'Tarjetas NFC formato horizontal.'
-  },
-  {
-    id: 'inv-4',
-    sku: 'SKU-CARD-VERT-BLANK',
-    name: 'Tarjetas PVC Verticales',
-    category: 'Tarjetas Base',
-    quantity: 0,
-    minThreshold: 10,
-    unitCost: 4.20,
-    supplier: '',
-    leadTimeDays: 14,
-    status: 'stock_bajo_alerta',
-    reorderUrl: '',
-    notes: 'Tarjetas NFC formato vertical de bolsillo.'
-  },
-  {
-    id: 'inv-5',
-    sku: 'SKU-PACKAGING-BOX',
-    name: 'Sobres y Empaques Linkeo',
-    category: 'Empaque',
-    quantity: 0,
-    minThreshold: 15,
-    unitCost: 1.50,
-    supplier: '',
-    leadTimeDays: 3,
-    status: 'stock_bajo_alerta',
-    reorderUrl: '',
-    notes: 'Sobres y stickers de entrega.'
-  }
-];
+export const INITIAL_INVENTORY = [];
 
 export const INITIAL_SUPPLIERS = [];
 

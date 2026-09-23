@@ -47,43 +47,31 @@ export default function DashboardView({
   const lowStockItems = inventory.filter(i => i.quantity <= i.minThreshold);
 
   return (
-    <div className="dashboard-view">
-      {/* Banner de Bienvenida */}
-      <div 
-        style={{
-          background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.15) 0%, rgba(11, 87, 208, 0.05) 100%)',
-          border: '1px solid rgba(0, 102, 255, 0.25)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '24px',
-          marginBottom: '24px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px'
-        }}
-      >
+    <div className="dashboard-view" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+      {/* Encabezado Principal Despejado y Elegante (Sin cajas pesadas) */}
+      <div className="dashboard-header">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-            <span style={{ fontSize: '1.4rem' }}>👋</span>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 800 }}>
-              Panel de Control | Linkeo<span className="brand-ges-tag">Ges</span>
-            </h2>
+          <div className="dashboard-header-eyebrow">
+            <span className="live-dot"></span>
+            <span>Sistema Operativo Comercial · Co-CEOs 50/50</span>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '650px' }}>
-            Bienvenido, Luis Romero y Kevin Servat. Control de ventas NFC, trazabilidad de Place IDs de Google, 
-            pipeline B2B y balance financiero 50/50.
+          <h1 className="dashboard-title">
+            Panel General <span className="brand-ges-tag">LinkeoGes</span>
+          </h1>
+          <p className="dashboard-subtitle">
+            Supervisión ejecutiva para <strong>Luis Romero</strong> y <strong>Kevin Servat</strong>. 
+            Control de ventas NFC, trazabilidad de Google Place IDs y cuadre de aportes al 50/50.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="btn btn-primary" onClick={onOpenNewSale}>
-            <TrendingUp size={16} />
-            <span>Registrar Venta</span>
-          </button>
+        <div className="dashboard-header-actions">
           <button className="btn btn-secondary" onClick={() => setCurrentTab('nfc-traceability')}>
             <QrCode size={16} />
             <span>Ver Tarjetas NFC</span>
+          </button>
+          <button className="btn btn-primary" onClick={onOpenNewSale}>
+            <TrendingUp size={16} />
+            <span>+ Registrar Venta</span>
           </button>
         </div>
       </div>
@@ -101,7 +89,7 @@ export default function DashboardView({
           <div className="kpi-value">S/ {totalSalesAmount.toFixed(2)}</div>
           <div className="kpi-subtext">
             <span>Meta mensual: S/ {revenueTarget.toFixed(2)}</span>
-            <span style={{ fontWeight: 700, color: 'var(--primary-600)', marginLeft: 'auto' }}>
+            <span style={{ fontWeight: 700, color: 'var(--primary-600)' }}>
               {revenueProgressPct}%
             </span>
           </div>
@@ -114,14 +102,14 @@ export default function DashboardView({
         <div className="kpi-card kpi-green">
           <div className="kpi-header">
             <span className="kpi-label">Unidades Vendidas</span>
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>
               <Package size={18} />
             </div>
           </div>
-          <div className="kpi-value">{totalUnitsSold} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>/ {unitsTarget} uds</span></div>
+          <div className="kpi-value">{totalUnitsSold} <span style={{ fontSize: '1.05rem', color: 'var(--text-muted)' }}>/ {unitsTarget} uds</span></div>
           <div className="kpi-subtext">
-            <span>{unitsTarget - totalUnitsSold} unidades para la meta de S/ 4,000</span>
-            <span style={{ fontWeight: 700, color: '#10b981', marginLeft: 'auto' }}>
+            <span>{unitsTarget - totalUnitsSold} unidades para la meta</span>
+            <span style={{ fontWeight: 700, color: '#10b981' }}>
               {unitsProgressPct}%
             </span>
           </div>
@@ -131,10 +119,10 @@ export default function DashboardView({
         </div>
 
         {/* KPI 3: Utilidad Acumulada */}
-        <div className="kpi-card">
+        <div className="kpi-card kpi-yellow">
           <div className="kpi-header">
             <span className="kpi-label">Utilidad Neta Operativa</span>
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b' }}>
               <DollarSign size={18} />
             </div>
           </div>
@@ -142,36 +130,36 @@ export default function DashboardView({
             S/ {netProfit.toFixed(2)}
           </div>
           <div className="kpi-subtext">
-            <span>Margen bruto S/ {totalGrossProfit.toFixed(2)} - Gastos S/ {totalExpenses.toFixed(2)}</span>
+            <span>Margen S/ {totalGrossProfit.toFixed(2)} - Gastos S/ {totalExpenses.toFixed(2)}</span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '8px' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '10px' }}>
             {expenses.length > 0 ? `${expenses.length} gastos operativos registrados` : 'Sin gastos operativos registrados'}
           </div>
         </div>
 
         {/* KPI 4: Balance de Socios ("Cuentas Claras") */}
-        <div className="kpi-card kpi-yellow">
+        <div className="kpi-card kpi-purple">
           <div className="kpi-header">
             <span className="kpi-label">Balance Socios (50/50)</span>
-            <div className="kpi-icon-wrapper" style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7' }}>
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(168, 85, 247, 0.12)', color: '#a855f7' }}>
               <Users size={18} />
             </div>
           </div>
-          <div className="kpi-value" style={{ fontSize: '1.45rem', color: '#f59e0b' }}>
+          <div className="kpi-value" style={{ fontSize: '1.85rem', color: (partnerBalance.debtLuisToKevin || 0) === 0 ? '#10b981' : '#f59e0b' }}>
             S/ {Math.abs(partnerBalance.debtLuisToKevin || 0).toFixed(2)}
           </div>
-          <div className="kpi-subtext" style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+          <div className="kpi-subtext" style={{ fontWeight: 600 }}>
             {(partnerBalance.debtLuisToKevin || 0) > 0 ? (
-              <span>Luis Romero debe a Kevin Servat</span>
+              <span style={{ color: '#f59e0b' }}>Luis Romero debe a Kevin Servat</span>
             ) : (partnerBalance.debtLuisToKevin || 0) < 0 ? (
-              <span>Kevin Servat debe a Luis Romero</span>
+              <span style={{ color: '#38bdf8' }}>Kevin Servat debe a Luis Romero</span>
             ) : (
               <span style={{ color: 'var(--google-green)' }}>✓ Cuentas saldadas al 50/50</span>
             )}
           </div>
           <button 
             className="btn btn-secondary btn-sm" 
-            style={{ width: '100%', marginTop: '10px', fontSize: '0.78rem' }}
+            style={{ width: '100%', marginTop: '12px', fontSize: '0.78rem' }}
             onClick={() => setCurrentTab('finances')}
           >
             Ver Detalles de Cuadre →
@@ -180,7 +168,7 @@ export default function DashboardView({
       </div>
 
       {/* Sección Central de 2 Columnas */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '24px' }}>
         
         {/* Columna Izquierda: Tarjetas NFC Activas & Enlaces */}
         <div className="card">
@@ -199,12 +187,17 @@ export default function DashboardView({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {nfcCards.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
-                <QrCode size={32} style={{ opacity: 0.35, marginBottom: '8px' }} />
-                <p style={{ fontSize: '0.88rem', fontWeight: 600 }}>No hay tarjetas NFC asignadas aún</p>
-                <p style={{ fontSize: '0.76rem', color: 'var(--text-subtle)', marginTop: '4px' }}>
-                  Al registrar una venta o asignar un chip se mostrará aquí con su Place ID y QR directo.
+              <div className="empty-state-card" style={{ padding: '38px 20px' }}>
+                <div className="empty-state-icon">
+                  <QrCode size={26} />
+                </div>
+                <div className="empty-state-title">No hay tarjetas NFC asignadas aún</div>
+                <p className="empty-state-subtitle">
+                  Al registrar una venta o vincular un chip a un negocio local, aparecerá aquí con su Place ID y QR directo.
                 </p>
+                <button className="btn btn-secondary btn-sm" onClick={onOpenNewSale}>
+                  + Vincular Primer Chip
+                </button>
               </div>
             ) : (
               nfcCards.slice(0, 4).map(card => (
@@ -214,7 +207,7 @@ export default function DashboardView({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '12px 14px',
+                    padding: '14px 16px',
                     backgroundColor: 'var(--bg-input)',
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border-subtle)',
@@ -224,9 +217,9 @@ export default function DashboardView({
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                       <span className="code-mono">{card.id}</span>
-                      <strong style={{ fontSize: '0.9rem' }}>{card.businessName}</strong>
+                      <strong style={{ fontSize: '0.92rem' }}>{card.businessName}</strong>
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '8px' }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', gap: '8px' }}>
                       <span>📍 {card.district}</span>
                       <span>•</span>
                       <span>{card.model}</span>
@@ -239,15 +232,15 @@ export default function DashboardView({
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="btn btn-secondary btn-sm"
-                      style={{ padding: '4px 8px' }}
+                      style={{ padding: '5px 10px' }}
                       title="Probar enlace de reseña de Google"
                     >
                       <ExternalLink size={14} />
-                      <span style={{ fontSize: '0.75rem' }}>Probar</span>
+                      <span style={{ fontSize: '0.78rem' }}>Probar</span>
                     </a>
                     <button 
                       className="btn btn-primary btn-sm"
-                      style={{ padding: '4px 8px' }}
+                      style={{ padding: '5px 10px' }}
                       onClick={() => onOpenCardDetails(card)}
                       title="Ver QR y detalles"
                     >
@@ -265,51 +258,81 @@ export default function DashboardView({
           <div className="card-header">
             <h3 className="card-title">
               <AlertTriangle size={18} color="#f59e0b" />
-              <span>Alertas Operativas & Disponibilidad</span>
+              <span>Control Operativo & Disponibilidad</span>
             </h3>
-            <span className="badge badge-yellow">Acción Requerida</span>
+            <span className="badge badge-blue">Co-CEOs 50/50</span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {/* Alerta de Stock Crítico */}
-            {lowStockItems.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Estado de Inventario */}
+            {lowStockItems.length > 0 ? (
               <div className="alert alert-warning" style={{ margin: 0 }}>
                 <AlertTriangle size={20} style={{ flexShrink: 0 }} />
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-                    Alerta de Quiebre de Stock (AliExpress)
+                    Alerta de Quiebre de Stock ({lowStockItems[0].name})
                   </div>
                   <div style={{ fontSize: '0.78rem', marginTop: '2px' }}>
-                    Quedan solo <strong>{lowStockItems[0].quantity} unidades</strong> de Tarjetas Vírgenes (Mínimo: 20).
-                    Tiempo de importación: 15-18 días. Se debe realizar pedido a proveedor pronto.
+                    Quedan solo <strong>{lowStockItems[0].quantity} unidades</strong>.
+                    Tiempo de importación: {lowStockItems[0].leadTimeDays || 15} días.
                   </div>
                   <button 
                     className="btn btn-secondary btn-sm" 
                     style={{ marginTop: '8px', fontSize: '0.75rem', padding: '4px 10px' }}
                     onClick={() => setCurrentTab('inventory')}
                   >
-                    Gestionar Proveedores →
+                    Gestionar Almacén →
                   </button>
                 </div>
+              </div>
+            ) : (
+              <div 
+                style={{
+                  padding: '16px 18px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'rgba(16, 185, 129, 0.06)',
+                  border: '1px solid rgba(16, 185, 129, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px'
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--google-green)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={16} /> Almacén en Estado Óptimo
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                    {inventory.length > 0 
+                      ? `${inventory.length} insumos registrados sin quiebres de stock.` 
+                      : 'Almacén limpio listo para registrar tus tarjetas vírgenes y displays.'}
+                  </div>
+                </div>
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setCurrentTab('inventory')}
+                >
+                  Almacén →
+                </button>
               </div>
             )}
 
             {/* Coordinación Operativa Co-CEOs */}
             <div 
               style={{
-                padding: '14px',
+                padding: '16px 18px',
                 borderRadius: 'var(--radius-md)',
-                backgroundColor: 'rgba(0, 102, 255, 0.08)',
-                border: '1px solid rgba(0, 102, 255, 0.2)'
+                backgroundColor: 'rgba(0, 102, 255, 0.06)',
+                border: '1px solid rgba(0, 102, 255, 0.18)'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                <span style={{ fontSize: '1.1rem' }}>🤝</span>
-                <strong style={{ fontSize: '0.85rem' }}>Coordinación Operativa Co-CEOs Activa</strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '1.15rem' }}>🤝</span>
+                <strong style={{ fontSize: '0.88rem' }}>Dirección Compartida 50/50</strong>
               </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
-                <strong>Luis Romero</strong> y <strong>Kevin Servat</strong> comparten la dirección comercial y operativa al 50/50. 
-                Los prospectos, visitas y entregas se gestionan de manera coordinada con respaldo mutuo inmediato.
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+                <strong>Luis Romero</strong> y <strong>Kevin Servat</strong> gestionan las visitas comerciales, 
+                configuración de chips NFC y entregas con respaldo mutuo y conciliación equilibrada.
               </p>
             </div>
 
@@ -319,15 +342,16 @@ export default function DashboardView({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '12px 14px',
+                padding: '14px 16px',
                 backgroundColor: 'var(--bg-input)',
-                borderRadius: 'var(--radius-md)'
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-subtle)'
               }}
             >
               <div>
-                <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>Leads en Negociación</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {leads.filter(l => l.stage === 'negociacion' || l.stage === 'configurando').length} negocios activos en Lima
+                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>Pipeline Comercial B2B</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  {leads.filter(l => l.stage === 'negociacion' || l.stage === 'configurando').length} negociaciones activas en Lima
                 </div>
               </div>
               <button 
@@ -354,38 +378,40 @@ export default function DashboardView({
           </button>
         </div>
 
-        <div className="table-responsive">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>N° Venta</th>
-                <th>Fecha</th>
-                <th>Cliente / Negocio</th>
-                <th>Distrito</th>
-                <th>Producto / Pack</th>
-                <th>Total (S/)</th>
-                <th>Margen (S/)</th>
-                <th>Pago</th>
-                <th>Vendedor</th>
-                <th>Estado</th>
-                <th style={{ textAlign: 'center' }}>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sales.length === 0 ? (
+        {sales.length === 0 ? (
+          <div className="empty-state-card">
+            <div className="empty-state-icon" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', boxShadow: '0 0 20px rgba(16, 185, 129, 0.15)' }}>
+              <ShoppingBag size={28} />
+            </div>
+            <div className="empty-state-title">Aún no se han registrado ventas</div>
+            <p className="empty-state-subtitle">
+              Registra tu primera venta comercial para emitir la tarjeta NFC, vincular el Google Place ID del negocio y actualizar el balance de socios al 50/50.
+            </p>
+            <button className="btn btn-primary" onClick={onOpenNewSale}>
+              <TrendingUp size={16} />
+              <span>Registrar Primera Venta</span>
+            </button>
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan="11" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
-                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                      <ShoppingBag size={28} style={{ opacity: 0.35 }} />
-                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>No hay ventas registradas todavía</span>
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
-                        Haz clic en "+ Nueva Venta" para registrar tu primera operación y vincular una tarjeta NFC.
-                      </span>
-                    </div>
-                  </td>
+                  <th>N° Venta</th>
+                  <th>Fecha</th>
+                  <th>Cliente / Negocio</th>
+                  <th>Distrito</th>
+                  <th>Producto / Pack</th>
+                  <th>Total (S/)</th>
+                  <th>Margen (S/)</th>
+                  <th>Pago</th>
+                  <th>Vendedor</th>
+                  <th>Estado</th>
+                  <th style={{ textAlign: 'center' }}>Acción</th>
                 </tr>
-              ) : (
-                sales.map(sale => (
+              </thead>
+              <tbody>
+                {sales.map(sale => (
                   <tr key={sale.id}>
                     <td><span className="code-mono">{sale.saleNumber || sale.id}</span></td>
                     <td>{sale.date}</td>
@@ -412,11 +438,11 @@ export default function DashboardView({
                       </button>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

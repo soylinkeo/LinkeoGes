@@ -69,18 +69,19 @@ export default function Navbar({
             style={{ 
               display: 'inline-flex', 
               alignItems: 'center', 
-              gap: '6px', 
-              padding: '4px 10px', 
+              gap: '7px', 
+              padding: '5px 12px', 
               borderRadius: 'var(--radius-full)',
-              background: 'rgba(16, 185, 129, 0.1)',
-              border: `1px solid ${currentUser?.id === 'luis' ? 'var(--primary-600)' : 'rgba(16, 185, 129, 0.25)'}`,
-              fontSize: '0.74rem',
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: `1px solid ${currentUser?.id === 'luis' ? 'var(--primary-600)' : 'rgba(16, 185, 129, 0.2)'}`,
+              fontSize: '0.76rem',
               cursor: 'pointer',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              transition: 'all var(--transition-fast)'
             }}
             title="Clic para gestionar estado de Luis Romero (Co-CEO)"
           >
-            <span>👨‍💼</span>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981', flexShrink: 0 }}></span>
             <span style={{ fontWeight: 700 }}>Luis:</span>
             <span style={{ color: 'var(--google-green)', fontWeight: 600 }}>
               {partnersState?.luis?.status || 'Disponible'}
@@ -93,18 +94,19 @@ export default function Navbar({
             style={{ 
               display: 'inline-flex', 
               alignItems: 'center', 
-              gap: '6px', 
-              padding: '4px 10px', 
+              gap: '7px', 
+              padding: '5px 12px', 
               borderRadius: 'var(--radius-full)',
-              background: 'rgba(59, 130, 246, 0.1)',
-              border: `1px solid ${currentUser?.id === 'kevin' ? 'var(--primary-600)' : 'rgba(59, 130, 246, 0.25)'}`,
-              fontSize: '0.74rem',
+              background: 'rgba(59, 130, 246, 0.08)',
+              border: `1px solid ${currentUser?.id === 'kevin' ? 'var(--primary-600)' : 'rgba(59, 130, 246, 0.2)'}`,
+              fontSize: '0.76rem',
               cursor: 'pointer',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              transition: 'all var(--transition-fast)'
             }}
             title="Clic para gestionar estado de Kevin Servat (Co-CEO)"
           >
-            <span>🚀</span>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#38bdf8', boxShadow: '0 0 6px #38bdf8', flexShrink: 0 }}></span>
             <span style={{ fontWeight: 700 }}>Kevin:</span>
             <span style={{ color: '#38bdf8', fontWeight: 600 }}>
               {partnersState?.kevin?.status || 'Guardia'}
@@ -116,13 +118,13 @@ export default function Navbar({
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '5px',
-              fontSize: '0.72rem',
-              padding: '4px 9px',
+              gap: '6px',
+              fontSize: '0.74rem',
+              padding: '5px 11px',
               borderRadius: 'var(--radius-full)',
-              background: isCloudReady ? 'rgba(16, 185, 129, 0.12)' : 'rgba(234, 179, 8, 0.12)',
+              background: isCloudReady ? 'rgba(16, 185, 129, 0.08)' : 'rgba(234, 179, 8, 0.08)',
               color: isCloudReady ? 'var(--google-green)' : '#eab308',
-              border: `1px solid ${isCloudReady ? 'rgba(16, 185, 129, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
+              border: `1px solid ${isCloudReady ? 'rgba(16, 185, 129, 0.25)' : 'rgba(234, 179, 8, 0.25)'}`,
               fontWeight: 600,
               whiteSpace: 'nowrap'
             }}

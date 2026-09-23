@@ -36,7 +36,7 @@ import ProjectLifecycleView from './components/ProjectLifecycleView';
 import { dbService, mappers, isSupabaseConfigured, supabase } from './services/supabase';
 
 // Clave de versión de base de datos local para forzar purga de datos mock antiguos (todo vacío desde 0)
-const DATA_CLEAN_VERSION = 'v2_production_clean_all';
+const DATA_CLEAN_VERSION = 'v3_production_aesthetic_clean';
 if (typeof window !== 'undefined' && localStorage.getItem('linkeoges_clean_version') !== DATA_CLEAN_VERSION) {
   localStorage.removeItem('linkeoges_sales');
   localStorage.removeItem('linkeoges_expenses');

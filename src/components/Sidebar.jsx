@@ -47,19 +47,19 @@ export default function Sidebar({
       id: 'nfc-traceability', 
       label: 'Chips & Enlaces NFC', 
       icon: Cpu,
-      badge: nfcCardsCount 
+      badge: nfcCardsCount > 0 ? nfcCardsCount : null 
     },
     { 
       id: 'pipeline', 
       label: 'Pipeline B2B (Kanban)', 
       icon: Kanban,
-      badge: leadsCount 
+      badge: leadsCount > 0 ? leadsCount : null 
     },
     { 
       id: 'calendar', 
       label: 'Agenda & Tareas', 
       icon: CalendarDays,
-      badge: '30D' 
+      badge: null 
     },
     { 
       id: 'inventory', 
