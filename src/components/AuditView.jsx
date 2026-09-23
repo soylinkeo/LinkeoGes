@@ -137,6 +137,13 @@ export default function AuditView({
               onChange={(e) => setFilterType(e.target.value)}
             >
               <option value="all">📦 Todos los Tipos de Datos</option>
+              <option value="Inversión Inicial">Inversión Inicial</option>
+              <option value="Gasto Fijo">Gastos Fijos</option>
+              <option value="Mix Producto">Mix de Productos</option>
+              <option value="Costos Variables">Costos Variables</option>
+              <option value="Embudo de Ventas">Embudo de Ventas</option>
+              <option value="Plan 30 Días">Plan 30 Días</option>
+              <option value="Parámetros Proyección">Parámetros de Negocio</option>
               <option value="Producto">Productos / Packs</option>
               <option value="Gasto">Gastos Operativos</option>
               <option value="Venta">Ventas</option>
@@ -144,7 +151,6 @@ export default function AuditView({
               <option value="Tarjeta NFC">Chips / Tarjetas NFC</option>
               <option value="Insumo">Insumos de Inventario</option>
               <option value="Evento">Citas / Eventos</option>
-              <option value="Plan 30 Días">Plan 30 Días</option>
               <option value="Distrito">Distrito Maestro</option>
               <option value="Entregable">Hito de Proyecto</option>
             </select>

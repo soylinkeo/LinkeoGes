@@ -27,7 +27,9 @@ import {
   Edit3,
   Check,
   RotateCcw,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Settings,
+  History
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
 import { 
@@ -49,15 +51,25 @@ export default function ProjectionsView({
   onAddPlanTask,
   onEditPlanTask,
   onRequestDelete,
+  logAudit,
+  currentUser,
   setCurrentTab
 }) {
   const [activeSubTab, setActiveSubTab] = useState('goals'); // 'goals', 'products', 'costs', 'funnel', 'plan30'
 
-  // Modales
+  // Modales de Creación y Edición
   const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
+  const [isEditProductModalOpen, setIsEditProductModalOpen] = useState(false);
   const [isImportProductModalOpen, setIsImportProductModalOpen] = useState(false);
+
   const [isNewFixedCostModalOpen, setIsNewFixedCostModalOpen] = useState(false);
+  const [isEditFixedCostModalOpen, setIsEditFixedCostModalOpen] = useState(false);
+
   const [isNewInvestmentModalOpen, setIsNewInvestmentModalOpen] = useState(false);
+  const [isEditInvestmentModalOpen, setIsEditInvestmentModalOpen] = useState(false);
+
+  const [isEditFunnelModalOpen, setIsEditFunnelModalOpen] = useState(false);
+
   const [isAddPlanModalOpen, setIsAddPlanModalOpen] = useState(false);
   const [isEditPlanModalOpen, setIsEditPlanModalOpen] = useState(false);
 
@@ -73,19 +85,30 @@ export default function ProjectionsView({
     mixPercent: 50,
     isCustom: true
   });
+  const [editingProduct, setEditingProduct] = useState(null);
 
-  // Formulario para nuevo gasto fijo
+  // Formulario para gasto fijo
   const [newFixedCostForm, setNewFixedCostForm] = useState({
     concept: '',
     amount: '',
     note: ''
   });
+  const [editingFixedCost, setEditingFixedCost] = useState(null);
 
-  // Formulario para nuevo ítem de inversión inicial
+  // Formulario para ítem de inversión inicial
   const [newInvestmentForm, setNewInvestmentForm] = useState({
     concept: '',
     quantity: 1,
     unitCost: ''
+  });
+  const [editingInvestmentItem, setEditingInvestmentItem] = useState(null);
+
+  // Formulario para ratios del embudo comercial
+  const [funnelForm, setFunnelForm] = useState({
+    contactToResponse: 35,
+    responseToDemo: 70,
+    demoToCustomer: 40,
+    unitsPerCustomer: 1.29
   });
 
   // Formulario para nueva tarea del Plan 30 Días
@@ -307,51 +330,153 @@ export default function ProjectionsView({
     return task.week?.toString() === planFilterWeek;
   });
 
-  // --- ACCIONES Y HANDLERS ---
+  // --- ACCIONES Y HANDLERS TOTALMENTE AUDITADOS ---
 
   const handleUpdateParam = (key, value) => {
+    const numVal = Number(value) || 0;
     onUpdateProjectionsData({
       ...projectionsData,
       businessParams: {
         ...businessParams,
-        [key]: Number(value)
+        [key]: numVal
       }
     });
+
+    if (logAudit) {
+      const paramNames = {
+        customProfitTarget: 'Meta Neta Deseada (S/)',
+        salesDaysPerMonth: 'Días de Venta al Mes',
+        partnersCount: 'Número de Socios (50/50)'
+      };
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Parámetros Proyección',
+        entityId: 'PROJ-PARAMS',
+        entityName: paramNames[key] || key,
+        reason: `Ajuste en ${paramNames[key] || key}: Nuevo valor ${numVal}.`
+      });
+    }
   };
 
   const handleUpdateVariableCost = (key, value) => {
+    const numVal = Number(value) || 0;
     onUpdateProjectionsData({
       ...projectionsData,
       variableUnitCosts: {
         ...variableUnitCosts,
-        [key]: Number(value)
+        [key]: numVal
       }
     });
+
+    if (logAudit) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Costos Variables',
+        entityId: `VC-${key}`,
+        entityName: `Costo Variable: ${key}`,
+        reason: `Costo variable unitario actualizado a ${numVal}.`
+      });
+    }
   };
 
   const handleToggleProductInclusion = (productId) => {
+    const targetProd = projectedProducts.find(p => p.id === productId);
+    const newIncludedState = targetProd ? !(targetProd.included !== false) : true;
+
     const updated = projectedProducts.map(p => {
       if (p.id === productId) {
-        return { ...p, included: p.included === false ? true : false };
+        return { ...p, included: newIncludedState };
       }
       return p;
     });
     onUpdateProjectionsData({ ...projectionsData, projectedProducts: updated });
+
+    if (logAudit && targetProd) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Mix Producto',
+        entityId: targetProd.sku || targetProd.id,
+        entityName: targetProd.name,
+        reason: `Producto ${newIncludedState ? 'incluido en' : 'excluido de'} la proyección financiera.`
+      });
+    }
   };
 
   const handleUpdateProductMix = (productId, newMix) => {
+    const numMix = Math.max(0, Number(newMix) || 0);
+    const targetProd = projectedProducts.find(p => p.id === productId);
+
     const updated = projectedProducts.map(p => {
       if (p.id === productId) {
-        return { ...p, mixPercent: Math.max(0, Number(newMix) || 0) };
+        return { ...p, mixPercent: numMix };
       }
       return p;
     });
     onUpdateProjectionsData({ ...projectionsData, projectedProducts: updated });
+
+    if (logAudit && targetProd) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Mix Producto',
+        entityId: targetProd.sku || targetProd.id,
+        entityName: targetProd.name,
+        reason: `Participación de ventas ajustada a ${numMix}%.`
+      });
+    }
   };
 
-  const handleDeleteProjectedProduct = (productId) => {
-    const updated = projectedProducts.filter(p => p.id !== productId);
+  const handleOpenEditProduct = (prod) => {
+    setEditingProduct({ ...prod });
+    setIsEditProductModalOpen(true);
+  };
+
+  const handleSaveEditProduct = (e) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    const updated = projectedProducts.map(p => {
+      if (p.id === editingProduct.id) {
+        return {
+          ...editingProduct,
+          price: Number(editingProduct.price) || 0,
+          baseCost: Number(editingProduct.baseCost) || 0,
+          mixPercent: Number(editingProduct.mixPercent) || 0
+        };
+      }
+      return p;
+    });
     onUpdateProjectionsData({ ...projectionsData, projectedProducts: updated });
+
+    if (logAudit) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Mix Producto',
+        entityId: editingProduct.sku || editingProduct.id,
+        entityName: editingProduct.name,
+        reason: `Edición de producto: Precio S/ ${editingProduct.price}, Costo Base S/ ${editingProduct.baseCost}, Mix ${editingProduct.mixPercent}%.`
+      });
+    }
+
+    setIsEditProductModalOpen(false);
+    setEditingProduct(null);
+  };
+
+  const handleDeleteProjectedProduct = (prod) => {
+    if (onRequestDelete) {
+      onRequestDelete(prod, 'Mix Producto');
+    } else {
+      const updated = projectedProducts.filter(p => p.id !== prod.id);
+      onUpdateProjectionsData({ ...projectionsData, projectedProducts: updated });
+      if (logAudit) {
+        logAudit({
+          actionType: 'Eliminación',
+          entityType: 'Mix Producto',
+          entityId: prod.sku || prod.id,
+          entityName: prod.name,
+          reason: `Producto retirado de la proyección financiera.`
+        });
+      }
+    }
   };
 
   const handleCreateNewProjectedProduct = (e) => {
@@ -371,6 +496,16 @@ export default function ProjectionsView({
       ...projectionsData,
       projectedProducts: [...projectedProducts, newProd]
     });
+
+    if (logAudit) {
+      logAudit({
+        actionType: 'Creación',
+        entityType: 'Mix Producto',
+        entityId: newProd.sku,
+        entityName: newProd.name,
+        reason: `Nuevo producto proyectado: Precio S/ ${newProd.price}, Costo S/ ${newProd.baseCost}, Mix ${newProd.mixPercent}%.`
+      });
+    }
 
     setIsNewProductModalOpen(false);
     setNewProjectedProductForm({
@@ -406,32 +541,106 @@ export default function ProjectionsView({
       projectedProducts: [...projectedProducts, imported]
     });
 
+    if (logAudit) {
+      logAudit({
+        actionType: 'Creación',
+        entityType: 'Mix Producto',
+        entityId: imported.sku,
+        entityName: imported.name,
+        reason: `Producto importado del catálogo al modelo de proyecciones.`
+      });
+    }
+
     setIsImportProductModalOpen(false);
   };
 
-  const handleUpdateFixedCost = (id, newAmount) => {
+  // Handlers para Gastos Fijos
+  const handleOpenEditFixedCost = (fc) => {
+    setEditingFixedCost({ ...fc });
+    setIsEditFixedCostModalOpen(true);
+  };
+
+  const handleSaveEditFixedCost = (e) => {
+    e.preventDefault();
+    if (!editingFixedCost) return;
+
+    const numAmount = Number(editingFixedCost.amount) || 0;
     const updated = fixedCosts.map(fc => {
-      if (fc.id === id) {
-        return { ...fc, amount: Number(newAmount) || 0 };
+      if (fc.id === editingFixedCost.id) {
+        return {
+          ...fc,
+          concept: editingFixedCost.concept.trim(),
+          amount: numAmount,
+          note: (editingFixedCost.note || '').trim()
+        };
       }
       return fc;
     });
     onUpdateProjectionsData({ ...projectionsData, fixedCosts: updated });
+
+    if (logAudit) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Gasto Fijo',
+        entityId: editingFixedCost.id,
+        entityName: editingFixedCost.concept,
+        reason: `Gasto fijo modificado a S/ ${numAmount.toFixed(2)}. Nota: ${editingFixedCost.note}`
+      });
+    }
+
+    setIsEditFixedCostModalOpen(false);
+    setEditingFixedCost(null);
   };
 
-  const handleDeleteFixedCost = (id) => {
-    const updated = fixedCosts.filter(fc => fc.id !== id);
+  const handleUpdateFixedCost = (id, newAmount) => {
+    const numAmount = Number(newAmount) || 0;
+    const targetFc = fixedCosts.find(fc => fc.id === id);
+    const updated = fixedCosts.map(fc => {
+      if (fc.id === id) {
+        return { ...fc, amount: numAmount };
+      }
+      return fc;
+    });
     onUpdateProjectionsData({ ...projectionsData, fixedCosts: updated });
+
+    if (logAudit && targetFc) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Gasto Fijo',
+        entityId: targetFc.id,
+        entityName: targetFc.concept,
+        reason: `Monto mensual actualizado a S/ ${numAmount.toFixed(2)}.`
+      });
+    }
+  };
+
+  const handleDeleteFixedCost = (fc) => {
+    if (onRequestDelete) {
+      onRequestDelete(fc, 'Gasto Fijo');
+    } else {
+      const updated = fixedCosts.filter(item => item.id !== fc.id);
+      onUpdateProjectionsData({ ...projectionsData, fixedCosts: updated });
+      if (logAudit) {
+        logAudit({
+          actionType: 'Eliminación',
+          entityType: 'Gasto Fijo',
+          entityId: fc.id,
+          entityName: fc.concept,
+          reason: `Gasto fijo eliminado de la proyección.`
+        });
+      }
+    }
   };
 
   const handleAddFixedCost = (e) => {
     e.preventDefault();
     if (!newFixedCostForm.concept.trim()) return;
 
+    const numAmount = Number(newFixedCostForm.amount) || 0;
     const newCost = {
       id: `fc-${Date.now()}`,
       concept: newFixedCostForm.concept.trim(),
-      amount: Number(newFixedCostForm.amount) || 0,
+      amount: numAmount,
       note: newFixedCostForm.note.trim() || 'Gasto fijo recurrente'
     };
 
@@ -440,23 +649,75 @@ export default function ProjectionsView({
       fixedCosts: [...fixedCosts, newCost]
     });
 
+    if (logAudit) {
+      logAudit({
+        actionType: 'Creación',
+        entityType: 'Gasto Fijo',
+        entityId: newCost.id,
+        entityName: newCost.concept,
+        reason: `Gasto fijo agregado por S/ ${numAmount.toFixed(2)} mensuales.`
+      });
+    }
+
     setIsNewFixedCostModalOpen(false);
     setNewFixedCostForm({ concept: '', amount: '', note: '' });
   };
 
-  // Inversión Inicial
+  // Handlers para Inversión Inicial
+  const handleOpenEditInvestment = (item) => {
+    setEditingInvestmentItem({ ...item });
+    setIsEditInvestmentModalOpen(true);
+  };
+
+  const handleSaveEditInvestment = (e) => {
+    e.preventDefault();
+    if (!editingInvestmentItem) return;
+
+    const qty = Number(editingInvestmentItem.quantity) || 1;
+    const unit = Number(editingInvestmentItem.unitCost) || 0;
+    const total = qty * unit;
+
+    const updated = initialInvestment.map(item => {
+      if (item.id === editingInvestmentItem.id) {
+        return {
+          ...item,
+          concept: editingInvestmentItem.concept.trim(),
+          quantity: qty,
+          unitCost: unit,
+          total: total
+        };
+      }
+      return item;
+    });
+    onUpdateProjectionsData({ ...projectionsData, initialInvestment: updated });
+
+    if (logAudit) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Inversión Inicial',
+        entityId: editingInvestmentItem.id,
+        entityName: editingInvestmentItem.concept,
+        reason: `Ítem de inversión modificado: ${qty} uds a S/ ${unit.toFixed(2)} (Total S/ ${total.toFixed(2)}).`
+      });
+    }
+
+    setIsEditInvestmentModalOpen(false);
+    setEditingInvestmentItem(null);
+  };
+
   const handleAddInvestmentItem = (e) => {
     e.preventDefault();
     if (!newInvestmentForm.concept.trim()) return;
 
     const qty = Number(newInvestmentForm.quantity) || 1;
     const unit = Number(newInvestmentForm.unitCost) || 0;
+    const total = qty * unit;
     const newItem = {
       id: `inv-${Date.now()}`,
       concept: newInvestmentForm.concept.trim(),
       quantity: qty,
       unitCost: unit,
-      total: qty * unit
+      total: total
     };
 
     onUpdateProjectionsData({
@@ -464,13 +725,74 @@ export default function ProjectionsView({
       initialInvestment: [...initialInvestment, newItem]
     });
 
+    if (logAudit) {
+      logAudit({
+        actionType: 'Creación',
+        entityType: 'Inversión Inicial',
+        entityId: newItem.id,
+        entityName: newItem.concept,
+        reason: `Nuevo ítem agregado a Inversión Inicial: ${qty} uds a S/ ${unit.toFixed(2)} (Total S/ ${total.toFixed(2)}).`
+      });
+    }
+
     setIsNewInvestmentModalOpen(false);
     setNewInvestmentForm({ concept: '', quantity: 1, unitCost: '' });
   };
 
-  const handleDeleteInvestmentItem = (id) => {
-    const updated = initialInvestment.filter(item => item.id !== id);
-    onUpdateProjectionsData({ ...projectionsData, initialInvestment: updated });
+  const handleDeleteInvestmentItem = (item) => {
+    if (onRequestDelete) {
+      onRequestDelete(item, 'Inversión Inicial');
+    } else {
+      const updated = initialInvestment.filter(i => i.id !== item.id);
+      onUpdateProjectionsData({ ...projectionsData, initialInvestment: updated });
+      if (logAudit) {
+        logAudit({
+          actionType: 'Eliminación',
+          entityType: 'Inversión Inicial',
+          entityId: item.id,
+          entityName: item.concept,
+          reason: `Ítem eliminado de la Inversión Inicial.`
+        });
+      }
+    }
+  };
+
+  // Handlers para Ratios del Embudo
+  const handleOpenEditFunnel = () => {
+    setFunnelForm({
+      contactToResponse: Math.round((funnelRatios.contactToResponse || 0.35) * 100),
+      responseToDemo: Math.round((funnelRatios.responseToDemo || 0.70) * 100),
+      demoToCustomer: Math.round((funnelRatios.demoToCustomer || 0.40) * 100),
+      unitsPerCustomer: Number(funnelRatios.unitsPerCustomer) || 1.29
+    });
+    setIsEditFunnelModalOpen(true);
+  };
+
+  const handleSaveEditFunnel = (e) => {
+    e.preventDefault();
+    const updatedRatios = {
+      contactToResponse: (Number(funnelForm.contactToResponse) || 35) / 100,
+      responseToDemo: (Number(funnelForm.responseToDemo) || 70) / 100,
+      demoToCustomer: (Number(funnelForm.demoToCustomer) || 40) / 100,
+      unitsPerCustomer: Number(funnelForm.unitsPerCustomer) || 1.29
+    };
+
+    onUpdateProjectionsData({
+      ...projectionsData,
+      funnelRatios: updatedRatios
+    });
+
+    if (logAudit) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Embudo de Ventas',
+        entityId: 'FUNNEL-RATIOS',
+        entityName: 'Ratios de Conversión del Embudo',
+        reason: `Ratios actualizados: Respuestas ${funnelForm.contactToResponse}%, Demos ${funnelForm.responseToDemo}%, Clientes ${funnelForm.demoToCustomer}%, ${funnelForm.unitsPerCustomer} uds/cliente.`
+      });
+    }
+
+    setIsEditFunnelModalOpen(false);
   };
 
   // Handlers de Plan 30 Días
@@ -509,6 +831,17 @@ export default function ProjectionsView({
     } else if (setPlan30Days) {
       setPlan30Days([...plan30Days, newTask]);
     }
+
+    if (logAudit) {
+      logAudit({
+        actionType: 'Creación',
+        entityType: 'Plan 30 Días',
+        entityId: `dia-${newTask.day}`,
+        entityName: `Día ${newTask.day}: ${newTask.action}`,
+        reason: `Nueva tarea agregada a la Semana ${newTask.week} del Plan.`
+      });
+    }
+
     setIsAddPlanModalOpen(false);
   };
 
@@ -526,13 +859,24 @@ export default function ProjectionsView({
     } else if (setPlan30Days) {
       setPlan30Days(plan30Days.map(t => t.day === editingPlanTask.day ? editingPlanTask : t));
     }
+
+    if (logAudit) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Plan 30 Días',
+        entityId: `dia-${editingPlanTask.day}`,
+        entityName: `Día ${editingPlanTask.day}: ${editingPlanTask.action}`,
+        reason: `Modificación de meta, canal, responsable o aprendizajes.`
+      });
+    }
+
     setIsEditPlanModalOpen(false);
     setEditingPlanTask(null);
   };
 
-  // Funciones para Limpiar o Cargar Plantillas
+  // Funciones para Limpiar o Cargar Plantillas con Auditoría
   const handleResetToClean = () => {
-    if (window.confirm('¿Deseas vaciar todas las proyecciones para dejarlas en escenario libre en blanco (valores en 0)?')) {
+    if (window.confirm('¿Deseas vaciar todas las proyecciones para dejarlas en escenario libre en blanco (valores en 0)? Esta acción se registrará en la auditoría.')) {
       onUpdateProjectionsData({
         businessParams: {
           salesDaysPerMonth: 24,
@@ -558,11 +902,21 @@ export default function ProjectionsView({
           unitsPerCustomer: 1.29
         }
       });
+
+      if (logAudit) {
+        logAudit({
+          actionType: 'Modificación',
+          entityType: 'Parámetros Proyección',
+          entityId: 'SYS-PROJ-RESET',
+          entityName: 'Reinicio de Proyecciones a Escenario Libre',
+          reason: `Vaciado de todos los valores predeterminados para inicio manual desde cero.`
+        });
+      }
     }
   };
 
   const handleLoadExcelTemplates = () => {
-    if (window.confirm('¿Deseas cargar la plantilla referencial completa del Excel Control de Gastos NFC (productos, fijos e inversión)?')) {
+    if (window.confirm('¿Deseas cargar la plantilla referencial del Excel Control de Gastos NFC (productos, fijos e inversión)?')) {
       onUpdateProjectionsData({
         businessParams: {
           salesDaysPerMonth: 24,
@@ -588,6 +942,16 @@ export default function ProjectionsView({
           unitsPerCustomer: 1.29
         }
       });
+
+      if (logAudit) {
+        logAudit({
+          actionType: 'Modificación',
+          entityType: 'Parámetros Proyección',
+          entityId: 'SYS-PROJ-EXCEL-TEMPLATE',
+          entityName: 'Carga de Plantilla de Referencia del Excel',
+          reason: `Carga de productos estándar/premium, gastos fijos e inversión del Excel Control de Gastos NFC.`
+        });
+      }
     }
   };
 
@@ -595,6 +959,15 @@ export default function ProjectionsView({
     if (window.confirm('¿Deseas cargar las 27 tareas estratégicas del Plan de 30 Días del Excel?')) {
       if (setPlan30Days) {
         setPlan30Days(EXCEL_PLAN_30_DAYS_TEMPLATE);
+      }
+      if (logAudit) {
+        logAudit({
+          actionType: 'Creación',
+          entityType: 'Plan 30 Días',
+          entityId: 'SYS-PLAN-TEMPLATE',
+          entityName: 'Carga de 27 Tareas del Plan 30 Días',
+          reason: `Carga en lote de los 27 hitos operativos del Excel Control de Gastos NFC.`
+        });
       }
     }
   };
@@ -612,7 +985,7 @@ export default function ProjectionsView({
               Proyecciones Financieras, Costos & Metas
             </h2>
             <span className="badge badge-purple" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
-              Escenario Libre & Editable
+              Escenario Libre & Auditado
             </span>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0, maxWidth: '850px' }}>
@@ -622,6 +995,17 @@ export default function ProjectionsView({
 
         {/* Acciones de Cabecera y Resumen Rápido */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Botón para ver bitácora de auditoría */}
+          <button 
+            className="btn btn-secondary btn-sm"
+            onClick={() => setCurrentTab && setCurrentTab('audit')}
+            title="Ver bitácora de auditoría y trazabilidad histórica de cambios"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <ShieldCheck size={14} color="#10b981" />
+            <span>Ver Auditoría</span>
+          </button>
+
           <button 
             className="btn btn-secondary btn-sm"
             onClick={handleResetToClean}
@@ -744,10 +1128,10 @@ export default function ProjectionsView({
                   <span>Parámetros Operativos del Escenario Libre</span>
                 </h3>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                  Define tus números meta en tiempo real. Todas las proyecciones y asignaciones 50/50 se recalculan instantáneamente.
+                  Define tus números meta en tiempo real. Todas las modificaciones se guardan y auditan automáticamente.
                 </p>
               </div>
-              <span className="badge badge-blue">100% Interactivo</span>
+              <span className="badge badge-blue">100% Interactivo & Auditado</span>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
@@ -1009,7 +1393,7 @@ export default function ProjectionsView({
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-PESTAÑA 2: MIX DE PRODUCTOS (INVENTARIO ACTUAL + NUEVOS PRODUCTOS)    */}
+      {/* SUB-PESTAÑA 2: MIX DE PRODUCTOS (EDITABLE Y AUDITADO)                     */}
       {/* ========================================================================= */}
       {activeSubTab === 'products' && (
         <div>
@@ -1019,7 +1403,7 @@ export default function ProjectionsView({
                 Economía por Producto y Mezcla de Ventas (Sales Mix)
               </h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
-                Modela tus productos para proyectar márgenes y unidades mensuales. Puedes agregar productos futuros o importar los existentes de tu catálogo.
+                Todos los productos son editables y auditados. Puedes cambiar precio, costo base, SKU o participación en ventas.
               </p>
             </div>
 
@@ -1096,7 +1480,7 @@ export default function ProjectionsView({
                     <th style={{ width: '130px' }}>Mix Ventas (%)</th>
                     <th>Unidades Meta</th>
                     <th>Venta Estimada</th>
-                    <th style={{ textAlign: 'right' }}>Acción</th>
+                    <th style={{ textAlign: 'center', width: '80px' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1165,15 +1549,24 @@ export default function ProjectionsView({
                         <td style={{ fontWeight: 700 }}>
                           S/ {prodRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button 
-                            className="btn-icon"
-                            style={{ color: '#ef4444' }}
-                            onClick={() => handleDeleteProjectedProduct(prod.id)}
-                            title="Eliminar de la proyección"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <button 
+                              className="btn-icon"
+                              onClick={() => handleOpenEditProduct(prod)}
+                              title="Editar producto proyectado"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button 
+                              className="btn-icon"
+                              style={{ color: '#ef4444' }}
+                              onClick={() => handleDeleteProjectedProduct(prod)}
+                              title="Eliminar de la proyección (con auditoría)"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1186,7 +1579,7 @@ export default function ProjectionsView({
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-PESTAÑA 3: GASTOS FIJOS Y VARIABLES UNITARIOS                         */}
+      {/* SUB-PESTAÑA 3: GASTOS FIJOS Y VARIABLES (EDITABLES Y AUDITADOS)           */}
       {/* ========================================================================= */}
       {activeSubTab === 'costs' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
@@ -1240,7 +1633,7 @@ export default function ProjectionsView({
                       <th>Concepto</th>
                       <th style={{ width: '110px' }}>Monto (S/)</th>
                       <th>Nota / Detalle</th>
-                      <th style={{ width: '40px', textAlign: 'center' }}></th>
+                      <th style={{ width: '60px', textAlign: 'center' }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1260,14 +1653,23 @@ export default function ProjectionsView({
                         </td>
                         <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{fc.note}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <button 
-                            className="btn-icon" 
-                            style={{ color: '#ef4444' }}
-                            onClick={() => handleDeleteFixedCost(fc.id)}
-                            title="Eliminar gasto fijo"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <button 
+                              className="btn-icon" 
+                              onClick={() => handleOpenEditFixedCost(fc)}
+                              title="Editar detalle del gasto fijo"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                            <button 
+                              className="btn-icon" 
+                              style={{ color: '#ef4444' }}
+                              onClick={() => handleDeleteFixedCost(fc)}
+                              title="Eliminar gasto fijo (con auditoría)"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1405,23 +1807,35 @@ export default function ProjectionsView({
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-PESTAÑA 4: EMBUDO COMERCIAL & INVERSIÓN INICIAL                       */}
+      {/* SUB-PESTAÑA 4: EMBUDO COMERCIAL & INVERSIÓN INICIAL (EDITABLE & AUDITADO) */}
       {/* ========================================================================= */}
       {activeSubTab === 'funnel' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
           {/* Bloque 1: Embudo Comercial para Alcanzar la Meta */}
           <div className="card" style={{ padding: '20px' }}>
-            <div style={{ marginBottom: '16px' }}>
-              <span className="badge badge-purple" style={{ marginBottom: '6px', display: 'inline-block' }}>
-                Pipeline de Conversión Requerido
-              </span>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Filter size={18} color="#8b5cf6" />
-                <span>Embudo de Ventas (Para {simulationResults.units} Unidades)</span>
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
-                Cantidad de contactos y cierres necesarios para cumplir el objetivo del mes en {simulationResults.salesDays} días hábiles.
-              </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <span className="badge badge-purple" style={{ marginBottom: '6px', display: 'inline-block' }}>
+                  Pipeline de Conversión Requerido
+                </span>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Filter size={18} color="#8b5cf6" />
+                  <span>Embudo de Ventas (Para {simulationResults.units} Unidades)</span>
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
+                  Cantidad de contactos y cierres necesarios para cumplir el objetivo del mes en {simulationResults.salesDays} días hábiles.
+                </p>
+              </div>
+
+              <button 
+                className="btn btn-secondary btn-sm"
+                onClick={handleOpenEditFunnel}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                title="Editar porcentajes y ratios de conversión del embudo"
+              >
+                <Settings size={14} />
+                <span>Ajustar Ratios</span>
+              </button>
             </div>
 
             {/* Embudo Visual */}
@@ -1461,7 +1875,9 @@ export default function ProjectionsView({
                 alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>2. Respuestas Obtenidas (~35%)</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>
+                    2. Respuestas Obtenidas (~{Math.round((funnelRatios.contactToResponse || 0.35) * 100)}%)
+                  </div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Interesados que contestan en menos de 10 min</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -1485,7 +1901,9 @@ export default function ProjectionsView({
                 alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>3. Demostraciones Presentadas (~70%)</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>
+                    3. Demostraciones Presentadas (~{Math.round((funnelRatios.responseToDemo || 0.70) * 100)}%)
+                  </div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Video explicativo o muestra presencial</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -1509,8 +1927,12 @@ export default function ProjectionsView({
                 alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>4. Negocios Compradores / Clientes (~40%)</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Cierres efectivos con linkeo activo</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>
+                    4. Negocios Compradores / Clientes (~{Math.round((funnelRatios.demoToCustomer || 0.40) * 100)}%)
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    Cierres efectivos (~{funnelRatios.unitsPerCustomer || 1.29} uds/cliente)
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#10b981' }}>
@@ -1533,23 +1955,23 @@ export default function ProjectionsView({
             </div>
           </div>
 
-          {/* Bloque 2: Inversión Inicial Editable */}
+          {/* Bloque 2: Inversión Inicial 100% Editable y Auditada */}
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <span className="badge badge-yellow" style={{ marginBottom: '6px', display: 'inline-block' }}>
-                  Inversión de Puesta en Marcha
+                  Inversión de Puesta en Marcha (Editable & Auditada)
                 </span>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Zap size={18} color="#f59e0b" />
                   <span>Inversión Inicial Requerida</span>
                 </h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
-                  Presupuesto base de equipamiento y puesta en marcha antes de escalar.
+                  Presupuesto base editable con registro de auditoría en cada movimiento.
                 </p>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {initialInvestment.length === 0 && (
                   <button 
                     className="btn btn-secondary btn-sm"
@@ -1558,6 +1980,15 @@ export default function ProjectionsView({
                         ...projectionsData,
                         initialInvestment: EXCEL_INITIAL_INVESTMENT_TEMPLATE
                       });
+                      if (logAudit) {
+                        logAudit({
+                          actionType: 'Creación',
+                          entityType: 'Inversión Inicial',
+                          entityId: 'SYS-INV-TEMPLATE',
+                          entityName: 'Plantilla Inversión Inicial Excel',
+                          reason: 'Carga de plantilla base de inversión inicial desde Excel.'
+                        });
+                      }
                     }}
                   >
                     <FileSpreadsheet size={14} />
@@ -1576,7 +2007,7 @@ export default function ProjectionsView({
 
             {initialInvestment.length === 0 ? (
               <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                No hay ítems de inversión registrados. Agrega tus compras iniciales (muestras, dominios, insumos) para calcular el aporte 50/50.
+                No hay ítems de inversión registrados. Agrega tus compras iniciales para calcular el aporte equitativo 50/50.
               </div>
             ) : (
               <div className="table-responsive">
@@ -1587,7 +2018,7 @@ export default function ProjectionsView({
                       <th>Cant.</th>
                       <th>Costo Unit.</th>
                       <th style={{ textAlign: 'right' }}>Total (S/)</th>
-                      <th style={{ width: '36px' }}></th>
+                      <th style={{ width: '60px', textAlign: 'center' }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1600,14 +2031,23 @@ export default function ProjectionsView({
                           S/ {Number(item.total).toFixed(2)}
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <button 
-                            className="btn-icon" 
-                            style={{ color: '#ef4444' }}
-                            onClick={() => handleDeleteInvestmentItem(item.id)}
-                            title="Eliminar ítem"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <button 
+                              className="btn-icon" 
+                              onClick={() => handleOpenEditInvestment(item)}
+                              title="Editar ítem de inversión"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                            <button 
+                              className="btn-icon" 
+                              style={{ color: '#ef4444' }}
+                              onClick={() => handleDeleteInvestmentItem(item)}
+                              title="Eliminar ítem (con auditoría)"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1631,7 +2071,7 @@ export default function ProjectionsView({
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-PESTAÑA 5: PLAN DE ACCIÓN 30 DÍAS (FULL CRUD INTEGRADO)               */}
+      {/* SUB-PESTAÑA 5: PLAN DE ACCIÓN 30 DÍAS (FULL CRUD INTEGRADO & AUDITADO)     */}
       {/* ========================================================================= */}
       {activeSubTab === 'plan30' && (
         <div className="card" style={{ padding: '20px' }}>
@@ -1902,6 +2342,94 @@ export default function ProjectionsView({
       )}
 
       {/* ========================================================================= */}
+      {/* MODAL: EDITAR PRODUCTO PROYECTADO                                         */}
+      {/* ========================================================================= */}
+      {isEditProductModalOpen && editingProduct && (
+        <div className="modal-overlay" onClick={() => setIsEditProductModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Editar Producto Proyectado</h3>
+              <button className="close-btn" onClick={() => setIsEditProductModalOpen(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveEditProduct}>
+              <div className="form-group">
+                <label className="form-label">Nombre del Producto:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={editingProduct.name}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Código SKU:</label>
+                  <input 
+                    type="text" 
+                    className="form-control code-mono"
+                    value={editingProduct.sku}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, sku: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Participación en Mezcla (% Mix):</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    max="100"
+                    className="form-control"
+                    value={editingProduct.mixPercent}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, mixPercent: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Precio Estimado (S/):</label>
+                  <input 
+                    type="number" 
+                    step="0.5"
+                    className="form-control"
+                    value={editingProduct.price}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Costo Base Unitario (S/):</label>
+                  <input 
+                    type="number" 
+                    step="0.5"
+                    className="form-control"
+                    value={editingProduct.baseCost}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, baseCost: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsEditProductModalOpen(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL: IMPORTAR PRODUCTO DEL ALMACÉN / CATÁLOGO                           */}
       {/* ========================================================================= */}
       {isImportProductModalOpen && (
@@ -2035,6 +2563,65 @@ export default function ProjectionsView({
       )}
 
       {/* ========================================================================= */}
+      {/* MODAL: EDITAR GASTO FIJO                                                  */}
+      {/* ========================================================================= */}
+      {isEditFixedCostModalOpen && editingFixedCost && (
+        <div className="modal-overlay" onClick={() => setIsEditFixedCostModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Editar Gasto Fijo</h3>
+              <button className="close-btn" onClick={() => setIsEditFixedCostModalOpen(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveEditFixedCost}>
+              <div className="form-group">
+                <label className="form-label">Concepto:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={editingFixedCost.concept}
+                  onChange={(e) => setEditingFixedCost({ ...editingFixedCost, concept: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Monto Mensual (S/):</label>
+                <input 
+                  type="number" 
+                  step="10"
+                  min="0"
+                  className="form-control"
+                  value={editingFixedCost.amount}
+                  onChange={(e) => setEditingFixedCost({ ...editingFixedCost, amount: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Nota / Detalle:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={editingFixedCost.note || ''}
+                  onChange={(e) => setEditingFixedCost({ ...editingFixedCost, note: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsEditFixedCostModalOpen(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL: AGREGAR ÍTEM DE INVERSIÓN INICIAL                                  */}
       {/* ========================================================================= */}
       {isNewInvestmentModalOpen && (
@@ -2092,6 +2679,173 @@ export default function ProjectionsView({
                 </button>
                 <button type="submit" className="btn btn-primary">
                   Agregar Inversión
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EDITAR ÍTEM DE INVERSIÓN INICIAL                                   */}
+      {/* ========================================================================= */}
+      {isEditInvestmentModalOpen && editingInvestmentItem && (
+        <div className="modal-overlay" onClick={() => setIsEditInvestmentModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Editar Ítem de Inversión Inicial</h3>
+              <button className="close-btn" onClick={() => setIsEditInvestmentModalOpen(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveEditInvestment}>
+              <div className="form-group">
+                <label className="form-label">Concepto del Activo / Compra:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={editingInvestmentItem.concept}
+                  onChange={(e) => setEditingInvestmentItem({ ...editingInvestmentItem, concept: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Cantidad:</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    className="form-control"
+                    value={editingInvestmentItem.quantity}
+                    onChange={(e) => setEditingInvestmentItem({ ...editingInvestmentItem, quantity: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Costo Unitario (S/):</label>
+                  <input 
+                    type="number" 
+                    step="0.5"
+                    min="0"
+                    className="form-control"
+                    value={editingInvestmentItem.unitCost}
+                    onChange={(e) => setEditingInvestmentItem({ ...editingInvestmentItem, unitCost: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--bg-input)', padding: '10px 14px', borderRadius: 'var(--radius-md)', marginBottom: '16px', fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span>Total Calculado:</span>
+                  <strong>S/ {((Number(editingInvestmentItem.quantity) || 1) * (Number(editingInvestmentItem.unitCost) || 0)).toFixed(2)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981', fontSize: '0.78rem' }}>
+                  <span>Aporte 50/50 por socio:</span>
+                  <span>S/ {(((Number(editingInvestmentItem.quantity) || 1) * (Number(editingInvestmentItem.unitCost) || 0)) / 2).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsEditInvestmentModalOpen(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: AJUSTAR RATIOS DE CONVERSIÓN DEL EMBUDO                            */}
+      {/* ========================================================================= */}
+      {isEditFunnelModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsEditFunnelModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Settings size={18} color="#8b5cf6" />
+                <span>Ajustar Ratios de Conversión del Embudo</span>
+              </h3>
+              <button className="close-btn" onClick={() => setIsEditFunnelModalOpen(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveEditFunnel}>
+              <div className="form-group">
+                <label className="form-label">Tasa de Respuesta al Contacto (%):</label>
+                <input 
+                  type="number" 
+                  min="1"
+                  max="100"
+                  className="form-control"
+                  value={funnelForm.contactToResponse}
+                  onChange={(e) => setFunnelForm({ ...funnelForm, contactToResponse: e.target.value })}
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                  Porcentaje de prospectos que responden positivamente al primer contacto.
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Tasa de Aceptación de Demostraciones (%):</label>
+                <input 
+                  type="number" 
+                  min="1"
+                  max="100"
+                  className="form-control"
+                  value={funnelForm.responseToDemo}
+                  onChange={(e) => setFunnelForm({ ...funnelForm, responseToDemo: e.target.value })}
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                  Porcentaje de los que responden que aceptan ver video o demo presencial.
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Tasa de Cierre / Conversión a Clientes (%):</label>
+                <input 
+                  type="number" 
+                  min="1"
+                  max="100"
+                  className="form-control"
+                  value={funnelForm.demoToCustomer}
+                  onChange={(e) => setFunnelForm({ ...funnelForm, demoToCustomer: e.target.value })}
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                  Porcentaje de demostraciones que concluyen en una venta efectiva.
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Unidades Promedio por Cliente:</label>
+                <input 
+                  type="number" 
+                  step="0.05"
+                  min="1"
+                  max="20"
+                  className="form-control"
+                  value={funnelForm.unitsPerCustomer}
+                  onChange={(e) => setFunnelForm({ ...funnelForm, unitsPerCustomer: e.target.value })}
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                  Cantidad de tarjetas/displays comprados en promedio por cada cliente.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsEditFunnelModalOpen(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Guardar Ratios
                 </button>
               </div>
             </form>

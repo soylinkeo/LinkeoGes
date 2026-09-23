@@ -1171,6 +1171,24 @@ export default function App() {
     } else if (entityType === 'Plan 30 Días') {
       setPlan30Days(prev => prev.filter(t => t.day !== item.day));
 
+    } else if (entityType === 'Inversión Inicial') {
+      setProjectionsData(prev => ({
+        ...prev,
+        initialInvestment: (prev.initialInvestment || []).filter(i => i.id !== item.id)
+      }));
+
+    } else if (entityType === 'Gasto Fijo') {
+      setProjectionsData(prev => ({
+        ...prev,
+        fixedCosts: (prev.fixedCosts || []).filter(fc => fc.id !== item.id)
+      }));
+
+    } else if (entityType === 'Mix Producto') {
+      setProjectionsData(prev => ({
+        ...prev,
+        projectedProducts: (prev.projectedProducts || []).filter(p => p.id !== item.id)
+      }));
+
     } else if (entityType === 'Entregable') {
       setProjectPhases(prev => prev.map(phase => ({
         ...phase,
@@ -1187,7 +1205,7 @@ export default function App() {
       actionType: 'Eliminación',
       entityType,
       entityId: item.id || item.sku || item.saleNumber || item.chipUid || `dia-${item.day}` || '',
-      entityName: item.name || item.businessName || item.title || item.action || item.description || item.saleNumber || 'Elemento',
+      entityName: item.name || item.concept || item.businessName || item.title || item.action || item.description || item.saleNumber || 'Elemento',
       reason: finalReason,
       snapshot: item,
       author: authorId,
@@ -1465,6 +1483,8 @@ export default function App() {
               onAddPlanTask={handleAddPlanTask}
               onEditPlanTask={handleEditPlanTask}
               onRequestDelete={handleRequestDelete}
+              logAudit={logAudit}
+              currentUser={currentUser}
               setCurrentTab={setCurrentTab}
             />
           )}
