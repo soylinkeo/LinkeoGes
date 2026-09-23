@@ -31,7 +31,9 @@ export default function Navbar({
   onOpenMasterData, 
   onResetToZero, 
   onLoadDemoData, 
-  isCloudReady = false 
+  isCloudReady = false,
+  onSyncCloud,
+  isSyncing = false
 }) {
   return (
     <header className="top-navbar">
@@ -140,16 +142,17 @@ export default function Navbar({
 
         {/* Grupo Utilidades y Perfil */}
         <div className="nav-utility-actions">
-          {/* Botón Reiniciar a 0 */}
-          {onResetToZero && (
+          {/* Botón Sincronizar con la Nube */}
+          {onSyncCloud && (
             <div className="nav-secondary-actions">
               <button 
                 className="btn-icon" 
-                onClick={onResetToZero}
-                title="Restablecer registros operativos a 0 (Modo limpio)"
-                style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', flexShrink: 0 }}
+                onClick={onSyncCloud}
+                disabled={isSyncing}
+                title="Sincronizar y actualizar datos con Supabase Nube"
+                style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', flexShrink: 0, opacity: isSyncing ? 0.6 : 1 }}
               >
-                <RotateCcw size={15} />
+                <RotateCcw size={15} style={{ animation: isSyncing ? 'spin 1s linear infinite' : 'none' }} />
               </button>
             </div>
           )}

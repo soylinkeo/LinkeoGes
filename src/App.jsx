@@ -41,21 +41,14 @@ import ProjectLifecycleView from './components/ProjectLifecycleView';
 import ToastNotification from './components/ToastNotification';
 import { dbService, mappers, isSupabaseConfigured, supabase } from './services/supabase';
 
-// Clave de versión de base de datos local para forzar purga de datos mock antiguos (todo vacío desde 0)
-const DATA_CLEAN_VERSION = 'v3_production_aesthetic_clean';
+// Clave de versión de base de datos local para forzar purga total de caché desincronizada
+const DATA_CLEAN_VERSION = 'v5_full_cloud_authoritative_purge';
 if (typeof window !== 'undefined' && localStorage.getItem('linkeoges_clean_version') !== DATA_CLEAN_VERSION) {
-  localStorage.removeItem('linkeoges_sales');
-  localStorage.removeItem('linkeoges_expenses');
-  localStorage.removeItem('linkeoges_nfc_cards');
-  localStorage.removeItem('linkeoges_leads');
-  localStorage.removeItem('linkeoges_inventory');
-  localStorage.removeItem('linkeoges_suppliers');
-  localStorage.removeItem('linkeoges_plan_30');
-  localStorage.removeItem('linkeoges_events');
-  localStorage.removeItem('linkeoges_audit_logs');
-  localStorage.removeItem('linkeoges_project_phases');
-  localStorage.removeItem('linkeoges_products');
-  localStorage.setItem('linkeoges_clean_version', DATA_CLEAN_VERSION);
+  try {
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem('linkeoges_clean_version', DATA_CLEAN_VERSION);
+  } catch (e) {}
 }
 
 export default function App() {
@@ -303,15 +296,16 @@ export default function App() {
   };
 
   const isCloudLoadedRef = useRef(!isSupabaseConfigured);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Sincronización en la Nube con Supabase (Persistencia multi-dispositivo y en tiempo real)
-  useEffect(() => {
+  // Sincronización autoritativa en la Nube con Supabase (Persistencia multi-dispositivo)
+  const loadCloudData = async (isManual = false) => {
     if (!isSupabaseConfigured) return;
+    if (isManual) setIsSyncing(true);
 
-    let isMounted = true;
-    const loadCloudData = async () => {
+    try {
       const data = await dbService.fetchAllInitialData();
-      if (!isMounted || !data) return;
+      if (!data) return;
 
       // 1. Gastos (Expenses) - La nube es la fuente autoritativa
       setExpenses(data.expenses || []);
@@ -325,7 +319,7 @@ export default function App() {
       // 4. Chips NFC - La nube es la fuente autoritativa
       setNfcCards(data.nfcCards || []);
 
-      // 5. Inventario Físico - Si la nube tiene datos, usarlos. Si la base en la nube está completamente vacía (primera inicialización), sembrar
+      // 5. Inventario Físico
       if (data.inventory && data.inventory.length > 0) {
         setInventory(data.inventory);
       } else if (INITIAL_INVENTORY && INITIAL_INVENTORY.length > 0) {
@@ -367,20 +361,32 @@ export default function App() {
       }
 
       isCloudLoadedRef.current = true;
-    };
+      if (isManual) {
+        showToast('✓ Base de datos sincronizada con Supabase Nube', 'success');
+      }
+    } catch (err) {
+      console.warn('Error syncing cloud data:', err);
+    } finally {
+      if (isManual) setIsSyncing(false);
+    }
+  };
 
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    let isMounted = true;
     loadCloudData();
 
     // Canal Realtime para recibir cambios instantáneos entre navegadores y dispositivos
     const channel = supabase.channel('linkeoges-realtime-sync')
       .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-        loadCloudData();
+        if (isMounted) loadCloudData();
       })
       .subscribe();
 
     // Sincronización proactiva multi-dispositivo al cambiar de pestaña o reactivar celular
     const handleVisibilitySync = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && isMounted) {
         loadCloudData();
       }
     };
@@ -478,51 +484,62 @@ export default function App() {
   }, [projectPhases]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_sales', JSON.stringify(sales));
   }, [sales]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_expenses', JSON.stringify(expenses));
   }, [expenses]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_nfc_cards', JSON.stringify(nfcCards));
   }, [nfcCards]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_leads', JSON.stringify(leads));
   }, [leads]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_inventory', JSON.stringify(inventory));
   }, [inventory]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_plan_30', JSON.stringify(plan30Days));
-    if (isSupabaseConfigured && isCloudLoadedRef.current) {
+    if (isSupabaseConfigured) {
       dbService.savePlan30Days(plan30Days);
     }
   }, [plan30Days]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_events', JSON.stringify(calendarEvents));
   }, [calendarEvents]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_products', JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_suppliers', JSON.stringify(suppliers));
   }, [suppliers]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_audit_logs', JSON.stringify(auditLogs));
   }, [auditLogs]);
 
   useEffect(() => {
+    if (!isCloudLoadedRef.current) return;
     localStorage.setItem('linkeoges_projections', JSON.stringify(projectionsData));
-    if (isSupabaseConfigured && isCloudLoadedRef.current) {
+    if (isSupabaseConfigured) {
       dbService.saveProjections(projectionsData);
     }
   }, [projectionsData]);
@@ -586,6 +603,7 @@ export default function App() {
     if (remember) {
       localStorage.setItem('linkeoges_auth_user', JSON.stringify(userObj));
     }
+    loadCloudData();
     logAudit({
       actionType: 'Creación',
       entityType: 'Sesión',
@@ -1900,6 +1918,8 @@ export default function App() {
           onResetToZero={handleResetToZero}
           onLoadDemoData={handleLoadDemoData}
           isCloudReady={isSupabaseConfigured}
+          onSyncCloud={() => loadCloudData(true)}
+          isSyncing={isSyncing}
         />
 
         <main className="content-body">
