@@ -14,7 +14,8 @@ import {
   FINANCIAL_TARGETS,
   INITIAL_AUDIT_LOGS,
   INITIAL_DISTRICTS,
-  INITIAL_PROJECT_PHASES
+  INITIAL_PROJECT_PHASES,
+  INITIAL_PROJECTIONS_DATA
 } from './data/initialData';
 import { exportLinkeoGesToExcel } from './utils/excelExport';
 import { getAccountingMonth, ACCOUNTING_MONTHS } from './utils/dateUtils';
@@ -29,6 +30,7 @@ import CalendarView from './components/CalendarView';
 import InventoryView from './components/InventoryView';
 import FinanceView from './components/FinanceView';
 import ProductsCatalogView from './components/ProductsCatalogView';
+import ProjectionsView from './components/ProjectionsView';
 import AuditView from './components/AuditView';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
 import LoginModal from './components/LoginModal';
@@ -193,6 +195,11 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState(() => {
     const saved = localStorage.getItem('linkeoges_audit_logs');
     return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
+  });
+
+  const [projectionsData, setProjectionsData] = useState(() => {
+    const saved = localStorage.getItem('linkeoges_projections');
+    return saved ? JSON.parse(saved) : INITIAL_PROJECTIONS_DATA;
   });
 
   const [deleteModalConfig, setDeleteModalConfig] = useState({
@@ -428,6 +435,10 @@ export default function App() {
     localStorage.setItem('linkeoges_audit_logs', JSON.stringify(auditLogs));
   }, [auditLogs]);
 
+  useEffect(() => {
+    localStorage.setItem('linkeoges_projections', JSON.stringify(projectionsData));
+  }, [projectionsData]);
+
   // Función universal para registrar auditoría
   const logAudit = ({ actionType = 'Eliminación', entityType, entityId, entityName, reason, diff, snapshot, author, authorName, deletedBy, deletedByName }) => {
     const activeAuthorId = author || deletedBy || (currentUser ? currentUser.id : 'luis');
@@ -539,6 +550,7 @@ export default function App() {
     setPlan30Days(INITIAL_PLAN_30_DAYS);
     setProducts(INITIAL_PRODUCTS);
     setSuppliers(INITIAL_SUPPLIERS);
+    setProjectionsData(INITIAL_PROJECTIONS_DATA);
 
     logAudit({
       actionType: 'Creación',
@@ -1433,7 +1445,20 @@ export default function App() {
             />
           )}
 
-          {/* MÓDULO 8: Catálogo de Productos */}
+          {/* MÓDULO 8: Proyecciones & Metas Financieras (Simulador Excel) */}
+          {currentTab === 'projections' && (
+            <ProjectionsView 
+              projectionsData={projectionsData}
+              onUpdateProjectionsData={setProjectionsData}
+              products={products}
+              inventory={inventory}
+              plan30Days={plan30Days}
+              onTogglePlanTask={handleTogglePlanTask}
+              setCurrentTab={setCurrentTab}
+            />
+          )}
+
+          {/* MÓDULO 9: Catálogo de Productos */}
           {currentTab === 'products' && (
             <ProductsCatalogView 
               products={products}

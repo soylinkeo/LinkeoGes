@@ -176,3 +176,81 @@ export const INITIAL_PROJECT_PHASES = [
     ]
   }
 ];
+
+// Configuración base de Proyecciones extraída de 'Costos y metas' y 'Resumen' en Control de Gastos NFC.xlsx
+export const INITIAL_PROJECTIONS_DATA = {
+  // Parámetros generales del negocio
+  businessParams: {
+    salesDaysPerMonth: 24,       // Lunes a sábado aprox.
+    partnersCount: 2,           // Luis Romero y Kevin Servat (50/50)
+    businessProfitTarget: 4000, // S/ 4,000 al mes libres para el negocio
+    partnerProfitTarget: 4000,  // S/ 4,000 al mes por socio (S/ 8,000 total)
+    customProfitTarget: 4000    // Para el simulador interactivo libre
+  },
+
+  // Gastos Fijos Mensuales (con opción de editar y agregar nuevos)
+  fixedCosts: [
+    { id: 'fc-1', concept: 'Publicidad (Ads Meta/TikTok)', amount: 0, note: 'Presupuesto de prueba digital' },
+    { id: 'fc-2', concept: 'Movilidad para visitas presenciales', amount: 0, note: 'Prospección en distritos de Lima' },
+    { id: 'fc-3', concept: 'Teléfono / Datos móviles', amount: 100, note: 'Parte atribuible al negocio' },
+    { id: 'fc-4', concept: 'Dominio web / Sistemas', amount: 0, note: 'Equivalente mensual inicial' },
+    { id: 'fc-5', concept: 'Material de muestra física', amount: 0, note: 'Se considera en inversión inicial' },
+    { id: 'fc-6', concept: 'Otros imprevistos', amount: 0, note: 'Fondo de contingencia operativo' }
+  ],
+
+  // Costos Variables Unitarios Adicionales (por unidad vendida)
+  variableUnitCosts: {
+    packagingPerUnit: 2.00,       // Bolsa/caja/etiqueta
+    setupLaborPerUnit: 0.00,      // Configuración y prueba (valora tu tiempo)
+    paymentFeePercent: 0.0,       // Comisión de cobro (% sobre precio venta - Yape/Plin 0%)
+    deliveryPerUnit: 0.00,        // Delivery asumido por Linkeo (0 si lo paga el cliente)
+    defectReservePerUnit: 0.00    // Reserva por fallas o cambios
+  },
+
+  // Productos Proyectados Iniciales (Económicamente alineados con el Excel)
+  projectedProducts: [
+    {
+      id: 'proj-estandar',
+      name: 'Tarjeta NFC Estándar (Reseñas Google)',
+      sku: 'SKU-LNK-ESTD',
+      price: 60.00,
+      baseCost: 13.00,
+      mixPercent: 60, // 60% de participación en volumen
+      targetUnits: 45,
+      isCustom: false,
+      included: true
+    },
+    {
+      id: 'proj-premium',
+      name: 'Display Acrílico / Pack Premium',
+      sku: 'SKU-LNK-PREM',
+      price: 80.00,
+      baseCost: 13.00,
+      mixPercent: 40, // 40% de participación en volumen
+      targetUnits: 30,
+      isCustom: false,
+      included: true
+    }
+  ],
+
+  // Inversión Inicial Sugerida (de la hoja Costos y Metas)
+  initialInvestment: [
+    { id: 'inv-1', concept: 'Inventario Estándar inicial', quantity: 25, unitCost: 13.00, total: 325.00 },
+    { id: 'inv-2', concept: 'Inventario Premium inicial', quantity: 25, unitCost: 13.00, total: 325.00 },
+    { id: 'inv-3', concept: 'Empaques y packaging', quantity: 50, unitCost: 2.00, total: 100.00 },
+    { id: 'inv-4', concept: 'Unidades de muestra operativas', quantity: 2, unitCost: 13.00, total: 26.00 },
+    { id: 'inv-5', concept: 'Dominio anual linkeocards.com', quantity: 1, unitCost: 110.00, total: 110.00 },
+    { id: 'inv-6', concept: 'Publicidad de lanzamiento', quantity: 1, unitCost: 300.00, total: 300.00 },
+    { id: 'inv-7', concept: 'Movilidad de prospección inicial', quantity: 1, unitCost: 200.00, total: 200.00 },
+    { id: 'inv-8', concept: 'Fondo de imprevistos', quantity: 1, unitCost: 100.00, total: 100.00 }
+  ],
+
+  // Ratios de Conversión del Embudo de Ventas
+  funnelRatios: {
+    contactToResponse: 0.35,  // 35% responden al contacto inicial
+    responseToDemo: 0.70,     // 70% de los que responden aceptan demo/video
+    demoToCustomer: 0.40,     // 40% de demos se convierten en clientes compradores
+    unitsPerCustomer: 1.29    // Promedio de unidades por cliente
+  }
+};
+

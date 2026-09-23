@@ -12,7 +12,8 @@ import {
   AlertTriangle,
   History,
   FolderKanban,
-  MapPin
+  MapPin,
+  TrendingUp
 } from 'lucide-react';
 
 export default function Sidebar({ 
@@ -73,6 +74,13 @@ export default function Sidebar({
       label: 'Finanzas & Balances', 
       icon: DollarSign,
       badge: null 
+    },
+    { 
+      id: 'projections', 
+      label: 'Proyecciones & Metas', 
+      icon: TrendingUp,
+      badge: 'Excel',
+      badgeColor: 'badge-blue'
     },
     { 
       id: 'products', 
