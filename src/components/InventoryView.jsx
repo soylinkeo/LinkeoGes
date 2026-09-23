@@ -91,34 +91,47 @@ export default function InventoryView({
   onRequestDelete
 }) {
   // Consolidar lista única de proveedores de la base de datos (Directorio + Histórico de Inventario)
+  // Consolidar lista de proveedores de la base de datos (Directorio oficial + Histórico de Inventario)
+  // Soporta múltiples insumos/categorías del mismo proveedor empresarial preservando su identidad única
   const dbSuppliersList = useMemo(() => {
-    const map = new Map();
+    const list = [];
+    const seenIds = new Set();
+
     // 1. Proveedores oficiales registrados en el Directorio
-    suppliers.forEach(s => {
+    suppliers.forEach((s, idx) => {
       if (s && s.name && s.name.trim()) {
-        const key = s.name.trim().toLowerCase();
-        map.set(key, {
-          id: s.id,
-          name: s.name.trim(),
-          itemSupplied: s.itemSupplied || s.category || 'Insumos varios',
-          leadTime: s.leadTime || (s.leadTimeDays ? `${s.leadTimeDays} días` : 'Entrega estándar'),
-          leadTimeDays: s.leadTimeDays || parseSupplierDays(s.leadTime) || 15,
-          unitCostAvg: s.unitCostAvg || '',
-          reliability: s.reliability || '⭐⭐⭐⭐⭐ (Excelente)',
-          contact: s.contact || s.phone || '',
-          notes: s.notes || '',
-          isRegistered: true
-        });
+        const supId = s.id || `sup-${s.name.trim().toLowerCase()}-${(s.itemSupplied || idx).toString().toLowerCase()}`;
+        if (!seenIds.has(supId)) {
+          seenIds.add(supId);
+          list.push({
+            id: supId,
+            name: s.name.trim(),
+            itemSupplied: s.itemSupplied || s.category || 'Insumos varios',
+            leadTime: s.leadTime || (s.leadTimeDays ? `${s.leadTimeDays} días` : 'Entrega estándar'),
+            leadTimeDays: s.leadTimeDays || parseSupplierDays(s.leadTime) || 15,
+            unitCostAvg: s.unitCostAvg || '',
+            reliability: s.reliability || '⭐⭐⭐⭐⭐ (Excelente)',
+            contact: s.contact || s.phone || '',
+            notes: s.notes || '',
+            minOrder: s.minOrder || '',
+            isRegistered: true
+          });
+        }
       }
     });
 
     // 2. Proveedores registrados previamente en ítems de inventario que aún no estén en el directorio
+    const directoryNames = new Set(suppliers.filter(s => s && s.name).map(s => s.name.trim().toLowerCase()));
+    const seenInvSuppliers = new Set();
+
     inventory.forEach(inv => {
       if (inv && inv.supplier && inv.supplier.trim()) {
-        const key = inv.supplier.trim().toLowerCase();
-        if (!map.has(key)) {
-          map.set(key, {
-            id: `inv-sup-${key}`,
+        const normName = inv.supplier.trim().toLowerCase();
+        // Solo agregar de inventario si no existe ya en el Directorio oficial
+        if (!directoryNames.has(normName) && !seenInvSuppliers.has(normName)) {
+          seenInvSuppliers.add(normName);
+          list.push({
+            id: `inv-sup-${normName}`,
             name: inv.supplier.trim(),
             itemSupplied: inv.category || 'Material de inventario',
             leadTime: inv.leadTimeDays ? `${inv.leadTimeDays} días` : 'Entrega estándar',
@@ -127,13 +140,14 @@ export default function InventoryView({
             reliability: 'Histórico en Inventario',
             contact: '',
             notes: '',
+            minOrder: '',
             isRegistered: false
           });
         }
       }
     });
 
-    return Array.from(map.values());
+    return list;
   }, [suppliers, inventory]);
 
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
@@ -150,9 +164,10 @@ export default function InventoryView({
     notes: ''
   });
 
-  // Estados para el Combobox de Proveedor
+  // Estados para el Combobox de Proveedor con tracking de ID específico
   const [supplierComboboxOpen, setSupplierComboboxOpen] = useState(false);
   const [supplierFilterQuery, setSupplierFilterQuery] = useState('');
+  const [selectedSupplierId, setSelectedSupplierId] = useState(null);
   const comboboxRef = useRef(null);
 
   // Cerrar menú al hacer clic fuera del combobox
@@ -177,17 +192,28 @@ export default function InventoryView({
     );
   }, [dbSuppliersList, supplierFilterQuery]);
 
-  // Proveedor verificado exacto en la base de datos si ya coincide
+  // Proveedor verificado exacto en la base de datos (prioriza coincidencia por ID específico de insumo)
   const matchedSupplier = useMemo(() => {
+    if (selectedSupplierId) {
+      const byId = dbSuppliersList.find(s => s.id === selectedSupplierId);
+      if (byId) return byId;
+    }
     if (!newItemForm.supplier || !newItemForm.supplier.trim()) return null;
     return dbSuppliersList.find(s => s.name.toLowerCase() === newItemForm.supplier.trim().toLowerCase());
-  }, [dbSuppliersList, newItemForm.supplier]);
+  }, [dbSuppliersList, newItemForm.supplier, selectedSupplierId]);
 
   const handleSelectSupplier = (sup) => {
+    setSelectedSupplierId(sup.id);
     const leadDays = sup.leadTimeDays || parseSupplierDays(sup.leadTime) || 15;
+    const parsedCost = parseCostFields(sup.unitCostAvg);
+    const autoCost = parsedCost && !isNaN(parseFloat(parsedCost.value)) ? parseFloat(parsedCost.value) : null;
+
     setNewItemForm(prev => ({
       ...prev,
       supplier: sup.name,
+      // Si el nombre del insumo no se ha definido, sugerir el producto suministrado por este proveedor
+      name: !prev.name.trim() ? sup.itemSupplied : prev.name,
+      unitCost: autoCost !== null && (!prev.unitCost || prev.unitCost === 4.00) ? autoCost : prev.unitCost,
       leadTimeDays: leadDays,
       reorderUrl: prev.reorderUrl || (sup.notes && sup.notes.startsWith('http') ? sup.notes : prev.reorderUrl)
     }));
@@ -199,11 +225,13 @@ export default function InventoryView({
     const defaultSup = dbSuppliersList.length > 0 ? dbSuppliersList[0] : null;
     const defaultSupName = defaultSup ? defaultSup.name : '';
     const defaultLeadDays = defaultSup ? (defaultSup.leadTimeDays || 15) : 15;
+    const defaultSupId = defaultSup ? defaultSup.id : null;
 
-    setNewItemForm(prev => ({
-      ...prev,
+    setSelectedSupplierId(defaultSupId);
+    setNewItemForm({
       sku: generateRandomSku('SKU-LNK'),
       name: '',
+      category: 'Chips / Insumos',
       quantity: 50,
       minThreshold: 20,
       unitCost: 4.00,
@@ -211,7 +239,7 @@ export default function InventoryView({
       leadTimeDays: defaultLeadDays,
       reorderUrl: '',
       notes: ''
-    }));
+    });
     setSupplierFilterQuery(defaultSupName);
     setSupplierComboboxOpen(false);
     setIsNewItemModalOpen(true);
@@ -343,8 +371,10 @@ export default function InventoryView({
         setNewItemForm(prev => ({
           ...prev,
           supplier: newSup.name,
+          name: !prev.name.trim() ? newSup.itemSupplied : prev.name,
           leadTimeDays: avgDays
         }));
+        setSelectedSupplierId(newSup.id);
         setSupplierFilterQuery(newSup.name);
       }
     }
@@ -877,6 +907,7 @@ export default function InventoryView({
                       const val = e.target.value;
                       setNewItemForm(prev => ({ ...prev, supplier: val }));
                       setSupplierFilterQuery(val);
+                      setSelectedSupplierId(null);
                       setSupplierComboboxOpen(true);
                     }}
                     autoComplete="off"
@@ -888,6 +919,7 @@ export default function InventoryView({
                         onClick={(e) => {
                           e.stopPropagation();
                           setNewItemForm(prev => ({ ...prev, supplier: '' }));
+                          setSelectedSupplierId(null);
                           setSupplierFilterQuery('');
                           setSupplierComboboxOpen(true);
                         }}
@@ -908,7 +940,15 @@ export default function InventoryView({
                     )}
                     <button
                       type="button"
-                      onClick={() => setSupplierComboboxOpen(prev => !prev)}
+                      onClick={() => {
+                        setSupplierComboboxOpen(prev => {
+                          const next = !prev;
+                          if (next) {
+                            setSupplierFilterQuery(newItemForm.supplier || '');
+                          }
+                          return next;
+                        });
+                      }}
                       style={{
                         background: 'transparent',
                         border: 'none',
@@ -932,7 +972,7 @@ export default function InventoryView({
                   </div>
                 </div>
 
-                {/* Menú Desplegable Flotante del Combobox */}
+                {/* Menú Desplegable Flotante del Combobox - 100% Sólido y Opaco */}
                 {supplierComboboxOpen && (
                   <div 
                     style={{
@@ -940,14 +980,16 @@ export default function InventoryView({
                       top: 'calc(100% + 4px)',
                       left: 0,
                       right: 0,
-                      backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-subtle)',
+                      backgroundColor: '#0c1322',
+                      backgroundImage: 'linear-gradient(180deg, #111a33 0%, #0c1322 100%)',
+                      border: '1px solid #1e3a8a',
                       borderRadius: 'var(--radius-md)',
-                      boxShadow: '0 12px 28px rgba(0, 0, 0, 0.45), 0 4px 10px rgba(0, 0, 0, 0.25)',
-                      zIndex: 100,
-                      maxHeight: '270px',
+                      boxShadow: '0 20px 45px -5px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.12)',
+                      zIndex: 1050,
+                      maxHeight: '280px',
                       overflowY: 'auto',
-                      padding: '6px'
+                      padding: '6px',
+                      opacity: 1
                     }}
                   >
                     {/* Encabezado del Dropdown */}
@@ -956,14 +998,40 @@ export default function InventoryView({
                         display: 'flex', 
                         justifyContent: 'space-between', 
                         alignItems: 'center', 
-                        padding: '6px 8px 8px 8px', 
-                        borderBottom: '1px solid var(--border-subtle)',
-                        marginBottom: '6px' 
+                        padding: '8px 10px', 
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                        backgroundColor: '#0c1322',
+                        marginBottom: '6px',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2
                       }}
                     >
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Proveedores en Base ({filteredSuppliers.length})
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Proveedores en Base ({filteredSuppliers.length})
+                        </span>
+                        {supplierFilterQuery && filteredSuppliers.length < dbSuppliersList.length && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSupplierFilterQuery('');
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#60a5fa',
+                              fontSize: '0.70rem',
+                              cursor: 'pointer',
+                              padding: 0,
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            Ver todos ({dbSuppliersList.length})
+                          </button>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -977,11 +1045,11 @@ export default function InventoryView({
                           setIsSupplierModalOpen(true);
                         }}
                         style={{
-                          background: 'rgba(0, 102, 255, 0.12)',
-                          border: '1px solid rgba(0, 102, 255, 0.3)',
-                          color: 'var(--primary-600)',
+                          background: 'rgba(0, 102, 255, 0.15)',
+                          border: '1px solid rgba(0, 102, 255, 0.4)',
+                          color: '#60a5fa',
                           borderRadius: '4px',
-                          padding: '2px 8px',
+                          padding: '3px 9px',
                           fontSize: '0.70rem',
                           fontWeight: 600,
                           cursor: 'pointer'
@@ -994,65 +1062,74 @@ export default function InventoryView({
                     {/* Lista de Opciones */}
                     {filteredSuppliers.length > 0 ? (
                       filteredSuppliers.map(sup => {
-                        const isSelected = newItemForm.supplier.trim().toLowerCase() === sup.name.trim().toLowerCase();
+                        const isSelected = selectedSupplierId 
+                          ? sup.id === selectedSupplierId 
+                          : (matchedSupplier && matchedSupplier.id === sup.id);
+
                         return (
                           <div
-                            key={sup.id || sup.name}
+                            key={sup.id}
                             onClick={() => handleSelectSupplier(sup)}
                             style={{
-                              padding: '8px 10px',
+                              padding: '9px 12px',
                               borderRadius: 'var(--radius-sm)',
                               cursor: 'pointer',
-                              backgroundColor: isSelected ? 'rgba(0, 102, 255, 0.15)' : 'transparent',
-                              border: isSelected ? '1px solid rgba(0, 102, 255, 0.3)' : '1px solid transparent',
-                              transition: 'background-color 0.15s',
+                              backgroundColor: isSelected ? 'rgba(0, 102, 255, 0.28)' : '#101a2f',
+                              border: isSelected ? '1px solid #0066ff' : '1px solid rgba(255, 255, 255, 0.08)',
+                              boxShadow: isSelected ? '0 0 10px rgba(0, 102, 255, 0.2)' : 'none',
+                              transition: 'all 0.15s ease',
                               display: 'flex',
                               flexDirection: 'column',
-                              gap: '3px',
-                              marginBottom: '3px'
+                              gap: '4px',
+                              marginBottom: '5px'
                             }}
                             onMouseEnter={(e) => {
-                              if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                              if (!isSelected) e.currentTarget.style.backgroundColor = '#182746';
                             }}
                             onMouseLeave={(e) => {
-                              if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                              if (!isSelected) e.currentTarget.style.backgroundColor = '#101a2f';
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <strong style={{ fontSize: '0.84rem', color: isSelected ? 'var(--primary-600)' : 'var(--text-main)' }}>
+                                <strong style={{ fontSize: '0.86rem', color: isSelected ? '#60a5fa' : 'var(--text-main)' }}>
                                   {sup.name}
                                 </strong>
                                 {sup.isRegistered ? (
-                                  <span className="badge badge-blue" style={{ fontSize: '0.66rem', padding: '1px 5px' }}>
+                                  <span className="badge badge-blue" style={{ fontSize: '0.66rem', padding: '1px 6px' }}>
                                     Directorio
                                   </span>
                                 ) : (
-                                  <span className="badge badge-purple" style={{ fontSize: '0.66rem', padding: '1px 5px' }}>
+                                  <span className="badge badge-purple" style={{ fontSize: '0.66rem', padding: '1px 6px' }}>
                                     Inventario
                                   </span>
                                 )}
                               </div>
-                              {isSelected && <Check size={14} color="var(--primary-600)" />}
+                              {isSelected && <Check size={16} color="#60a5fa" />}
                             </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                              <span>📦 {sup.itemSupplied}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#38bdf8' }}>
+                              <span>📦 <strong>Suministra:</strong> {sup.itemSupplied}</span>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                               <span>⏱️ {sup.leadTime}</span>
+                              <span>{sup.reliability}</span>
+                              {sup.unitCostAvg && <span>💰 {sup.unitCostAvg}</span>}
                             </div>
                           </div>
                         );
                       })
                     ) : (
-                      <div style={{ padding: '14px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                        <p style={{ margin: '0 0 8px 0', fontSize: '0.80rem' }}>
-                          No hay proveedor con "<strong>{newItemForm.supplier}</strong>" en la base.
+                      <div style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: '#101a2f', borderRadius: 'var(--radius-sm)' }}>
+                        <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem' }}>
+                          No hay proveedor con "<strong>{supplierFilterQuery || newItemForm.supplier}</strong>" en la base.
                         </p>
                         <button
                           type="button"
                           onClick={() => setSupplierComboboxOpen(false)}
                           className="btn btn-secondary btn-sm"
-                          style={{ fontSize: '0.74rem', padding: '3px 8px', margin: '0 auto' }}
+                          style={{ fontSize: '0.74rem', padding: '4px 10px', margin: '0 auto' }}
                         >
                           ✓ Usar "{newItemForm.supplier}" de forma manual
                         </button>
@@ -1062,15 +1139,18 @@ export default function InventoryView({
                     {/* Footer de Ayuda */}
                     <div 
                       style={{ 
-                        borderTop: '1px solid var(--border-subtle)', 
-                        paddingTop: '6px', 
+                        borderTop: '1px solid rgba(255, 255, 255, 0.1)', 
+                        padding: '8px 10px 4px 10px', 
                         marginTop: '4px',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         fontSize: '0.72rem',
                         color: 'var(--text-muted)',
-                        padding: '4px 6px 2px 6px'
+                        backgroundColor: '#0c1322',
+                        position: 'sticky',
+                        bottom: 0,
+                        zIndex: 2
                       }}
                     >
                       <span>💡 Selecciona un proveedor o escribe uno manual.</span>
@@ -1080,7 +1160,7 @@ export default function InventoryView({
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: 'var(--primary-600)',
+                          color: '#60a5fa',
                           cursor: 'pointer',
                           fontWeight: 600,
                           fontSize: '0.72rem'
