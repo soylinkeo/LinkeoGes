@@ -29,6 +29,7 @@ import { calculateFinance, isSettlement, isInventoryPurchase } from './utils/fin
 import { getStockMovements, applyStockMovements, createSale } from './utils/operations.js';
 import { localDate } from './utils/dateUtils';
 import SyncStatus from './components/SyncStatus';
+import MobileBottomNav from './components/MobileBottomNav';
 export default function App() {
   // Tema (Dark por defecto para look tech profesional)
   const [theme, setTheme] = useState(() => {
@@ -1198,6 +1199,16 @@ export default function App() {
           {/* MÓDULO 9: Bitácora de Auditoría */}
           {currentTab === 'audit' && <AuditView auditLogs={auditLogs} currentUser={currentUser} onAcknowledgeLog={handleAcknowledgeLog} onAcknowledgeAllLogs={handleAcknowledgeAllLogs} onRestoreItem={handleRestoreItem} />}
         </Suspense></main>
+
+        <MobileBottomNav 
+          currentTab={currentTab}
+          setCurrentTab={setCurrentTab}
+          onOpenNewSale={() => setIsNewSaleModalOpen(true)}
+          onOpenNewExpense={() => setIsNewExpenseModalOpen(true)}
+          toggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
+          nfcCardsCount={nfcCards.length}
+          leadsCount={leads.filter(l => l.stage !== 'entregado' && l.stage !== 'postventa').length}
+        />
       </div>
 
       {/* MODAL GLOBAL: Nueva Venta */}
