@@ -13,18 +13,27 @@ import {
   History,
   CheckCircle2,
   PlusCircle,
-  Edit3
+  Edit3,
+  Clock,
+  Sparkles,
+  Check
 } from 'lucide-react';
 
 export default function AuditView({
   auditLogs = [],
+  currentUser,
+  onAcknowledgeLog,
+  onAcknowledgeAllLogs,
   onRestoreItem
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterAction, setFilterAction] = useState('all');
   const [filterPartner, setFilterPartner] = useState('all');
+  const [filterReviewStatus, setFilterReviewStatus] = useState('all');
   const [selectedSnapshot, setSelectedSnapshot] = useState(null);
+
+  const activeUser = currentUser || { id: 'luis', name: 'Luis Romero' };
 
   // Filtros
   const filteredLogs = auditLogs.filter(log => {
@@ -32,15 +41,28 @@ export default function AuditView({
     const matchesSearch = 
       (log.entityName || '').toLowerCase().includes(term) ||
       (log.reason || '').toLowerCase().includes(term) ||
-      (log.entityId || '').toLowerCase().includes(term);
+      (log.entityId || '').toLowerCase().includes(term) ||
+      (log.authorName || '').toLowerCase().includes(term) ||
+      (log.reviewedByName || '').toLowerCase().includes(term);
 
     const matchesType = filterType === 'all' || log.entityType === filterType;
     const matchesAction = filterAction === 'all' || (log.actionType || 'Eliminación') === filterAction;
     const matchesPartner = filterPartner === 'all' || log.deletedBy === filterPartner || log.author === filterPartner;
+    
+    let matchesStatus = true;
+    const isRecentPending = !log.reviewedBy && !log.restored;
+    if (filterReviewStatus === 'pending') {
+      matchesStatus = isRecentPending;
+    } else if (filterReviewStatus === 'approved') {
+      matchesStatus = Boolean(log.reviewedBy) && !log.restored;
+    } else if (filterReviewStatus === 'restored') {
+      matchesStatus = Boolean(log.restored);
+    }
 
-    return matchesSearch && matchesType && matchesAction && matchesPartner;
+    return matchesSearch && matchesType && matchesAction && matchesPartner && matchesStatus;
   });
 
+  const countPending = auditLogs.filter(l => !l.reviewedBy && !l.restored).length;
   const countDeletions = auditLogs.filter(l => (l.actionType || 'Eliminación') === 'Eliminación').length;
   const countModifications = auditLogs.filter(l => l.actionType === 'Modificación').length;
   const countCreations = auditLogs.filter(l => l.actionType === 'Creación').length;
@@ -59,15 +81,50 @@ export default function AuditView({
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <span className="badge badge-purple" style={{ padding: '6px 12px', fontSize: '0.78rem' }}>
-            🛡️ Auditoría Empresarial Activa
-          </span>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div 
+            style={{ 
+              background: 'var(--bg-card)', 
+              border: '1px solid var(--border-subtle)', 
+              padding: '6px 12px', 
+              borderRadius: 'var(--radius-lg)', 
+              fontSize: '0.8rem', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px' 
+            }}
+          >
+            <User size={14} color="var(--primary-600)" />
+            <span>Usuario Activo: <strong>{activeUser.name}</strong></span>
+          </div>
+
+          {countPending > 0 && onAcknowledgeAllLogs && (
+            <button 
+              className="btn btn-primary btn-sm"
+              onClick={onAcknowledgeAllLogs}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem' }}
+              title={`Confirmar visto bueno a todos los movimientos pendientes como ${activeUser.name}`}
+            >
+              <CheckCircle2 size={14} />
+              <span>Dar OK a Todos ({countPending})</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Métricas de Auditoría */}
-      <div className="metrics-grid" style={{ marginBottom: '20px' }}>
+      <div className="metrics-grid" style={{ marginBottom: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <div className="kpi-card kpi-yellow" style={{ borderLeft: '4px solid #f59e0b' }}>
+          <div className="kpi-header">
+            <span className="kpi-label">Recientes (Pendiente OK)</span>
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>
+              <Sparkles size={18} />
+            </div>
+          </div>
+          <div className="kpi-value" style={{ color: '#f59e0b' }}>{countPending}</div>
+          <div className="kpi-subtext">Sombreados en color para tu visto bueno</div>
+        </div>
+
         <div className="kpi-card kpi-red">
           <div className="kpi-header">
             <span className="kpi-label">Eliminaciones Auditadas</span>
@@ -98,13 +155,13 @@ export default function AuditView({
             </div>
           </div>
           <div className="kpi-value">{countCreations}</div>
-          <div className="kpi-subtext">Altas en el sistema</div>
+          <div className="kpi-subtext">Altas registradas en el sistema</div>
         </div>
       </div>
 
       {/* Filtros */}
       <div className="card" style={{ marginBottom: '20px', padding: '16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', alignItems: 'center' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '14px', alignItems: 'center' }}>
           <div style={{ position: 'relative' }}>
             <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input 
@@ -115,6 +172,19 @@ export default function AuditView({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+          </div>
+
+          <div>
+            <select 
+              className="form-control"
+              value={filterReviewStatus}
+              onChange={(e) => setFilterReviewStatus(e.target.value)}
+            >
+              <option value="all">⚡ Todos los Estados de Revisión</option>
+              <option value="pending">✨ Solo Recientes (Pendientes de OK)</option>
+              <option value="approved">✓ Solo Aprobados (Con Visto Bueno)</option>
+              <option value="restored">↺ Solo Restaurados</option>
+            </select>
           </div>
 
           <div>
@@ -150,6 +220,7 @@ export default function AuditView({
               <option value="Lead">Leads / Prospectos</option>
               <option value="Tarjeta NFC">Chips / Tarjetas NFC</option>
               <option value="Insumo">Insumos de Inventario</option>
+              <option value="Proveedor">Proveedores</option>
               <option value="Evento">Citas / Eventos</option>
               <option value="Distrito">Distrito Maestro</option>
               <option value="Entregable">Hito de Proyecto</option>
@@ -186,23 +257,48 @@ export default function AuditView({
                 <th>Elemento Afectado</th>
                 <th>Autor / Socio</th>
                 <th>Detalle / Justificación</th>
+                <th>Estado Visto Bueno</th>
                 <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                     No hay registros de auditoría que coincidan con la búsqueda.
                   </td>
                 </tr>
               ) : (
                 filteredLogs.map(log => {
                   const action = log.actionType || 'Eliminación';
+                  const isRecentPending = !log.reviewedBy && !log.restored;
+                  const isRestored = Boolean(log.restored);
+                  const isReviewed = Boolean(log.reviewedBy) && !isRestored;
+
+                  // Sombreado en color de lo que se ha hecho reciente (pedido expreso del usuario)
+                  const rowStyle = isRecentPending ? {
+                    backgroundColor: 'rgba(245, 158, 11, 0.09)',
+                    borderLeft: '4px solid #f59e0b',
+                    transition: 'background-color 0.25s ease'
+                  } : isRestored ? {
+                    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+                    borderLeft: '4px solid #8b5cf6'
+                  } : {
+                    borderLeft: '4px solid #10b981'
+                  };
+
                   return (
-                    <tr key={log.id}>
+                    <tr key={log.id} style={rowStyle}>
                       <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        {log.timestamp}
+                        <div>{log.timestamp}</div>
+                        {isRecentPending && (
+                          <span 
+                            className="badge badge-yellow" 
+                            style={{ fontSize: '0.66rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block', fontWeight: 700 }}
+                          >
+                            ✨ Reciente
+                          </span>
+                        )}
                       </td>
                       <td>
                         <span className={`badge ${
@@ -240,28 +336,90 @@ export default function AuditView({
                           </div>
                         )}
                       </td>
+                      <td>
+                        {isRecentPending && (
+                          <span className="badge badge-yellow" style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Clock size={12} />
+                            <span>Pendiente OK</span>
+                          </span>
+                        )}
+                        {isReviewed && (
+                          <span 
+                            className="badge badge-green" 
+                            style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            title={`Confirmado por ${log.reviewedByName} el ${log.reviewedAt || ''}`}
+                          >
+                            <CheckCircle2 size={12} />
+                            <span>OK: {log.reviewedByName?.split(' ')[0] || log.reviewedBy}</span>
+                          </span>
+                        )}
+                        {isRestored && (
+                          <span 
+                            className="badge badge-purple" 
+                            style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            title={`Restaurado por ${log.restoredByName} el ${log.restoredAt || ''}`}
+                          >
+                            <RotateCcw size={12} />
+                            <span>Restaurado</span>
+                          </span>
+                        )}
+                      </td>
                       <td style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px' }}>
-                          {log.snapshot && (
-                            <button 
-                              className="btn btn-secondary btn-sm"
-                              style={{ padding: '4px 8px', fontSize: '0.74rem' }}
-                              onClick={() => setSelectedSnapshot(log)}
-                              title="Ver datos del elemento"
+                        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                          {/* Botón DAR OK */}
+                          {isRecentPending && onAcknowledgeLog && (
+                            <button
+                              className="btn btn-sm"
+                              style={{ 
+                                padding: '4px 9px', 
+                                fontSize: '0.74rem', 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '4px', 
+                                backgroundColor: '#10b981', 
+                                color: '#ffffff',
+                                border: 'none',
+                                fontWeight: 700
+                              }}
+                              onClick={() => onAcknowledgeLog(log.id)}
+                              title={`Dar visto bueno y grabar confirmación como ${activeUser.name}`}
                             >
-                              <Eye size={13} />
-                              <span>Datos</span>
+                              <Check size={13} />
+                              <span>OK</span>
                             </button>
                           )}
-                          {log.restorable && (
+
+                          {/* Botón RESTAURAR */}
+                          {!isRestored && onRestoreItem && (
                             <button 
-                              className="btn btn-success btn-sm"
-                              style={{ padding: '4px 8px', fontSize: '0.74rem' }}
+                              className="btn btn-secondary btn-sm"
+                              style={{ 
+                                padding: '4px 8px', 
+                                fontSize: '0.74rem', 
+                                color: '#8b5cf6', 
+                                borderColor: 'rgba(139, 92, 246, 0.4)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
                               onClick={() => onRestoreItem(log)}
-                              title="Restaurar elemento a la colección activa"
+                              title={`Restaurar y revertir este cambio como ${activeUser.name}`}
                             >
                               <RotateCcw size={13} />
                               <span>Restaurar</span>
+                            </button>
+                          )}
+
+                          {/* Botón VER DATOS / SNAPSHOT */}
+                          {log.snapshot && (
+                            <button 
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '4px 8px', fontSize: '0.74rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              onClick={() => setSelectedSnapshot(log)}
+                              title="Ver datos estructurados del elemento"
+                            >
+                              <Eye size={13} />
+                              <span>Datos</span>
                             </button>
                           )}
                         </div>
@@ -303,6 +461,16 @@ export default function AuditView({
                 <div><strong>Tipo de Acción:</strong> {selectedSnapshot.actionType || 'Eliminación'}</div>
                 <div><strong>Autor:</strong> {selectedSnapshot.authorName ? `${selectedSnapshot.authorName} (Co-CEO)` : ((selectedSnapshot.deletedBy === 'luis' || selectedSnapshot.author === 'luis') ? 'Luis Romero (Co-CEO)' : 'Kevin Servat (Co-CEO)')}</div>
                 <div><strong>Motivo / Nota:</strong> {selectedSnapshot.reason}</div>
+                {selectedSnapshot.reviewedBy && (
+                  <div style={{ color: '#10b981', marginTop: '4px' }}>
+                    <strong>Visto Bueno Otorgado:</strong> {selectedSnapshot.reviewedByName} ({selectedSnapshot.reviewedAt})
+                  </div>
+                )}
+                {selectedSnapshot.restored && (
+                  <div style={{ color: '#8b5cf6', marginTop: '4px' }}>
+                    <strong>Restaurado por:</strong> {selectedSnapshot.restoredByName} ({selectedSnapshot.restoredAt})
+                  </div>
+                )}
               </div>
 
               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>

@@ -92,8 +92,7 @@ export default function Sidebar({
       id: 'audit', 
       label: 'Auditoría & Bajas', 
       icon: History,
-      badge: auditLogsCount > 0 ? auditLogsCount : null,
-      badgeColor: 'badge-purple'
+      badge: null
     }
   ];
 

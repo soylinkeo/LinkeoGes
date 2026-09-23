@@ -468,7 +468,11 @@ export default function App() {
       reason: reason || 'Movimiento operativo registrado en LinkeoGes',
       diff: diff || '',
       snapshot: snapshot || null,
-      restorable: actionType === 'Eliminación'
+      restorable: true,
+      reviewedBy: null,
+      reviewedByName: null,
+      reviewedAt: null,
+      status: 'pending' // Reciente (pendiente de dar OK)
     };
     setAuditLogs(prev => [newLog, ...prev]);
     if (isSupabaseConfigured) {
@@ -1217,31 +1221,202 @@ export default function App() {
     setDeleteModalConfig({ isOpen: false, item: null, entityType: '' });
   };
 
-  // Restauración de Auditoría
-  const handleRestoreItem = (auditLog) => {
-    if (!auditLog || !auditLog.snapshot) return;
+  // Dar Visto Bueno / OK a Registro de Auditoría
+  const handleAcknowledgeLog = (logId) => {
+    const activeUser = currentUser || { id: 'luis', name: 'Luis Romero' };
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-    if (auditLog.entityType === 'Producto') {
-      setProducts(prev => [auditLog.snapshot, ...prev]);
-    } else if (auditLog.entityType === 'Gasto') {
-      setExpenses(prev => [auditLog.snapshot, ...prev]);
-    } else if (auditLog.entityType === 'Venta') {
-      setSales(prev => [auditLog.snapshot, ...prev]);
-    } else if (auditLog.entityType === 'Lead') {
-      setLeads(prev => [auditLog.snapshot, ...prev]);
-    } else if (auditLog.entityType === 'Tarjeta NFC') {
-      setNfcCards(prev => [auditLog.snapshot, ...prev]);
-    } else if (auditLog.entityType === 'Insumo') {
-      setInventory(prev => [auditLog.snapshot, ...prev]);
-    } else if (auditLog.entityType === 'Evento') {
-      setCalendarEvents(prev => [auditLog.snapshot, ...prev]);
-    } else if (auditLog.entityType === 'Plan 30 Días') {
-      setPlan30Days(prev => [...prev, auditLog.snapshot]);
+    setAuditLogs(prev => prev.map(log => {
+      if (log.id === logId) {
+        return {
+          ...log,
+          status: 'approved',
+          reviewedBy: activeUser.id,
+          reviewedByName: activeUser.name,
+          reviewedAt: now
+        };
+      }
+      return log;
+    }));
+  };
+
+  // Dar Visto Bueno / OK a Todos los Registros Recientes
+  const handleAcknowledgeAllLogs = () => {
+    const activeUser = currentUser || { id: 'luis', name: 'Luis Romero' };
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    setAuditLogs(prev => prev.map(log => {
+      if (!log.reviewedBy && !log.restored) {
+        return {
+          ...log,
+          status: 'approved',
+          reviewedBy: activeUser.id,
+          reviewedByName: activeUser.name,
+          reviewedAt: now
+        };
+      }
+      return log;
+    }));
+  };
+
+  // Restauración y Reversión de Auditoría (Netamente por el usuario de la cuenta)
+  const handleRestoreItem = (auditLog) => {
+    if (!auditLog) return;
+    const activeUser = currentUser || { id: 'luis', name: 'Luis Romero' };
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const action = auditLog.actionType || 'Eliminación';
+
+    const confirmRestore = window.confirm(
+      `¿Deseas restaurar/revertir el cambio de "${auditLog.entityName}" (${action}) como ${activeUser.name}?`
+    );
+    if (!confirmRestore) return;
+
+    if (action === 'Eliminación') {
+      if (!auditLog.snapshot) {
+        alert('⚠️ Este registro no contiene una copia de seguridad para restaurar automáticamente.');
+        return;
+      }
+      if (auditLog.entityType === 'Producto') {
+        setProducts(prev => [auditLog.snapshot, ...prev]);
+      } else if (auditLog.entityType === 'Gasto') {
+        setExpenses(prev => [auditLog.snapshot, ...prev]);
+      } else if (auditLog.entityType === 'Venta') {
+        setSales(prev => [auditLog.snapshot, ...prev]);
+      } else if (auditLog.entityType === 'Lead') {
+        setLeads(prev => [auditLog.snapshot, ...prev]);
+      } else if (auditLog.entityType === 'Tarjeta NFC') {
+        setNfcCards(prev => [auditLog.snapshot, ...prev]);
+      } else if (auditLog.entityType === 'Insumo') {
+        setInventory(prev => [auditLog.snapshot, ...prev]);
+      } else if (auditLog.entityType === 'Proveedor') {
+        setSuppliers(prev => [auditLog.snapshot, ...prev]);
+      } else if (auditLog.entityType === 'Evento') {
+        setCalendarEvents(prev => [auditLog.snapshot, ...prev]);
+      } else if (auditLog.entityType === 'Plan 30 Días') {
+        setPlan30Days(prev => [...prev, auditLog.snapshot]);
+      } else if (auditLog.entityType === 'Inversión Inicial') {
+        setProjectionsData(prev => ({
+          ...prev,
+          initialInvestment: [...(prev.initialInvestment || []), auditLog.snapshot]
+        }));
+      } else if (auditLog.entityType === 'Gasto Fijo') {
+        setProjectionsData(prev => ({
+          ...prev,
+          fixedCosts: [...(prev.fixedCosts || []), auditLog.snapshot]
+        }));
+      } else if (auditLog.entityType === 'Mix Producto') {
+        setProjectionsData(prev => ({
+          ...prev,
+          projectedProducts: [...(prev.projectedProducts || []), auditLog.snapshot]
+        }));
+      }
+    } else if (action === 'Creación') {
+      // Revertir creación = eliminar el elemento creado
+      const id = auditLog.entityId;
+      if (auditLog.entityType === 'Producto') {
+        setProducts(prev => prev.filter(p => p.id !== id));
+      } else if (auditLog.entityType === 'Gasto') {
+        setExpenses(prev => prev.filter(e => e.id !== id));
+      } else if (auditLog.entityType === 'Venta') {
+        setSales(prev => prev.filter(s => s.id !== id && s.saleNumber !== id));
+      } else if (auditLog.entityType === 'Lead') {
+        setLeads(prev => prev.filter(l => l.id !== id));
+      } else if (auditLog.entityType === 'Tarjeta NFC') {
+        setNfcCards(prev => prev.filter(c => c.id !== id && c.chipUid !== id));
+      } else if (auditLog.entityType === 'Insumo') {
+        setInventory(prev => prev.filter(i => i.id !== id && i.sku !== id));
+      } else if (auditLog.entityType === 'Proveedor') {
+        setSuppliers(prev => prev.filter(s => s.id !== id));
+      } else if (auditLog.entityType === 'Evento') {
+        setCalendarEvents(prev => prev.filter(e => e.id !== id));
+      } else if (auditLog.entityType === 'Plan 30 Días') {
+        setPlan30Days(prev => prev.filter(t => `dia-${t.day}` !== id && t.day !== Number(id?.replace('dia-', ''))));
+      } else if (auditLog.entityType === 'Inversión Inicial') {
+        setProjectionsData(prev => ({
+          ...prev,
+          initialInvestment: (prev.initialInvestment || []).filter(i => i.id !== id)
+        }));
+      } else if (auditLog.entityType === 'Gasto Fijo') {
+        setProjectionsData(prev => ({
+          ...prev,
+          fixedCosts: (prev.fixedCosts || []).filter(fc => fc.id !== id)
+        }));
+      } else if (auditLog.entityType === 'Mix Producto') {
+        setProjectionsData(prev => ({
+          ...prev,
+          projectedProducts: (prev.projectedProducts || []).filter(p => p.id !== id && p.sku !== id)
+        }));
+      }
+    } else if (action === 'Modificación') {
+      if (auditLog.snapshot) {
+        const id = auditLog.entityId;
+        if (auditLog.entityType === 'Insumo') {
+          setInventory(prev => prev.map(i => (i.id === id || i.sku === id) ? auditLog.snapshot : i));
+        } else if (auditLog.entityType === 'Producto') {
+          setProducts(prev => prev.map(p => p.id === id ? auditLog.snapshot : p));
+        } else if (auditLog.entityType === 'Gasto') {
+          setExpenses(prev => prev.map(e => e.id === id ? auditLog.snapshot : e));
+        } else if (auditLog.entityType === 'Lead') {
+          setLeads(prev => prev.map(l => l.id === id ? auditLog.snapshot : l));
+        } else if (auditLog.entityType === 'Inversión Inicial') {
+          setProjectionsData(prev => ({
+            ...prev,
+            initialInvestment: (prev.initialInvestment || []).map(i => i.id === id ? auditLog.snapshot : i)
+          }));
+        } else if (auditLog.entityType === 'Gasto Fijo') {
+          setProjectionsData(prev => ({
+            ...prev,
+            fixedCosts: (prev.fixedCosts || []).map(fc => fc.id === id ? auditLog.snapshot : fc)
+          }));
+        } else if (auditLog.entityType === 'Mix Producto') {
+          setProjectionsData(prev => ({
+            ...prev,
+            projectedProducts: (prev.projectedProducts || []).map(p => (p.id === id || p.sku === id) ? auditLog.snapshot : p)
+          }));
+        } else if (auditLog.entityType === 'Plan 30 Días') {
+          setPlan30Days(prev => prev.map(t => (`dia-${t.day}` === id || t.day === Number(id?.replace('dia-', ''))) ? auditLog.snapshot : t));
+        } else if (auditLog.entityType === 'Evento') {
+          setCalendarEvents(prev => prev.map(e => e.id === id ? auditLog.snapshot : e));
+        }
+      }
     }
 
-    setAuditLogs(prev => prev.map(log => 
-      log.id === auditLog.id ? { ...log, restorable: false, reason: `${log.reason} [RESTAURADO]` } : log
-    ));
+    // Actualizar registro original y generar registro de auditoría que certifique la restauración ("para que quede grabado")
+    setAuditLogs(prev => {
+      const updated = prev.map(log => 
+        log.id === auditLog.id ? { 
+          ...log, 
+          restored: true,
+          restoredBy: activeUser.id,
+          restoredByName: activeUser.name,
+          restoredAt: now,
+          status: 'restored',
+          reason: `${log.reason} [RESTAURADO por ${activeUser.name}]` 
+        } : log
+      );
+
+      const restoreAuditEntry = {
+        id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        timestamp: now,
+        actionType: 'Modificación',
+        entityType: auditLog.entityType,
+        entityId: auditLog.entityId,
+        entityName: auditLog.entityName,
+        author: activeUser.id,
+        authorName: activeUser.name,
+        deletedBy: activeUser.id,
+        deletedByName: activeUser.name,
+        reason: `Restauración ejecutada por ${activeUser.name} sobre la acción del ${auditLog.timestamp}.`,
+        reviewedBy: activeUser.id,
+        reviewedByName: activeUser.name,
+        reviewedAt: now,
+        status: 'approved'
+      };
+
+      return [restoreAuditEntry, ...updated];
+    });
+
+    alert(`✓ Acción restaurada con éxito por ${activeUser.name}.`);
   };
 
   const handleSettlePartnerDebt = ({ amount, note, fromPartner, toPartner }) => {
@@ -1502,6 +1677,9 @@ export default function App() {
           {currentTab === 'audit' && (
             <AuditView 
               auditLogs={auditLogs}
+              currentUser={currentUser}
+              onAcknowledgeLog={handleAcknowledgeLog}
+              onAcknowledgeAllLogs={handleAcknowledgeAllLogs}
               onRestoreItem={handleRestoreItem}
             />
           )}
