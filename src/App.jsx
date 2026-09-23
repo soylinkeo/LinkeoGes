@@ -1029,28 +1029,53 @@ export default function App() {
   };
 
   // Handlers para Distritos (Maestro Central)
-  const handleAddDistrict = (newDist) => {
-    setDistricts([...districts, newDist]);
+  const handleAddDistrict = async (newDist) => {
+    const trimmed = typeof newDist === 'string' ? newDist.trim() : '';
+    if (!trimmed) return;
+    if (districts.some(d => d.toLowerCase() === trimmed.toLowerCase())) return;
+
+    setDistricts(prev => [...prev, trimmed]);
+
     if (isSupabaseConfigured) {
-      dbService.insert('districts', { name: newDist });
+      try {
+        const { error } = await supabase.from('districts').insert([{ name: trimmed }]);
+        if (error) {
+          console.warn('Error inserting district into Supabase:', error);
+        }
+      } catch (err) {
+        console.warn('Exception inserting district into Supabase:', err);
+      }
     }
+
     logAudit({
       actionType: 'Creación',
       entityType: 'Distrito',
-      entityId: newDist,
-      entityName: `Distrito: ${newDist}`,
-      reason: `Nuevo distrito agregado al maestro de Lima.`
+      entityId: trimmed,
+      entityName: `Distrito: ${trimmed}`,
+      reason: `Nuevo distrito agregado al maestro de Lima y sincronizado en base de datos.`
     });
   };
 
-  const handleDeleteDistrict = (distToDelete) => {
-    setDistricts(districts.filter(d => d !== distToDelete));
+  const handleDeleteDistrict = async (distToDelete) => {
+    setDistricts(prev => prev.filter(d => d !== distToDelete));
+
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('districts').delete().eq('name', distToDelete);
+        if (error) {
+          console.warn('Error deleting district from Supabase:', error);
+        }
+      } catch (err) {
+        console.warn('Exception deleting district from Supabase:', err);
+      }
+    }
+
     logAudit({
       actionType: 'Eliminación',
       entityType: 'Distrito',
       entityId: distToDelete,
       entityName: `Distrito: ${distToDelete}`,
-      reason: `Distrito retirado del maestro central.`
+      reason: `Distrito retirado del maestro central y base de datos.`
     });
   };
 

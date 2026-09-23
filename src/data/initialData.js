@@ -91,7 +91,8 @@ export const INITIAL_DISTRICTS = [
   'Pueblo Libre',
   'La Molina',
   'Surquillo',
-  'Lima Cercado'
+  'Lima Cercado',
+  'La Victoria'
 ];
 
 export const INITIAL_PROJECT_PHASES = [
