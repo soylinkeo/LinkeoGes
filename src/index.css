@@ -607,6 +607,7 @@ button, input, select, textarea {
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  margin-bottom: 28px;
 }
 
 .card:hover {
@@ -635,7 +636,8 @@ button, input, select, textarea {
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+  gap: 22px;
+  margin-bottom: 30px;
 }
 
 @media (max-width: 1280px) {

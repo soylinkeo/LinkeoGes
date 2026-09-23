@@ -174,7 +174,7 @@ export default function FinanceView({
   return (
     <div className="finance-view">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <DollarSign size={24} color="var(--primary-600)" />
@@ -193,7 +193,7 @@ export default function FinanceView({
 
           <button className="btn btn-primary" onClick={() => setIsNewExpenseModalOpen(true)}>
             <Plus size={16} />
-            <span>+ Registrar Gasto</span>
+            <span>Registrar Gasto</span>
           </button>
         </div>
       </div>
@@ -204,8 +204,8 @@ export default function FinanceView({
           background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(59, 130, 246, 0.08) 100%)',
           border: '1px solid rgba(168, 85, 247, 0.3)',
           borderRadius: 'var(--radius-lg)',
-          padding: '22px 26px',
-          marginBottom: '24px',
+          padding: '24px 28px',
+          marginBottom: '32px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -267,7 +267,7 @@ export default function FinanceView({
       </div>
 
       {/* KPIs Financieros */}
-      <div className="metrics-grid">
+      <div className="metrics-grid" style={{ marginBottom: '32px' }}>
         <div className="kpi-card">
           <div className="kpi-header">
             <span className="kpi-label">Facturado en Ventas</span>
