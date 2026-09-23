@@ -47,8 +47,10 @@ Desarrollada para la dirección y operación conjunta de **Luis Romero** & **Kev
 - **Frontend:** React 19 + Vite 6
 - **Estilos:** Vanilla CSS / Modern Glassmorphism Design System (Modo Dark tech por defecto)
 - **Iconografía:** Lucide React
-- **Exportación de Datos:** XLSX (SheetJS)
-- **Persistencia:** LocalStorage sincronizado + Preparado para Supabase Cloud Database
+- **Exportación de Datos:** XLSX (SheetJS) + Respaldo íntegro JSON
+- **Persistencia & Sincronización:** Supabase PostgreSQL con procedimientos transaccionales (`linkeoges_commit`), Row Level Security (RLS) y motor optimista `SyncEngine` con bloqueo de revisiones e idempotencia
+- **Autenticación:** Supabase Auth con cuentas individuales para socios
+- **Testing:** Suite automatizada con Node.js Test Runner, PGlite (PostgreSQL real en memoria) y Playwright E2E
 - **Despliegue:** Vercel
 
 ---
@@ -63,19 +65,26 @@ cd LinkeoGes
 # 2. Instalar dependencias
 npm install
 
-# 3. Iniciar servidor de desarrollo
-npm run dev
+# 3. Ejecutar verificaciones de código y pruebas (Linter + PGlite DB Tests + Build)
+npm run check
 
-# 4. Compilar para producción
-npm run build
+# 4. Ejecutar pruebas de navegador E2E (concurrencia y sincronización)
+npm run test:browser
+
+# 5. Iniciar servidor de desarrollo
+npm run dev
 ```
 
 ---
 
-## 🔐 Acceso Autorizado
+## 🔐 Acceso Autorizado & Seguridad
 
-- **Luis Romero:** Co-Fundador & Co-CEO (PIN: `2109`)
-- **Kevin Servat:** Co-Fundador & Co-CEO (PIN: `2109`)
+El sistema implementa autenticación individual y segura mediante **Supabase Auth**:
+
+- **Luis Romero:** `luis@linkeocards.com` (Contraseña individual >= 12 caracteres)
+- **Kevin Servat:** `kevin@linkeocards.com` (Contraseña individual >= 12 caracteres)
+
+> Para instrucciones completas de migración SQL, variables de entorno en Vercel y activación de usuarios, consulta la guía detallada en [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 

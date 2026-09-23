@@ -385,7 +385,7 @@ export default function AuditView({
                           )}
 
                           {/* Botón RESTAURAR */}
-                          {!isRestored && onRestoreItem && (
+                          {!isRestored && log.restorable && onRestoreItem && (
                             <button 
                               className="btn btn-secondary btn-sm"
                               style={{ 

@@ -35,14 +35,14 @@ export default function DeleteConfirmModal({
     const finalReason = `${reasonCategory}: ${detailedReason.trim() || 'Sin observaciones adicionales'}`;
     const activeId = currentUser?.id || 'luis';
     const activeName = currentUser?.name || 'Luis Romero';
-    onConfirm({
+    const confirmed = onConfirm({
       item,
       entityType,
       reason: finalReason,
       deletedBy: activeId,
       deletedByName: activeName
     });
-    handleClose();
+    if (confirmed !== false) handleClose();
   };
 
   return (

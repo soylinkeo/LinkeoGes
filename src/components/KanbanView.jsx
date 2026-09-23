@@ -1,3 +1,4 @@
+import { localDate } from '../utils/dateUtils.js';
 import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { 
@@ -21,6 +22,7 @@ const STAGES = [
 
 export default function KanbanView({
   leads = [],
+  products = [],
   onUpdateLeadStage,
   onAddNewLead,
   onConvertLeadToSale,
@@ -40,12 +42,12 @@ export default function KanbanView({
     address: '',
     contactName: '',
     phone: '',
-    interestedProduct: 'Pack Negocio',
+    interestedProduct: '',
     estimatedValue: 100.00,
     assignedTo: 'kevin',
     notes: '',
     nextStepNote: 'Enviar catálogo por WhatsApp',
-    nextStepDate: new Date().toISOString().slice(0, 10)
+    nextStepDate: localDate()
   });
 
   const handleCloseNewLeadModal = () => {
@@ -56,12 +58,12 @@ export default function KanbanView({
       address: '',
       contactName: '',
       phone: '',
-      interestedProduct: 'Pack Negocio',
+      interestedProduct: '',
       estimatedValue: 100.00,
       assignedTo: 'kevin',
       notes: '',
       nextStepNote: 'Enviar catálogo por WhatsApp',
-      nextStepDate: new Date().toISOString().slice(0, 10)
+      nextStepDate: localDate()
     });
     setIsNewLeadModalOpen(false);
   };
@@ -120,7 +122,7 @@ export default function KanbanView({
   const handleConfirmConvert = () => {
     if (!selectedLead) return;
     const name = selectedLead.businessName;
-    onConvertLeadToSale(selectedLead);
+    if (onConvertLeadToSale(selectedLead) === false) return;
     if (showToast) {
       showToast(`🎉 ¡Venta generada! Lead "${name}" convertido y chip NFC emitido`, 'success');
     }
@@ -410,24 +412,12 @@ export default function KanbanView({
                     value={newLeadForm.interestedProduct}
                     onChange={(e) => {
                       const val = e.target.value;
-                      let est = 100;
-                      if (val.includes('Display')) est = 60;
-                      if (val.includes('Horizontal')) est = 80;
-                      if (val.includes('Vertical')) est = 40;
-                      if (val.includes('Emprendedor')) est = 80;
-                      if (val.includes('Negocio')) est = 100;
-                      if (val.includes('Dúo')) est = 120;
-                      if (val.includes('Full')) est = 160;
+                      const est = products.find(p => p.name === val)?.price || 0;
                       setNewLeadForm({ ...newLeadForm, interestedProduct: val, estimatedValue: est });
                     }}
                   >
-                    <option value="Pack Negocio">Pack Negocio (Display + Vertical - S/ 100)</option>
-                    <option value="Modelo 1 – Display de Mesa">Modelo 1 – Display de Mesa (S/ 60)</option>
-                    <option value="Modelo 2 – Tarjeta Horizontal">Modelo 2 – Tarjeta Horizontal (S/ 80)</option>
-                    <option value="Modelo 3 – Tarjeta Vertical">Modelo 3 – Tarjeta Vertical (S/ 40)</option>
-                    <option value="Pack Emprendedor">Pack Emprendedor (S/ 80)</option>
-                    <option value="Pack Dúo Premium">Pack Dúo Premium (S/ 120)</option>
-                    <option value="Pack Full">Pack Full (S/ 160)</option>
+                    <option value="">Por definir</option>
+                    {products.map(product => <option key={product.id} value={product.name}>{product.name} — S/ {Number(product.price).toFixed(2)}</option>)}
                   </select>
                 </div>
 

@@ -60,7 +60,7 @@ export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
     const baseCost = Number(p.baseCost) || 0;
     const paymentFee = price * ((Number(variableUnitCosts.paymentFeePercent) || 0) / 100);
     const unitVarCost = baseCost + commonVariable + paymentFee;
-    const margin = Math.max(0, price - unitVarCost);
+    const margin = price - unitVarCost;
     const mix = (Number(p.mixPercent) || 0) / totalMix;
 
     weightedPrice += price * mix;
@@ -73,17 +73,17 @@ export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
     requiredUnits = Math.ceil((totalFixedCosts + targetProfit) / weightedMargin);
   }
 
-  if (requiredUnits <= 0) {
-    requiredUnits = fallback.monthlyUnitsTarget;
-  }
+
 
   const grossRevenue = requiredUnits * weightedPrice;
 
   return {
     monthlyProfitTarget: targetProfit,
     monthlyUnitsTarget: requiredUnits,
+    isFeasible: weightedMargin > 0,
+    warning: weightedMargin <= 0 ? "La mezcla de productos no genera margen positivo: la meta no es alcanzable." : "",
     targetPerPartner,
-    monthlyRevenueEstimate: grossRevenue > 0 ? grossRevenue : fallback.monthlyRevenueEstimate,
+    monthlyRevenueEstimate: grossRevenue,
     totalFixedCosts,
     weightedPrice,
     weightedMargin,

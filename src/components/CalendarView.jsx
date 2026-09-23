@@ -1,3 +1,4 @@
+import { localDate } from '../utils/dateUtils.js';
 import React, { useState } from 'react';
 import { 
   Calendar as CalendarIcon, 
@@ -27,7 +28,7 @@ export default function CalendarView({
     title: '',
     partner: 'auto', // 'auto', 'luis', 'kevin', 'both'
     type: 'demo', // demo, delivery, follow_up, meeting
-    date: new Date().toISOString().slice(0, 10),
+    date: localDate(),
     startTime: '19:30',
     endTime: '20:30',
     client: '',
@@ -39,16 +40,12 @@ export default function CalendarView({
   const [editingEvent, setEditingEvent] = useState(null);
 
   // Cálculo de renovaciones próximas (a vencer en menos de 45 días o vencimiento de 1 año)
-  const renewals = nfcCards.map(c => {
-    const assigned = new Date(c.assignedDate || '2026-09-15');
-    const renewal = new Date(assigned.getTime() + 365 * 24 * 60 * 60 * 1000);
-    return {
-      cardId: c.id,
-      businessName: c.businessName,
-      renewalDateStr: renewal.toISOString().slice(0, 10),
-      district: c.district,
-      phone: c.contactPhone
-    };
+  const renewals = nfcCards.flatMap(card => {
+    const raw = card.renewalDate || (card.assignedDate ? new Date(new Date(card.assignedDate + 'T12:00:00Z').getTime() + 365*86400000).toISOString().slice(0,10) : null);
+    if (!raw) return [];
+    const days = (new Date(raw + 'T12:00:00Z') - new Date(localDate() + 'T12:00:00Z')) / 86400000;
+    if (!Number.isFinite(days) || days > 30) return [];
+    return [{ cardId:card.id, businessName:card.businessName, renewalDateStr:raw, district:card.district, phone:card.contactPhone }];
   });
 
   // Lógica de asignación equitativa Co-CEOs
@@ -64,7 +61,7 @@ export default function CalendarView({
       title: '',
       partner: 'auto',
       type: 'demo',
-      date: new Date().toISOString().slice(0, 10),
+      date: localDate(),
       startTime: '19:30',
       endTime: '20:30',
       client: '',

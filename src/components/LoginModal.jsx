@@ -7,7 +7,7 @@ export default function LoginModal({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
+  const rememberMe = true;
   const [isLoading, setIsLoading] = useState(false);
   const passwordInputRef = useRef(null);
 
@@ -50,7 +50,7 @@ export default function LoginModal({ onLoginSuccess }) {
       onLoginSuccess(user, rememberMe);
     } catch (err) {
       console.warn('Error al verificar login:', err);
-      setErrorMsg('Error al validar credenciales con la base de datos.');
+      setErrorMsg(err.message || 'Error al validar credenciales con la base de datos.');
       setPassword('');
       setIsLoading(false);
       setTimeout(() => {
@@ -219,7 +219,7 @@ export default function LoginModal({ onLoginSuccess }) {
                   ref={passwordInputRef}
                   type={showPassword ? 'text' : 'password'}
                   className="form-control"
-                  placeholder={isLoading ? "Verificando acceso..." : "Ingresa clave (2109)"}
+                  placeholder={isLoading ? "Verificando acceso..." : "Ingresa tu contraseña"}
                   value={password}
                   onChange={(e) => { 
                     if (isLoading) return;
@@ -269,24 +269,13 @@ export default function LoginModal({ onLoginSuccess }) {
                 </button>
               </div>
               <div style={{ fontSize: '0.74rem', color: 'var(--text-muted, #94a3b8)', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Clave por defecto: <strong>2109</strong> (Modificable en Perfil)</span>
-                <span style={{ color: '#10b981', fontWeight: 600 }}>🔒 Cifrado SHA-256</span>
+                <span>Acceso personal mediante Supabase Auth</span>
+                <span style={{ color: '#10b981', fontWeight: 600 }}>🔒 Sesión verificada</span>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted, #94a3b8)', cursor: isLoading ? 'not-allowed' : 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  checked={rememberMe} 
-                  disabled={isLoading}
-                  onChange={(e) => {
-                    if (isLoading) return;
-                    setRememberMe(e.target.checked);
-                  }} 
-                />
-                <span>Mantener sesión iniciada</span>
-              </label>
+              
               <span style={{ fontSize: '0.74rem', color: '#f59e0b' }}>⏱️ Inactividad: 10 min</span>
             </div>
 

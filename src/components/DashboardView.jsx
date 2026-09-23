@@ -1,3 +1,4 @@
+import { calculateFinance } from '../utils/financeUtils.js';
 import React from 'react';
 import { 
   TrendingUp, 
@@ -27,18 +28,14 @@ export default function DashboardView({
   onRequestDelete
 }) {
   // Cálculos financieros
-  const totalSalesAmount = sales.reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0);
-  const totalCost = sales.reduce((acc, s) => acc + (Number(s.cost) || 0), 0);
-  const totalGrossProfit = totalSalesAmount - totalCost;
-  const totalExpenses = expenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
-  const netProfit = totalGrossProfit - totalExpenses;
+  const { totalSalesAmount, totalCost, totalGrossProfit, totalExpenses, netProfit } = calculateFinance(sales, expenses);
   
   const totalUnitsSold = sales.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
-  const unitsTarget = targets.monthlyUnitsTarget || 75;
-  const unitsProgressPct = Math.min(100, Math.round((totalUnitsSold / unitsTarget) * 100));
+  const unitsTarget = targets.monthlyUnitsTarget ?? 75;
+  const unitsProgressPct = Math.min(100, Math.round((unitsTarget > 0 ? totalUnitsSold / unitsTarget : 0) * 100));
 
-  const revenueTarget = targets.monthlyRevenueEstimate || 5100;
-  const revenueProgressPct = Math.min(100, Math.round((totalSalesAmount / revenueTarget) * 100));
+  const revenueTarget = targets.monthlyRevenueEstimate ?? 5100;
+  const revenueProgressPct = Math.min(100, Math.round((revenueTarget > 0 ? totalSalesAmount / revenueTarget : 0) * 100));
 
   const profitTarget = targets.monthlyProfitTarget || 4000;
   const profitProgressPct = Math.min(100, Math.max(0, Math.round((netProfit / profitTarget) * 100)));
@@ -49,6 +46,7 @@ export default function DashboardView({
 
   return (
     <div className="dashboard-view" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+      {targets.isFeasible === false && <p role="alert">{targets.warning}</p>}
       {/* Encabezado Principal Despejado y Elegante (Sin cajas pesadas) */}
       <div className="dashboard-header">
         <div>

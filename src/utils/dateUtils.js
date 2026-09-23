@@ -1,39 +1,19 @@
-// Utilidades de formato de fechas y meses contables para LinkeoGes
-
-export const ACCOUNTING_MONTHS = [
-  'Enero 2026',
-  'Febrero 2026',
-  'Marzo 2026',
-  'Abril 2026',
-  'Mayo 2026',
-  'Junio 2026',
-  'Julio 2026',
-  'Agosto 2026',
-  'Septiembre 2026',
-  'Octubre 2026',
-  'Noviembre 2026',
-  'Diciembre 2026'
-];
-
-/**
- * Obtiene el mes contable en formato legible en español a partir de una fecha YYYY-MM-DD
- * Sin desfases de zona horaria UTC.
- */
-export const getAccountingMonth = (dateStr) => {
-  if (!dateStr) return 'Septiembre 2026';
-  try {
-    const parts = dateStr.split('-');
-    if (parts.length >= 2) {
-      const year = parts[0];
-      const monthIndex = parseInt(parts[1], 10) - 1;
-      const monthNames = [
-        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-      ];
-      if (monthIndex >= 0 && monthIndex < 12) {
-        return `${monthNames[monthIndex]} ${year}`;
-      }
-    }
-  } catch (e) {}
-  return 'Septiembre 2026';
+export function localDate(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const value = name => parts.find(p => p.type === name).value;
+  return value('year') + '-' + value('month') + '-' + value('day');
+}
+export const getAccountingMonth = (dateStr = localDate()) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr || localDate());
+  if (!match || Number(match[2]) < 1 || Number(match[2]) > 12) return '';
+  const names = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  return names[Number(match[2]) - 1] + ' ' + match[1];
 };
+export function accountingMonths(extraDates = []) {
+  const year = Number(localDate().slice(0,4));
+  const values = new Set();
+  for (let y = year - 5; y <= year + 5; y++) for (let m = 1; m <= 12; m++) values.add(getAccountingMonth(y + '-' + String(m).padStart(2,'0') + '-01'));
+  extraDates.forEach(date => { const value = getAccountingMonth(date); if (value) values.add(value); });
+  return [...values];
+}
+export const ACCOUNTING_MONTHS = accountingMonths();

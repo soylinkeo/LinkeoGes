@@ -1,3 +1,4 @@
+import { localDate } from '../utils/dateUtils.js';
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { 
@@ -51,12 +52,8 @@ export default function NfcTraceabilityView({
       return 0;
     }
 
-    if (prod.stock !== undefined && prod.stock !== null) {
-      return Number(prod.stock);
-    }
-
     const invItem = inventory.find(i => 
-      (i.sku && prod.sku && i.sku.toLowerCase() === prod.sku.toLowerCase()) ||
+      (i.id === prod.inventoryId) || (i.sku && prod.sku && i.sku.toLowerCase() === prod.sku.toLowerCase()) ||
       (i.name && prod.name && i.name.toLowerCase().trim() === prod.name.toLowerCase().trim()) ||
       (i.name && prod.name && (i.name.toLowerCase().includes(prod.name.toLowerCase()) || prod.name.toLowerCase().includes(i.name.toLowerCase())))
     );
@@ -211,7 +208,7 @@ export default function NfcTraceabilityView({
   const handleCreateNewCard = (e) => {
     e.preventDefault();
     const nextNum = nfcCards.length + 101;
-    const newId = `LNK-${nextNum}`;
+    const newId = `LNK-${crypto.randomUUID()}`;
     const generatedUrl = newCardForm.placeId.trim() 
       ? `https://search.google.com/local/writereview?placeid=${newCardForm.placeId.trim()}`
       : 'https://linkeocards.com/';
@@ -220,7 +217,7 @@ export default function NfcTraceabilityView({
 
     const newCard = {
       id: newId,
-      chipUid: newCardForm.chipUid.trim() || `04:${Math.random().toString(16).substr(2, 2).toUpperCase()}:A1:B2:C3:D4`,
+      chipUid: newCardForm.chipUid.trim(),
       model: newCardForm.model,
       productId: selectedProd?.id || null,
       productSku: selectedProd?.sku || null,
@@ -234,7 +231,7 @@ export default function NfcTraceabilityView({
       placeId: newCardForm.placeId.trim(),
       reviewUrl: generatedUrl,
       fallbackShortUrl: `https://linkeocards.com/r/${newCardForm.businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-      assignedDate: new Date().toISOString().slice(0, 10),
+      assignedDate: localDate(),
       renewalDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       status: 'Configurada / Por Entregar',
       history: [
@@ -246,7 +243,7 @@ export default function NfcTraceabilityView({
       ]
     };
 
-    onAddNewCard(newCard);
+    if (onAddNewCard(newCard) === false) return;
     if (showToast) {
       showToast(`✅ Tarjeta ${newId} (${newCard.businessName}) vinculada y registrada`, 'success');
     }

@@ -1,3 +1,5 @@
+import { localDate } from '../utils/dateUtils.js';
+import { calculateFinance } from '../utils/financeUtils.js';
 import React, { useState } from 'react';
 import { 
   DollarSign, 
@@ -37,7 +39,7 @@ export default function FinanceView({
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
 
   // Formulario nuevo gasto con producto vinculado y costo modificable
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDate();
   const [expenseForm, setExpenseForm] = useState({
     date: todayStr,
     type: 'Gasto',
@@ -90,20 +92,16 @@ export default function FinanceView({
   const [settleNote, setSettleNote] = useState('Transferencia de cuadre vía Yape/BCP');
 
   // Cálculos
-  const totalSalesAmount = sales.reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0);
-  const totalCost = sales.reduce((acc, s) => acc + (Number(s.cost) || 0), 0);
-  const totalGrossProfit = totalSalesAmount - totalCost;
-  const totalExpenses = expenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
-  const netProfit = totalGrossProfit - totalExpenses;
+  const { totalSalesAmount, totalCost, totalGrossProfit, totalExpenses, netProfit } = calculateFinance(sales, expenses);
 
   // Aportes de socios
-  const paidByKevin = expenses.filter(e => e.paidBy === 'kevin').reduce((acc, e) => acc + Number(e.amount || 0), 0);
-  const paidByLuis = expenses.filter(e => e.paidBy === 'luis').reduce((acc, e) => acc + Number(e.amount || 0), 0);
+  const paidByKevin = partnerBalance.paidByKevin || 0;
+  const paidByLuis = partnerBalance.paidByLuis || 0;
   const debt = partnerBalance.debtLuisToKevin || 0;
 
   const handleOpenNewExpense = () => {
     setEditingExpense(null);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDate();
     setExpenseForm({
       date: today,
       type: 'Gasto',
@@ -126,7 +124,7 @@ export default function FinanceView({
   const handleOpenEditExpense = (exp) => {
     setEditingExpense(exp);
     setExpenseForm({
-      date: exp.date || new Date().toISOString().slice(0, 10),
+      date: exp.date || localDate(),
       type: exp.type || 'Gasto',
       category: exp.category || 'Compra de mercadería',
       selectedProductId: exp.selectedProductId || '',
@@ -137,7 +135,7 @@ export default function FinanceView({
       amount: exp.amount !== null && exp.amount !== undefined ? String(exp.amount) : '',
       paymentMethod: exp.paymentMethod || 'Tarjeta',
       paidBy: exp.paidBy || 'luis',
-      month: exp.month || getAccountingMonth(exp.date || new Date().toISOString().slice(0, 10)),
+      month: exp.month || getAccountingMonth(exp.date || localDate()),
       notes: exp.notes || '',
       addToInventory: false
     });
@@ -145,7 +143,7 @@ export default function FinanceView({
   };
 
   const handleCloseExpenseModal = () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDate();
     setExpenseForm({
       date: today,
       type: 'Gasto',
@@ -193,7 +191,7 @@ export default function FinanceView({
       };
 
       if (onEditExpense) {
-        onEditExpense(updatedExp);
+        if (onEditExpense(updatedExp) === false) return;
       }
       if (showToast) {
         showToast(`✅ Gasto "${updatedExp.description || 'Gasto'}" actualizado exitosamente`, 'success');
@@ -219,12 +217,7 @@ export default function FinanceView({
       isCustomCost: expenseForm.isCustomCost
     };
 
-    onAddNewExpense(newExp);
-
-    // Sumar stock automáticamente si se solicitó y existe el insumo
-    if (expenseForm.addToInventory && expenseForm.selectedProductId && onUpdateInventoryStock) {
-      onUpdateInventoryStock(expenseForm.selectedProductId, Number(expenseForm.quantity) || 1);
-    }
+    if (onAddNewExpense({ ...newExp, addToInventory: expenseForm.addToInventory }) === false) return;
 
     if (showToast) {
       showToast(`✅ Gasto de S/ ${finalAmount.toFixed(2)} registrado exitosamente`, 'success');
@@ -235,7 +228,7 @@ export default function FinanceView({
   const handleConfirmSettle = (e) => {
     e.preventDefault();
     const settleAmt = Number(settleAmount) || 0;
-    onSettlePartnerDebt({
+    const success = onSettlePartnerDebt({
       amount: settleAmt,
       note: settleNote,
       fromPartner: debt > 0 ? 'luis' : 'kevin',
@@ -256,6 +249,7 @@ export default function FinanceView({
 
   return (
     <div className="finance-view">
+      {targets.isFeasible === false && <p role="alert" className="badge badge-yellow">{targets.warning}</p>}
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
@@ -336,7 +330,7 @@ export default function FinanceView({
             <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
               <span>🚀 <strong>Kevin Servat ha aportado:</strong> S/ {paidByKevin.toFixed(2)}</span>
               <span>👨‍💼 <strong>Luis Romero ha aportado:</strong> S/ {paidByLuis.toFixed(2)}</span>
-              <span>⚖️ <strong>Cuota 50% por socio:</strong> S/ {(totalExpenses / 2).toFixed(2)}</span>
+              <span>⚖️ <strong>Cuota 50% por socio:</strong> S/ {(partnerBalance.halfExpense || 0).toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -345,7 +339,7 @@ export default function FinanceView({
           <button 
             className="btn btn-secondary" 
             style={{ borderColor: 'rgba(168, 85, 247, 0.4)' }}
-            onClick={() => setIsSettleModalOpen(true)}
+            onClick={() => { setSettleAmount(Math.abs(debt).toFixed(2)); setIsSettleModalOpen(true); }}
           >
             <ArrowRightLeft size={16} />
             <span>Registrar Liquidación / Pago</span>
@@ -363,7 +357,7 @@ export default function FinanceView({
             </div>
           </div>
           <div className="kpi-value">S/ {totalSalesAmount.toFixed(2)}</div>
-          <div className="kpi-subtext">Meta mensual estimada: S/ {targets.monthlyRevenueEstimate || 5100}</div>
+          <div className="kpi-subtext">Meta mensual estimada: S/ {targets.monthlyRevenueEstimate ?? 5100}</div>
         </div>
 
         <div className="kpi-card kpi-red">

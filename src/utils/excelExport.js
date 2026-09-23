@@ -1,3 +1,4 @@
+import { calculateFinance } from './financeUtils.js';
 import * as XLSX from 'xlsx';
 
 /**
@@ -11,22 +12,14 @@ export function exportLinkeoGesToExcel({
   inventory = [],
   leads = [],
   plan30Days = [],
+  products = [], suppliers = [], calendarEvents = [], projectPhases = [], projectionsData = {}, auditLogs = [], districts = [],
   targets = {}
 }) {
   const wb = XLSX.utils.book_new();
 
   // 1. HOJA: RESUMEN EJECUTIVO Y BALANCES ENTRE SOCIOS
-  const totalSalesAmount = sales.reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0);
-  const totalCostSales = sales.reduce((acc, s) => acc + (Number(s.cost) || 0), 0);
-  const totalGrossProfit = totalSalesAmount - totalCostSales;
-  const totalExpenses = expenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
-  const netProfit = totalGrossProfit - totalExpenses;
-  
-  // Aportes de gastos por socio
-  const expensesKevin = expenses.filter(e => e.paidBy === 'kevin').reduce((acc, e) => acc + Number(e.amount || 0), 0);
-  const expensesLuis = expenses.filter(e => e.paidBy === 'luis').reduce((acc, e) => acc + Number(e.amount || 0), 0);
-  const halfExpense = totalExpenses / 2;
-  const debtLuisToKevin = expensesKevin - halfExpense; // Positivo si Luis le debe a Kevin
+  const finance = calculateFinance(sales, expenses);
+  const { totalSalesAmount, totalCost: totalCostSales, totalGrossProfit, totalExpenses, netProfit, paidByKevin: expensesKevin, paidByLuis: expensesLuis, halfExpense, debtLuisToKevin } = finance;
 
   const summaryData = [
     ['LINKEO - SISTEMA DE CONTROL FINANCIERO Y OPERATIVO (LinkeoGes)'],
@@ -87,7 +80,7 @@ export function exportLinkeoGesToExcel({
     e.amount,
     e.paymentMethod,
     e.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat',
-    e.month || 'sep-2026',
+    e.month || '',
     e.notes || ''
   ]);
   const wsExpenses = XLSX.utils.aoa_to_sheet([...expenseHeaders, ...expenseRows]);
@@ -183,6 +176,11 @@ export function exportLinkeoGesToExcel({
     ];
   });
 
+  for (const [name, rows] of Object.entries({ Catálogo: products, Proveedores: suppliers, Agenda: calendarEvents,
+    Auditoría: auditLogs, Distritos: districts.map(name => ({ name })), Fases: projectPhases,
+    Proyecciones: [{ configuración: JSON.stringify(projectionsData) }] })) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map(row => Object.fromEntries(Object.entries(row).map(([key,value]) => [key, typeof value === 'object' && value !== null ? JSON.stringify(value) : value])))), name);
+  }
   const filename = `LinkeoGes_Control_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, filename);
 }

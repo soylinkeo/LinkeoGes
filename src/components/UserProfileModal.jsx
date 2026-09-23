@@ -64,8 +64,8 @@ export default function UserProfileModal({
       currentPassRef.current?.focus();
       return;
     }
-    if (!newPassword || newPassword.trim().length < 4) {
-      setPassError('La nueva contraseña debe tener al menos 4 caracteres.');
+    if (!newPassword || newPassword.length < 12) {
+      setPassError('La nueva contraseña debe tener al menos 12 caracteres.');
       setNewPassword('');
       setConfirmPassword('');
       newPassRef.current?.focus();
@@ -89,7 +89,7 @@ export default function UserProfileModal({
     try {
       const res = await changeUserPassword(currentUser.id, currentPassword, newPassword);
       if (res.success) {
-        setPassSuccess('¡Contraseña actualizada y hasheada (SHA-256) exitosamente en la base de datos!');
+        setPassSuccess('Contraseña actualizada en Supabase Auth.');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
@@ -102,7 +102,7 @@ export default function UserProfileModal({
             entityType: 'Credenciales',
             entityId: currentUser.id,
             entityName: `${currentUser.name} (Seguridad)`,
-            reason: `Cambio de contraseña de socio registrado y cifrado en base de datos.`
+            reason: `Cambio de contraseña confirmado por Supabase Auth.`
           });
         }
       }
@@ -360,7 +360,7 @@ export default function UserProfileModal({
                         disabled={isChangingPass}
                         readOnly={isChangingPass}
                         required
-                        minLength={4}
+                        minLength={12}
                         style={{ height: '38px', fontSize: '0.85rem', paddingRight: '36px', cursor: isChangingPass ? 'not-allowed' : 'text' }}
                       />
                       <button
@@ -398,7 +398,7 @@ export default function UserProfileModal({
                       disabled={isChangingPass}
                       readOnly={isChangingPass}
                       required
-                      minLength={4}
+                      minLength={12}
                       style={{ height: '38px', fontSize: '0.85rem', cursor: isChangingPass ? 'not-allowed' : 'text' }}
                     />
                   </div>

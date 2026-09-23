@@ -992,6 +992,7 @@ export default function ProjectionsView({
 
   return (
     <div className="projections-view" style={{ animation: 'fadeIn 0.3s ease-out' }}>
+      {activeProducts.length > 0 && weightedAverages.weightedMargin <= 0 && <p role="alert">La meta no es alcanzable con este margen. Corrige precios, costos o mezcla de productos.</p>}
       {/* Header Principal */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>

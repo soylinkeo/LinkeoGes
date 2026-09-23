@@ -172,7 +172,7 @@ export default function InventoryView({
   };
 
   const handleStockClick = (item, delta) => {
-    onUpdateInventoryStock(item.id, delta);
+    if (onUpdateInventoryStock(item.id, delta) === false) return;
     const newQty = Math.max(0, (Number(item.quantity) || 0) + delta);
     if (showToast) {
       showToast(`Stock de "${item.name}": ${newQty} uds (${delta > 0 ? '+1' : '-1'})`, 'info', 1800);
@@ -410,12 +410,13 @@ export default function InventoryView({
   const handlePublishInventoryToCatalog = (invItem) => {
     setNewProductForm({
       name: invItem.name,
-      sku: generateRandomSku('LNK-PROD'),
+      sku: invItem.sku,
+      inventoryId: invItem.id,
       category: 'Individual',
       type: invItem.category || 'NFC Inteligente',
       price: (Number(invItem.unitCost || 0) * 3).toFixed(2),
       cost: Number(invItem.unitCost || 0),
-      stock: invItem.quantity || 20,
+      stock: invItem.quantity ?? 0,
       badge: 'Modelo Oficial',
       description: `Producto fabricado con ${invItem.name}. Configurado con chip NFC de alta fidelidad para Google Reviews y enlace directo.`
     });
@@ -434,6 +435,7 @@ export default function InventoryView({
     const newProd = {
       id: `prod-${Date.now()}`,
       name: newProductForm.name,
+      inventoryId: newProductForm.inventoryId,
       sku: finalSku,
       category: newProductForm.category,
       type: newProductForm.type,
@@ -1009,7 +1011,7 @@ export default function InventoryView({
                           <div>
                             <span style={{ color: 'var(--text-subtle)' }}>Disponibilidad:</span>
                             <div style={{ fontWeight: 800, color: '#10b981' }}>
-                              {isPack ? 'Ensamblado Inmediato' : `${prod.stock || 20} uds`}
+                              {isPack ? 'Ensamblado Inmediato' : `${inventory.find(i => i.id === prod.inventoryId || i.sku === prod.sku)?.quantity ?? 0} uds`}
                             </div>
                           </div>
                         </div>
