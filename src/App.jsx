@@ -33,6 +33,7 @@ import LoginModal from './components/LoginModal';
 import UserProfileModal from './components/UserProfileModal';
 import MasterDataModal from './components/MasterDataModal';
 import ProjectLifecycleView from './components/ProjectLifecycleView';
+import { dbService, mappers, isSupabaseConfigured, supabase } from './services/supabase';
 
 // Clave de versión de base de datos local para forzar purga de datos mock antiguos (todo vacío desde 0)
 const DATA_CLEAN_VERSION = 'v2_production_clean_all';
@@ -218,6 +219,41 @@ export default function App() {
     googlePlaceId: ''
   });
 
+  // Sincronización en la Nube con Supabase (Persistencia multi-dispositivo y en tiempo real)
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    let isMounted = true;
+    const loadCloudData = async () => {
+      const data = await dbService.fetchAllInitialData();
+      if (!isMounted || !data) return;
+      if (data.sales && data.sales.length > 0) setSales(data.sales);
+      if (data.expenses && data.expenses.length > 0) setExpenses(data.expenses);
+      if (data.leads && data.leads.length > 0) setLeads(data.leads);
+      if (data.nfcCards && data.nfcCards.length > 0) setNfcCards(data.nfcCards);
+      if (data.inventory && data.inventory.length > 0) setInventory(data.inventory);
+      if (data.suppliers && data.suppliers.length > 0) setSuppliers(data.suppliers);
+      if (data.calendarEvents && data.calendarEvents.length > 0) setCalendarEvents(data.calendarEvents);
+      if (data.products && data.products.length > 0) setProducts(data.products);
+      if (data.districts && data.districts.length > 0) setDistricts(data.districts);
+      if (data.auditLogs && data.auditLogs.length > 0) setAuditLogs(data.auditLogs);
+    };
+
+    loadCloudData();
+
+    // Canal Realtime para recibir cambios instantáneos entre Luis y Kevin
+    const channel = supabase.channel('linkeoges-realtime-sync')
+      .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+        loadCloudData();
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   // Inactividad: 10 minutos (600,000 ms) sin eventos -> Estado 'Ausente'
   useEffect(() => {
     if (!currentUser) return;
@@ -361,6 +397,9 @@ export default function App() {
       restorable: actionType === 'Eliminación'
     };
     setAuditLogs(prev => [newLog, ...prev]);
+    if (isSupabaseConfigured) {
+      dbService.insert('audit_logs', newLog, mappers.auditLogToDb);
+    }
   };
 
   // Cálculo en vivo del Balance entre Socios (50% / 50%)
@@ -538,6 +577,11 @@ export default function App() {
     setNfcCards([newCard, ...nfcCards]);
     setIsNewSaleModalOpen(false);
 
+    if (isSupabaseConfigured) {
+      dbService.insert('sales', newSale, mappers.saleToDb);
+      dbService.insert('nfc_cards', newCard, mappers.nfcToDb);
+    }
+
     // Auditoría de Creación
     logAudit({
       actionType: 'Creación',
@@ -569,6 +613,9 @@ export default function App() {
   // Handlers para Gastos
   const handleAddNewExpense = (newExp) => {
     setExpenses([newExp, ...expenses]);
+    if (isSupabaseConfigured) {
+      dbService.insert('expenses', newExp, mappers.expenseToDb);
+    }
     logAudit({
       actionType: 'Creación',
       entityType: 'Gasto',
@@ -581,6 +628,9 @@ export default function App() {
   // Handlers para Tarjetas NFC
   const handleAddNewCard = (newCard) => {
     setNfcCards([newCard, ...nfcCards]);
+    if (isSupabaseConfigured) {
+      dbService.insert('nfc_cards', newCard, mappers.nfcToDb);
+    }
     logAudit({
       actionType: 'Creación',
       entityType: 'Tarjeta NFC',
@@ -606,6 +656,9 @@ export default function App() {
   // Handlers para Leads / Pipeline
   const handleAddNewLead = (newLead) => {
     setLeads([newLead, ...leads]);
+    if (isSupabaseConfigured) {
+      dbService.insert('leads', newLead, mappers.leadToDb);
+    }
     logAudit({
       actionType: 'Creación',
       entityType: 'Lead',
@@ -618,6 +671,9 @@ export default function App() {
   const handleUpdateLeadStage = (leadId, newStage) => {
     const oldLead = leads.find(l => l.id === leadId);
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
+    if (isSupabaseConfigured) {
+      dbService.update('leads', leadId, { stage: newStage });
+    }
     logAudit({
       actionType: 'Modificación',
       entityType: 'Lead',
@@ -706,6 +762,9 @@ export default function App() {
   // Handlers para Agenda y Citas (Full CRUD)
   const handleAddNewEvent = (newEvent) => {
     setCalendarEvents([newEvent, ...calendarEvents]);
+    if (isSupabaseConfigured) {
+      dbService.insert('calendar_events', newEvent, mappers.eventToDb);
+    }
     logAudit({
       actionType: 'Creación',
       entityType: 'Evento',
@@ -834,6 +893,9 @@ export default function App() {
   // Handlers para Distritos (Maestro Central)
   const handleAddDistrict = (newDist) => {
     setDistricts([...districts, newDist]);
+    if (isSupabaseConfigured) {
+      dbService.insert('districts', { name: newDist });
+    }
     logAudit({
       actionType: 'Creación',
       entityType: 'Distrito',
@@ -885,6 +947,9 @@ export default function App() {
 
   const handleAddNewProduct = (newProd) => {
     setProducts([...products, newProd]);
+    if (isSupabaseConfigured) {
+      dbService.insert('products', newProd, mappers.productToDb);
+    }
     logAudit({
       actionType: 'Creación',
       entityType: 'Producto',
@@ -897,6 +962,9 @@ export default function App() {
   // Handlers para Proveedores (Full CRUD & Auditoría)
   const handleAddNewSupplier = (newSup) => {
     setSuppliers([newSup, ...suppliers]);
+    if (isSupabaseConfigured) {
+      dbService.insert('suppliers', newSup, mappers.supplierToDb);
+    }
     logAudit({
       actionType: 'Creación',
       entityType: 'Proveedor',
@@ -969,8 +1037,23 @@ export default function App() {
       setSuppliers(prev => prev.filter(s => s.id !== item.id));
 
     } else if (entityType === 'Evento') {
-      setCalendarEvents(prev => prev.filter(ev => ev.id !== item.id));
+      setCalendarEvents(prev => prev.filter(e => e.id !== item.id));
+    }
 
+    if (isSupabaseConfigured && item?.id) {
+      const tableMap = {
+        'Venta': 'sales',
+        'Gasto': 'expenses',
+        'Lead': 'leads',
+        'Tarjeta NFC': 'nfc_cards',
+        'Insumo': 'inventory',
+        'Producto': 'products',
+        'Proveedor': 'suppliers',
+        'Evento': 'calendar_events'
+      };
+      if (tableMap[entityType]) {
+        dbService.delete(tableMap[entityType], item.id);
+      }
     } else if (entityType === 'Plan 30 Días') {
       setPlan30Days(prev => prev.filter(t => t.day !== item.day));
 
@@ -1146,6 +1229,7 @@ export default function App() {
           onOpenMasterData={() => setIsMasterDataModalOpen(true)}
           onResetToZero={handleResetToZero}
           onLoadDemoData={handleLoadDemoData}
+          isCloudReady={isSupabaseConfigured}
         />
 
         <main className="content-body">

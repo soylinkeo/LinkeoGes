@@ -31,7 +31,8 @@ export default function Navbar({
   onOpenProfile,
   onOpenMasterData,
   onResetToZero,
-  onLoadDemoData
+  onLoadDemoData,
+  isCloudReady = false
 }) {
   return (
     <header className="top-navbar">
@@ -43,10 +44,10 @@ export default function Navbar({
           title={sidebarCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral (Modo Pantalla Completa)"}
           style={{ marginRight: '4px' }}
         >
-          {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          {sidebarCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="nav-logo" onClick={() => setCurrentTab('dashboard')} style={{ cursor: 'pointer' }}>
           <span style={{ fontSize: '1.25rem' }}>⚡</span>
           <div>
             <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
@@ -105,6 +106,26 @@ export default function Navbar({
             <span style={{ fontSize: '0.9rem' }}>🚀</span>
             <span style={{ fontWeight: 700 }}>Kevin Servat (Co-CEO):</span>
             <span style={{ color: '#38bdf8', fontWeight: 600 }}>{partnersState.kevin?.status || 'Guardia'}</span>
+          </div>
+
+          {/* Estado de Sincronización en la Nube Supabase */}
+          <div 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontSize: '0.72rem',
+              padding: '3px 8px',
+              borderRadius: 'var(--radius-full)',
+              background: isCloudReady ? 'rgba(16, 185, 129, 0.12)' : 'rgba(234, 179, 8, 0.12)',
+              color: isCloudReady ? 'var(--google-green)' : '#eab308',
+              border: `1px solid ${isCloudReady ? 'rgba(16, 185, 129, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
+              fontWeight: 600
+            }}
+            title={isCloudReady ? 'Base de datos Supabase conectada. Los cambios se sincronizan en tiempo real entre socios.' : 'Modo local (sin Supabase conectado)'}
+          >
+            <span style={{ fontSize: '0.75rem' }}>{isCloudReady ? '☁️' : '💾'}</span>
+            <span>{isCloudReady ? 'Supabase Nube' : 'Modo Local'}</span>
           </div>
         </div>
       </div>
