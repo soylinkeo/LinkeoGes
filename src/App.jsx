@@ -17,6 +17,8 @@ import {
   INITIAL_PROJECT_PHASES
 } from './data/initialData';
 import { exportLinkeoGesToExcel } from './utils/excelExport';
+import { getAccountingMonth, ACCOUNTING_MONTHS } from './utils/dateUtils';
+import { Edit3, Package } from 'lucide-react';
 
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -216,8 +218,58 @@ export default function App() {
     quantity: 1,
     paymentMethod: 'Yape',
     soldBy: currentUser?.id || 'luis',
-    googlePlaceId: ''
+    googlePlaceId: '',
+    customUnitPrice: '',
+    customUnitCost: '',
+    isCustomPricing: false
   });
+
+  // Formulario de Nuevo Gasto Global (con selección de Almacén y costo modificable)
+  const initialExpenseDate = new Date().toISOString().slice(0, 10);
+  const [globalExpenseForm, setGlobalExpenseForm] = useState({
+    date: initialExpenseDate,
+    type: 'Gasto',
+    category: 'Compra de mercadería',
+    selectedProductId: '',
+    description: '',
+    quantity: 1,
+    unitCost: '',
+    isCustomCost: false,
+    amount: '',
+    paymentMethod: 'Tarjeta',
+    paidBy: currentUser?.id || 'luis',
+    month: getAccountingMonth(initialExpenseDate),
+    notes: ''
+  });
+
+  const handleGlobalProductChange = (productId) => {
+    if (!productId) {
+      setGlobalExpenseForm(prev => ({
+        ...prev,
+        selectedProductId: '',
+        unitCost: '',
+        isCustomCost: false
+      }));
+      return;
+    }
+
+    const prod = products.find(p => p.id === productId) || inventory.find(i => i.id === productId);
+    if (prod) {
+      const defaultCost = Number(prod.cost ?? prod.unitCost ?? 0);
+      const qty = Number(globalExpenseForm.quantity) || 1;
+      const total = (defaultCost * qty).toFixed(2);
+
+      setGlobalExpenseForm(prev => ({
+        ...prev,
+        selectedProductId: productId,
+        description: prod.name,
+        category: 'Compra de mercadería',
+        unitCost: defaultCost.toString(),
+        isCustomCost: false,
+        amount: total
+      }));
+    }
+  };
 
   // Sincronización en la Nube con Supabase (Persistencia multi-dispositivo y en tiempo real)
   useEffect(() => {
@@ -508,8 +560,14 @@ export default function App() {
       return;
     }
     const qty = Number(newSaleForm.quantity) || 1;
-    const totalAmount = prod.price * qty;
-    const totalCost = prod.cost * qty;
+    const unitPrice = (newSaleForm.isCustomPricing && newSaleForm.customUnitPrice !== '') 
+      ? Number(newSaleForm.customUnitPrice) 
+      : Number(prod.price || 0);
+    const unitCost = (newSaleForm.isCustomPricing && newSaleForm.customUnitCost !== '') 
+      ? Number(newSaleForm.customUnitCost) 
+      : Number(prod.cost || 0);
+    const totalAmount = unitPrice * qty;
+    const totalCost = unitCost * qty;
     const profit = totalAmount - totalCost;
     const nextNum = sales.length + 1;
     const saleNum = `VTA-${nextNum < 10 ? '00' : nextNum < 100 ? '0' : ''}${nextNum}`;
@@ -526,7 +584,7 @@ export default function App() {
       productId: prod.id,
       productName: prod.name,
       quantity: qty,
-      unitPrice: prod.price,
+      unitPrice: unitPrice,
       totalAmount: totalAmount,
       cost: totalCost,
       profit: profit,
@@ -602,26 +660,33 @@ export default function App() {
       contactPerson: '',
       phone: '',
       district: districts[0] || 'Miraflores',
-      productId: 'pack-2',
+      productId: products[0]?.id || '',
       quantity: 1,
       paymentMethod: 'Yape',
       soldBy: currentUser?.id || 'luis',
-      googlePlaceId: ''
+      googlePlaceId: '',
+      customUnitPrice: '',
+      customUnitCost: '',
+      isCustomPricing: false
     });
   };
 
   // Handlers para Gastos
   const handleAddNewExpense = (newExp) => {
-    setExpenses([newExp, ...expenses]);
+    const expenseWithMonth = {
+      ...newExp,
+      month: newExp.month || getAccountingMonth(newExp.date || new Date().toISOString().slice(0, 10))
+    };
+    setExpenses([expenseWithMonth, ...expenses]);
     if (isSupabaseConfigured) {
-      dbService.insert('expenses', newExp, mappers.expenseToDb);
+      dbService.insert('expenses', expenseWithMonth, mappers.expenseToDb);
     }
     logAudit({
       actionType: 'Creación',
       entityType: 'Gasto',
-      entityId: newExp.id,
-      entityName: `${newExp.description} - S/ ${Number(newExp.amount).toFixed(2)}`,
-      reason: `Gasto pagado por ${newExp.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'} vía ${newExp.paymentMethod}.`
+      entityId: expenseWithMonth.id,
+      entityName: `${expenseWithMonth.description} - S/ ${Number(expenseWithMonth.amount).toFixed(2)}`,
+      reason: `Gasto pagado por ${expenseWithMonth.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'} vía ${expenseWithMonth.paymentMethod} (Mes: ${expenseWithMonth.month}).`
     });
   };
 
@@ -1325,6 +1390,8 @@ export default function App() {
             <FinanceView 
               sales={sales}
               expenses={expenses}
+              products={products}
+              inventory={inventory}
               onAddNewExpense={handleAddNewExpense}
               onAddNewSale={() => setIsNewSaleModalOpen(true)}
               onExportExcel={handleExportExcel}
@@ -1332,6 +1399,8 @@ export default function App() {
               onSettlePartnerDebt={handleSettlePartnerDebt}
               targets={FINANCIAL_TARGETS}
               onRequestDelete={handleRequestDelete}
+              onAddNewProduct={handleAddNewProduct}
+              onUpdateInventoryStock={handleUpdateInventoryStock}
             />
           )}
 
@@ -1409,6 +1478,98 @@ export default function App() {
                   />
                 </div>
               </div>
+
+              {/* Panel de Precios de Almacén y Opción de Modificar Costo / Precio */}
+              {(() => {
+                const currentProd = products.find(p => p.id === newSaleForm.productId) || products[0];
+                const defaultPrice = currentProd ? Number(currentProd.price || 0) : 0;
+                const defaultCost = currentProd ? Number(currentProd.cost || 0) : 0;
+                const currentUnitPrice = (newSaleForm.isCustomPricing && newSaleForm.customUnitPrice !== '') 
+                  ? Number(newSaleForm.customUnitPrice) 
+                  : defaultPrice;
+                const currentUnitCost = (newSaleForm.isCustomPricing && newSaleForm.customUnitCost !== '') 
+                  ? Number(newSaleForm.customUnitCost) 
+                  : defaultCost;
+                const qty = Number(newSaleForm.quantity) || 1;
+                const currentTotal = (currentUnitPrice * qty).toFixed(2);
+                const currentProfit = ((currentUnitPrice - currentUnitCost) * qty).toFixed(2);
+
+                return (
+                  <div 
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'rgba(0, 102, 255, 0.06)',
+                      border: '1px solid rgba(0, 102, 255, 0.22)',
+                      marginBottom: '16px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        🏷️ Catálogo Oficial: Venta S/ {defaultPrice.toFixed(2)} | Insumo S/ {defaultCost.toFixed(2)}
+                      </span>
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                        onClick={() => {
+                          setNewSaleForm(prev => ({
+                            ...prev,
+                            isCustomPricing: !prev.isCustomPricing,
+                            customUnitPrice: !prev.isCustomPricing ? defaultPrice.toString() : '',
+                            customUnitCost: !prev.isCustomPricing ? defaultCost.toString() : ''
+                          }));
+                        }}
+                      >
+                        <Edit3 size={13} />
+                        <span>{newSaleForm.isCustomPricing ? 'Restablecer precios por defecto' : 'Modificar costo / precio'}</span>
+                      </button>
+                    </div>
+
+                    {newSaleForm.isCustomPricing && (
+                      <div className="form-row" style={{ marginTop: '10px' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.76rem' }}>Precio Unitario de Venta Modificado (S/):</label>
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            className="form-control"
+                            value={newSaleForm.customUnitPrice}
+                            onChange={(e) => setNewSaleForm({ ...newSaleForm, customUnitPrice: e.target.value })}
+                            required
+                          />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label className="form-label" style={{ fontSize: '0.76rem' }}>Costo Unitario Insumo Modificado (S/):</label>
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            className="form-control"
+                            value={newSaleForm.customUnitCost}
+                            onChange={(e) => setNewSaleForm({ ...newSaleForm, customUnitCost: e.target.value })}
+                            required
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-subtle)' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Total Cobro ({qty} uds): <strong style={{ color: '#10b981', fontSize: '0.95rem' }}>S/ {currentTotal}</strong>
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Margen Bruto Linkeo: <strong style={{ color: '#38bdf8', fontSize: '0.95rem' }}>S/ {currentProfit}</strong>
+                      </span>
+                    </div>
+
+                    {newSaleForm.isCustomPricing && (
+                      <div style={{ fontSize: '0.73rem', color: '#38bdf8', marginTop: '6px' }}>
+                        ✏️ Precio y costo personalizados para esta transacción. El catálogo maestro no se altera.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="form-row">
                 <div className="form-group">
@@ -1494,77 +1655,282 @@ export default function App() {
         <div className="modal-overlay" onClick={() => setIsNewExpenseModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">Registrar Gasto Rápido</h3>
+              <h3 className="modal-title">Registrar Nuevo Gasto Operativo</h3>
               <button className="close-btn" onClick={() => setIsNewExpenseModalOpen(false)}>✕</button>
             </div>
 
             <form onSubmit={(e) => {
               e.preventDefault();
-              const fd = new FormData(e.target);
+              const finalAmount = Number(globalExpenseForm.amount) || 0;
               handleAddNewExpense({
                 id: `exp-${Date.now()}`,
-                date: fd.get('date'),
-                type: 'Gasto',
-                category: fd.get('category'),
-                description: fd.get('description'),
-                amount: Number(fd.get('amount')) || 0,
-                paymentMethod: fd.get('paymentMethod'),
-                paidBy: fd.get('paidBy'),
-                month: 'sep-2026',
-                notes: fd.get('notes')
+                date: globalExpenseForm.date,
+                type: globalExpenseForm.type,
+                category: globalExpenseForm.category,
+                description: globalExpenseForm.description,
+                amount: finalAmount,
+                paymentMethod: globalExpenseForm.paymentMethod,
+                paidBy: globalExpenseForm.paidBy,
+                month: globalExpenseForm.month || getAccountingMonth(globalExpenseForm.date),
+                notes: globalExpenseForm.notes,
+                selectedProductId: globalExpenseForm.selectedProductId || null,
+                unitCost: globalExpenseForm.unitCost ? Number(globalExpenseForm.unitCost) : null,
+                quantity: Number(globalExpenseForm.quantity) || 1,
+                isCustomCost: globalExpenseForm.isCustomCost
               });
+
+              if (globalExpenseForm.selectedProductId && handleUpdateInventoryStock) {
+                handleUpdateInventoryStock(globalExpenseForm.selectedProductId, Number(globalExpenseForm.quantity) || 1);
+              }
+
               setIsNewExpenseModalOpen(false);
+              const today = new Date().toISOString().slice(0, 10);
+              setGlobalExpenseForm({
+                date: today,
+                type: 'Gasto',
+                category: 'Compra de mercadería',
+                selectedProductId: '',
+                description: '',
+                quantity: 1,
+                unitCost: '',
+                isCustomCost: false,
+                amount: '',
+                paymentMethod: 'Tarjeta',
+                paidBy: currentUser?.id || 'luis',
+                month: getAccountingMonth(today),
+                notes: ''
+              });
             }}>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Fecha:</label>
-                  <input type="date" name="date" className="form-control" defaultValue={new Date().toISOString().slice(0, 10)} required />
+                  <label className="form-label">Fecha del Desembolso:</label>
+                  <input 
+                    type="date" 
+                    className="form-control" 
+                    value={globalExpenseForm.date}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      setGlobalExpenseForm({
+                        ...globalExpenseForm,
+                        date: newDate,
+                        month: getAccountingMonth(newDate)
+                      });
+                    }}
+                    required 
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Categoría:</label>
-                  <select name="category" className="form-control">
-                    <option value="Compra de mercadería">Compra de mercadería</option>
-                    <option value="Publicidad">Publicidad / Pauta</option>
-                    <option value="Movilidad">Movilidad / Visitas</option>
-                    <option value="Teléfono/datos">Teléfono / Datos</option>
-                    <option value="Otro">Otro</option>
+                  <select 
+                    className="form-control"
+                    value={globalExpenseForm.category}
+                    onChange={(e) => setGlobalExpenseForm({ ...globalExpenseForm, category: e.target.value })}
+                  >
+                    <option value="Compra de mercadería">Compra de mercadería (Chips / Acrílicos)</option>
+                    <option value="Publicidad">Publicidad y Pauta Digital</option>
+                    <option value="Movilidad">Movilidad / Visitas Comerciales</option>
+                    <option value="Teléfono/datos">Teléfono / Datos / Línea</option>
+                    <option value="Dominio/sistema">Dominio / Hosting / Software</option>
+                    <option value="Empaques y bolsas">Empaques, cajas y stickers</option>
+                    <option value="Otro">Otro gasto operativo</option>
                   </select>
                 </div>
               </div>
 
+              {/* Selector de Producto de Almacén para cargar costo por default */}
               <div className="form-group">
-                <label className="form-label">Descripción:</label>
-                <input type="text" name="description" className="form-control" placeholder="Ej: Compra de displays de acrílico..." required />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Monto (S/):</label>
-                  <input type="number" step="0.01" name="amount" className="form-control" placeholder="0.00" required />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>
+                    📦 Cargar Producto / Insumo de Almacén (Opcional):
+                  </label>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    {products.length} productos en catálogo
+                  </span>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Pagado por:</label>
-                  <select name="paidBy" className="form-control" defaultValue={currentUser?.id || 'luis'}>
-                    <option value="luis">👨‍💼 Luis Romero (Co-CEO)</option>
-                    <option value="kevin">🚀 Kevin Servat (Co-CEO)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Método de Pago:</label>
-                <select name="paymentMethod" className="form-control">
-                  <option value="Tarjeta">Tarjeta</option>
-                  <option value="Yape">Yape</option>
-                  <option value="Plin">Plin</option>
-                  <option value="Transferencia BCP">Transferencia BCP</option>
-                  <option value="Efectivo">Efectivo</option>
+                <select 
+                  className="form-control"
+                  value={globalExpenseForm.selectedProductId}
+                  onChange={(e) => handleGlobalProductChange(e.target.value)}
+                >
+                  <option value="">— Escribir gasto libre o seleccionar producto de Almacén —</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      📦 {p.name} — Costo por default: S/ {Number(p.cost).toFixed(2)} | Venta: S/ {Number(p.price).toFixed(2)}
+                    </option>
+                  ))}
+                  {inventory.filter(i => !products.some(p => p.name === i.name)).map(i => (
+                    <option key={i.id} value={i.id}>
+                      🏷️ {i.name} — Costo unitario: S/ {Number(i.unitCost).toFixed(2)}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Notas de cuadre:</label>
-                <textarea name="notes" rows="2" className="form-control" placeholder="Detalles de liquidación..."></textarea>
+                <label className="form-label">Descripción del Gasto:</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Ej: Tarjeta Google NFC Cuadrado, Displays de Acrílico..."
+                  value={globalExpenseForm.description}
+                  onChange={(e) => setGlobalExpenseForm({ ...globalExpenseForm, description: e.target.value })}
+                  required 
+                />
+              </div>
+
+              {/* Panel de Costo Unitario y Opción de Modificar Costo */}
+              {globalExpenseForm.selectedProductId ? (
+                <div 
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'rgba(0, 102, 255, 0.06)',
+                    border: '1px solid rgba(0, 102, 255, 0.22)',
+                    marginBottom: '16px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      🏷️ Costo por Defecto de Almacén: S/ {Number(globalExpenseForm.unitCost || 0).toFixed(2)}
+                    </span>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                      onClick={() => setGlobalExpenseForm(prev => ({ ...prev, isCustomCost: !prev.isCustomCost }))}
+                    >
+                      <Edit3 size={13} />
+                      <span>{globalExpenseForm.isCustomCost ? 'Restablecer costo por defecto' : 'Modificar costo'}</span>
+                    </button>
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.78rem' }}>Cantidad de Unidades:</label>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        className="form-control"
+                        value={globalExpenseForm.quantity}
+                        onChange={(e) => {
+                          const qty = Math.max(1, parseInt(e.target.value) || 1);
+                          const unit = Number(globalExpenseForm.unitCost) || 0;
+                          setGlobalExpenseForm({ ...globalExpenseForm, quantity: qty, amount: (qty * unit).toFixed(2) });
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                        {globalExpenseForm.isCustomCost ? 'Costo Unitario Modificado (S/):' : 'Costo Unitario Aplicado (S/):'}
+                      </label>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        className="form-control"
+                        value={globalExpenseForm.unitCost}
+                        readOnly={!globalExpenseForm.isCustomCost}
+                        style={{
+                          backgroundColor: globalExpenseForm.isCustomCost ? 'var(--bg-input)' : 'rgba(255, 255, 255, 0.04)',
+                          borderColor: globalExpenseForm.isCustomCost ? 'var(--primary-600)' : 'var(--border-subtle)',
+                          fontWeight: 700
+                        }}
+                        onChange={(e) => {
+                          const unit = e.target.value;
+                          const qty = Number(globalExpenseForm.quantity) || 1;
+                          setGlobalExpenseForm({ ...globalExpenseForm, unitCost: unit, amount: (Number(unit) * qty).toFixed(2) });
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Total del desembolso ({globalExpenseForm.quantity} uds × S/ {Number(globalExpenseForm.unitCost || 0).toFixed(2)}):
+                    </span>
+                    <strong style={{ fontSize: '1.05rem', color: '#ef4444' }}>
+                      S/ {globalExpenseForm.amount}
+                    </strong>
+                  </div>
+
+                  {globalExpenseForm.isCustomCost && (
+                    <div style={{ fontSize: '0.74rem', color: '#38bdf8', marginTop: '6px' }}>
+                      ✏️ Costo modificado exclusivamente para este registro de compra sin alterar el catálogo maestro.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">Monto del Desembolso (Soles S/):</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    className="form-control" 
+                    placeholder="0.00" 
+                    value={globalExpenseForm.amount}
+                    onChange={(e) => setGlobalExpenseForm({ ...globalExpenseForm, amount: e.target.value })}
+                    required 
+                  />
+                </div>
+              )}
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">¿Quién pagó el gasto?:</label>
+                  <select 
+                    className="form-control" 
+                    value={globalExpenseForm.paidBy}
+                    onChange={(e) => setGlobalExpenseForm({ ...globalExpenseForm, paidBy: e.target.value })}
+                  >
+                    <option value="luis">👨‍💼 Luis Romero (Co-CEO)</option>
+                    <option value="kevin">🚀 Kevin Servat (Co-CEO)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Método de Pago:</label>
+                  <select 
+                    className="form-control"
+                    value={globalExpenseForm.paymentMethod}
+                    onChange={(e) => setGlobalExpenseForm({ ...globalExpenseForm, paymentMethod: e.target.value })}
+                  >
+                    <option value="Tarjeta">Tarjeta de Crédito / Débito</option>
+                    <option value="Yape">Yape</option>
+                    <option value="Plin">Plin</option>
+                    <option value="Transferencia BCP">Transferencia BCP</option>
+                    <option value="Efectivo">Efectivo</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Mes Contable Dinámico - Sincronizado automáticamente y nunca vacío */}
+              <div className="form-group">
+                <label className="form-label">Mes Contable:</label>
+                <select 
+                  className="form-control"
+                  value={globalExpenseForm.month}
+                  onChange={(e) => setGlobalExpenseForm({ ...globalExpenseForm, month: e.target.value })}
+                  required
+                >
+                  {ACCOUNTING_MONTHS.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
+                  ✓ Sincronizado automáticamente con la fecha de desembolso ({globalExpenseForm.date}).
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Notas / Detalle de Cuadre:</label>
+                <textarea 
+                  className="form-control" 
+                  rows="2" 
+                  placeholder="Detalles de liquidación, factura o comprobante..."
+                  value={globalExpenseForm.notes}
+                  onChange={(e) => setGlobalExpenseForm({ ...globalExpenseForm, notes: e.target.value })}
+                ></textarea>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>

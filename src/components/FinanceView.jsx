@@ -13,19 +13,27 @@ import {
   Calendar,
   Layers,
   Sparkles,
-  Trash2
+  Trash2,
+  Package,
+  Edit3,
+  Box
 } from 'lucide-react';
+import { getAccountingMonth, ACCOUNTING_MONTHS } from '../utils/dateUtils';
 
 export default function FinanceView({
   sales = [],
   expenses = [],
+  products = [],
+  inventory = [],
   onAddNewExpense,
   onAddNewSale,
   onExportExcel,
   partnerBalance = {},
   onSettlePartnerDebt,
   targets = {},
-  onRequestDelete
+  onRequestDelete,
+  onAddNewProduct,
+  onUpdateInventoryStock
 }) {
   const [activeTab, setActiveTab] = useState('expenses'); // 'expenses' | 'sales' | 'balance'
   const [filterMonth, setFilterMonth] = useState('all');
@@ -33,18 +41,54 @@ export default function FinanceView({
   const [isNewExpenseModalOpen, setIsNewExpenseModalOpen] = useState(false);
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
 
-  // Formulario nuevo gasto
+  // Formulario nuevo gasto con producto vinculado y costo modificable
+  const todayStr = new Date().toISOString().slice(0, 10);
   const [expenseForm, setExpenseForm] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: todayStr,
     type: 'Gasto',
     category: 'Compra de mercadería',
+    selectedProductId: '',
     description: '',
+    quantity: 1,
+    unitCost: '',
+    isCustomCost: false,
     amount: '',
     paymentMethod: 'Tarjeta',
     paidBy: 'luis',
-    month: 'sep-2026',
-    notes: ''
+    month: getAccountingMonth(todayStr),
+    notes: '',
+    addToInventory: true
   });
+
+  // Manejar selección de producto/insumo de almacén para cargar costo por default
+  const handleProductChange = (productId) => {
+    if (!productId) {
+      setExpenseForm(prev => ({
+        ...prev,
+        selectedProductId: '',
+        unitCost: '',
+        isCustomCost: false
+      }));
+      return;
+    }
+
+    const prod = products.find(p => p.id === productId) || inventory.find(i => i.id === productId);
+    if (prod) {
+      const defaultCost = Number(prod.cost ?? prod.unitCost ?? 0);
+      const qty = Number(expenseForm.quantity) || 1;
+      const total = (defaultCost * qty).toFixed(2);
+
+      setExpenseForm(prev => ({
+        ...prev,
+        selectedProductId: productId,
+        description: prod.name,
+        category: 'Compra de mercadería',
+        unitCost: defaultCost.toString(),
+        isCustomCost: false,
+        amount: total
+      }));
+    }
+  };
 
   // Formulario liquidación
   const [settleAmount, setSettleAmount] = useState(Math.abs(partnerBalance.debtLuisToKevin || 0).toFixed(2));
@@ -64,31 +108,48 @@ export default function FinanceView({
 
   const handleCreateExpense = (e) => {
     e.preventDefault();
+    const finalAmount = Number(expenseForm.amount) || 0;
     const newExp = {
       id: `exp-${Date.now()}`,
       date: expenseForm.date,
       type: expenseForm.type,
       category: expenseForm.category,
       description: expenseForm.description,
-      amount: Number(expenseForm.amount) || 0,
+      amount: finalAmount,
       paymentMethod: expenseForm.paymentMethod,
       paidBy: expenseForm.paidBy,
-      month: expenseForm.month,
-      notes: expenseForm.notes
+      month: expenseForm.month || getAccountingMonth(expenseForm.date),
+      notes: expenseForm.notes,
+      selectedProductId: expenseForm.selectedProductId || null,
+      unitCost: expenseForm.unitCost ? Number(expenseForm.unitCost) : null,
+      quantity: Number(expenseForm.quantity) || 1,
+      isCustomCost: expenseForm.isCustomCost
     };
 
     onAddNewExpense(newExp);
+
+    // Sumar stock automáticamente si se solicitó y existe el insumo
+    if (expenseForm.addToInventory && expenseForm.selectedProductId && onUpdateInventoryStock) {
+      onUpdateInventoryStock(expenseForm.selectedProductId, Number(expenseForm.quantity) || 1);
+    }
+
     setIsNewExpenseModalOpen(false);
+    const today = new Date().toISOString().slice(0, 10);
     setExpenseForm({
-      date: new Date().toISOString().slice(0, 10),
+      date: today,
       type: 'Gasto',
       category: 'Compra de mercadería',
+      selectedProductId: '',
       description: '',
+      quantity: 1,
+      unitCost: '',
+      isCustomCost: false,
       amount: '',
       paymentMethod: 'Tarjeta',
       paidBy: 'luis',
-      month: 'sep-2026',
-      notes: ''
+      month: getAccountingMonth(today),
+      notes: '',
+      addToInventory: true
     });
   };
 
@@ -264,7 +325,19 @@ export default function FinanceView({
             </h3>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <select 
+              className="form-control" 
+              style={{ width: 'auto', padding: '6px 12px', fontSize: '0.82rem' }}
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+            >
+              <option value="all">Todos los Meses</option>
+              {ACCOUNTING_MONTHS.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+
             <select 
               className="form-control" 
               style={{ width: 'auto', padding: '6px 12px', fontSize: '0.82rem' }}
@@ -352,7 +425,14 @@ export default function FinanceView({
                     type="date" 
                     className="form-control"
                     value={expenseForm.date}
-                    onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      setExpenseForm({
+                        ...expenseForm,
+                        date: newDate,
+                        month: getAccountingMonth(newDate)
+                      });
+                    }}
                     required
                   />
                 </div>
@@ -375,21 +455,133 @@ export default function FinanceView({
                 </div>
               </div>
 
+              {/* Selector de Producto de Almacén para cargar costo por default */}
+              <div className="form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>
+                    📦 Cargar Producto / Insumo de Almacén (Opcional):
+                  </label>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    {products.length} productos en catálogo
+                  </span>
+                </div>
+                <select 
+                  className="form-control"
+                  value={expenseForm.selectedProductId}
+                  onChange={(e) => handleProductChange(e.target.value)}
+                >
+                  <option value="">— Escribir gasto libre o seleccionar producto de Almacén —</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      📦 {p.name} — Costo por default: S/ {Number(p.cost).toFixed(2)} | Venta: S/ {Number(p.price).toFixed(2)}
+                    </option>
+                  ))}
+                  {inventory.filter(i => !products.some(p => p.name === i.name)).map(i => (
+                    <option key={i.id} value={i.id}>
+                      🏷️ {i.name} — Costo unitario: S/ {Number(i.unitCost).toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Descripción del Gasto:</label>
                 <input 
                   type="text" 
                   className="form-control"
-                  placeholder="Ej: Lote de 20 acrílicos en L de Acrílicos Perú"
+                  placeholder="Ej: Tarjeta Google NFC Cuadrado, Displays de Acrílico..."
                   value={expenseForm.description}
                   onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
                   required
                 />
               </div>
 
-              <div className="form-row">
+              {/* Panel de Costo Unitario y Opción de Modificar Costo */}
+              {expenseForm.selectedProductId ? (
+                <div 
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'rgba(0, 102, 255, 0.06)',
+                    border: '1px solid rgba(0, 102, 255, 0.22)',
+                    marginBottom: '16px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      🏷️ Costo por Defecto de Almacén: S/ {Number(expenseForm.unitCost || 0).toFixed(2)}
+                    </span>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                      onClick={() => setExpenseForm(prev => ({ ...prev, isCustomCost: !prev.isCustomCost }))}
+                    >
+                      <Edit3 size={13} />
+                      <span>{expenseForm.isCustomCost ? 'Restablecer costo por defecto' : 'Modificar costo'}</span>
+                    </button>
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.78rem' }}>Cantidad de Unidades:</label>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        className="form-control"
+                        value={expenseForm.quantity}
+                        onChange={(e) => {
+                          const qty = Math.max(1, parseInt(e.target.value) || 1);
+                          const unit = Number(expenseForm.unitCost) || 0;
+                          setExpenseForm({ ...expenseForm, quantity: qty, amount: (qty * unit).toFixed(2) });
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.78rem' }}>
+                        {expenseForm.isCustomCost ? 'Costo Unitario Modificado (S/):' : 'Costo Unitario Aplicado (S/):'}
+                      </label>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        className="form-control"
+                        value={expenseForm.unitCost}
+                        readOnly={!expenseForm.isCustomCost}
+                        style={{
+                          backgroundColor: expenseForm.isCustomCost ? 'var(--bg-input)' : 'rgba(255, 255, 255, 0.04)',
+                          borderColor: expenseForm.isCustomCost ? 'var(--primary-600)' : 'var(--border-subtle)',
+                          fontWeight: 700
+                        }}
+                        onChange={(e) => {
+                          const unit = e.target.value;
+                          const qty = Number(expenseForm.quantity) || 1;
+                          setExpenseForm({ ...expenseForm, unitCost: unit, amount: (Number(unit) * qty).toFixed(2) });
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Total del desembolso ({expenseForm.quantity} uds × S/ {Number(expenseForm.unitCost || 0).toFixed(2)}):
+                    </span>
+                    <strong style={{ fontSize: '1.05rem', color: '#ef4444' }}>
+                      S/ {expenseForm.amount}
+                    </strong>
+                  </div>
+
+                  {expenseForm.isCustomCost && (
+                    <div style={{ fontSize: '0.74rem', color: '#38bdf8', marginTop: '6px' }}>
+                      ✏️ Costo modificado exclusivamente para este registro de compra sin alterar el catálogo maestro.
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <div className="form-group">
-                  <label className="form-label">Monto (Soles S/):</label>
+                  <label className="form-label">Monto del Desembolso (Soles S/):</label>
                   <input 
                     type="number" 
                     step="0.01" 
@@ -400,7 +592,9 @@ export default function FinanceView({
                     required
                   />
                 </div>
+              )}
 
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">¿Quién pagó el gasto?:</label>
                   <select 
@@ -412,9 +606,7 @@ export default function FinanceView({
                     <option value="kevin">🚀 Kevin Servat (Co-CEO)</option>
                   </select>
                 </div>
-              </div>
 
-              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Método de Pago:</label>
                   <select 
@@ -429,16 +621,24 @@ export default function FinanceView({
                     <option value="Efectivo">Efectivo</option>
                   </select>
                 </div>
+              </div>
 
-                <div className="form-group">
-                  <label className="form-label">Mes Contable:</label>
-                  <input 
-                    type="text" 
-                    className="form-control"
-                    value={expenseForm.month}
-                    onChange={(e) => setExpenseForm({ ...expenseForm, month: e.target.value })}
-                  />
-                </div>
+              {/* Mes Contable Dinámico - Nunca vacío */}
+              <div className="form-group">
+                <label className="form-label">Mes Contable:</label>
+                <select 
+                  className="form-control"
+                  value={expenseForm.month}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, month: e.target.value })}
+                  required
+                >
+                  {ACCOUNTING_MONTHS.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
+                  ✓ Sincronizado automáticamente con la fecha de desembolso ({expenseForm.date}).
+                </span>
               </div>
 
               <div className="form-group">
@@ -446,7 +646,7 @@ export default function FinanceView({
                 <textarea 
                   className="form-control"
                   rows="2"
-                  placeholder="Ej: Mitad debitable a fin de mes..."
+                  placeholder="Ej: Mitad debitable a fin de mes, factura adjunta..."
                   value={expenseForm.notes}
                   onChange={(e) => setExpenseForm({ ...expenseForm, notes: e.target.value })}
                 ></textarea>

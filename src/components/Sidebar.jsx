@@ -76,7 +76,7 @@ export default function Sidebar({
     },
     { 
       id: 'products', 
-      label: 'Catálogo de Productos', 
+      label: 'Almacén & Catálogo (Precios)', 
       icon: ShoppingBag,
       badge: productsCount > 0 ? productsCount : null 
     },

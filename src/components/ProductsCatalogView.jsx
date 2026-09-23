@@ -83,16 +83,16 @@ export default function ProductsCatalogView({
         <div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ShoppingBag size={24} color="var(--primary-600)" />
-            <span>Catálogo Oficial & Futuras Innovaciones</span>
+            <span>Almacén & Catálogo Oficial de Productos (Precios y Costos por Defecto)</span>
           </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-            Oferta comercial activa (modelos y packs) y preparación para nuevas líneas de productos más allá de tarjetas NFC.
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', maxWidth: '750px' }}>
+            Registra aquí todos los tipos de productos e insumos de Linkeo (Tarjetas NFC, Displays, etc.) definiendo su <strong>Precio de Venta Oficial</strong> y su <strong>Costo Unitario por Defecto</strong>. Al registrar gastos o ventas, se cargarán automáticamente con la opción de modificarlos cuando lo necesites.
           </p>
         </div>
 
         <button className="btn btn-primary" onClick={() => setIsNewProductModalOpen(true)}>
           <Plus size={16} />
-          <span>+ Nueva Innovación / Producto</span>
+          <span>+ Agregar Producto al Almacén</span>
         </button>
       </div>
 
@@ -273,17 +273,17 @@ export default function ProductsCatalogView({
         <div className="modal-overlay" onClick={() => setIsNewProductModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">Registrar Nuevo Producto o Innovación</h3>
+              <h3 className="modal-title">Registrar Producto / Insumo en Almacén</h3>
               <button className="close-btn" onClick={() => setIsNewProductModalOpen(false)}>✕</button>
             </div>
 
             <form onSubmit={handleCreateProduct}>
               <div className="form-group">
-                <label className="form-label">Nombre del Producto / Servicio:</label>
+                <label className="form-label">Nombre del Producto / Insumo:</label>
                 <input 
                   type="text" 
                   className="form-control"
-                  placeholder="Ej: Menú Digital QR Restaurantes, Placa Metálica NFC..."
+                  placeholder="Ej: Tarjeta Google NFC Cuadrado, Display Acrílico A6..."
                   value={newProductForm.name}
                   onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
                   required
@@ -296,7 +296,7 @@ export default function ProductsCatalogView({
                   <input 
                     type="text" 
                     className="form-control code-mono"
-                    placeholder="LNK-INNOV-001"
+                    placeholder="LNK-PROD-001"
                     value={newProductForm.sku}
                     onChange={(e) => setNewProductForm({ ...newProductForm, sku: e.target.value })}
                   />
@@ -309,39 +309,45 @@ export default function ProductsCatalogView({
                     value={newProductForm.category}
                     onChange={(e) => setNewProductForm({ ...newProductForm, category: e.target.value })}
                   >
-                    <option value="Individual">Modelo Individual</option>
-                    <option value="Pack">Pack Promocional</option>
+                    <option value="Individual">Modelo Individual (Tarjeta NFC)</option>
+                    <option value="Pack">Pack Promocional (Combos 2x / 3x)</option>
                     <option value="Innovacion">Nueva Innovación Tecnológica</option>
-                    <option value="Suscripcion">Suscripción / Software Recurrente</option>
+                    <option value="Suscripcion">Suscripción / Servicio Mensual</option>
                   </select>
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Precio al Público (S/):</label>
+                  <label className="form-label">Precio de Venta Oficial (S/):</label>
                   <input 
                     type="number" 
                     step="0.01" 
                     className="form-control"
-                    placeholder="Ej: 90.00"
+                    placeholder="Ej: 69.00"
                     value={newProductForm.price}
                     onChange={(e) => setNewProductForm({ ...newProductForm, price: e.target.value })}
                     required
                   />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '3px', display: 'block' }}>
+                    Precio cargado por defecto en ventas
+                  </span>
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Costo Estimado de Fabricación (S/):</label>
+                  <label className="form-label">Costo Unitario por Defecto (S/):</label>
                   <input 
                     type="number" 
                     step="0.01" 
                     className="form-control"
-                    placeholder="Ej: 15.00"
+                    placeholder="Ej: 13.00"
                     value={newProductForm.cost}
                     onChange={(e) => setNewProductForm({ ...newProductForm, cost: e.target.value })}
                     required
                   />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '3px', display: 'block' }}>
+                    Costo cargado por defecto en compras/gastos
+                  </span>
                 </div>
               </div>
 
