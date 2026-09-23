@@ -153,6 +153,23 @@ INSERT INTO districts (name) VALUES
 ('La Molina'), ('Surquillo'), ('Lima Cercado')
 ON CONFLICT (name) DO NOTHING;
 
+-- 10. TABLA: CATÁLOGO DE PRODUCTOS & INNOVACIONES (PRODUCTS)
+CREATE TABLE IF NOT EXISTS products (
+    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::TEXT,
+    name TEXT NOT NULL,
+    sku TEXT UNIQUE NOT NULL,
+    category TEXT NOT NULL,
+    type TEXT,
+    price NUMERIC(10,2) NOT NULL,
+    cost NUMERIC(10,2) NOT NULL,
+    margin NUMERIC(10,2) NOT NULL,
+    margin_pct NUMERIC(5,2),
+    badge TEXT,
+    description TEXT,
+    image_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Habilitar Row Level Security (RLS) con acceso total mediante Anon Key
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
@@ -163,6 +180,7 @@ ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE districts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 
 -- Políticas de lectura/escritura anónima (para uso interno autorizado mediante frontend)
 CREATE POLICY "Acceso total a sales" ON sales FOR ALL USING (true) WITH CHECK (true);
@@ -174,6 +192,7 @@ CREATE POLICY "Acceso total a suppliers" ON suppliers FOR ALL USING (true) WITH 
 CREATE POLICY "Acceso total a calendar_events" ON calendar_events FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Acceso total a audit_logs" ON audit_logs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Acceso total a districts" ON districts FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Acceso total a products" ON products FOR ALL USING (true) WITH CHECK (true);
 
 -- Habilitar Supabase Realtime para sincronización instantánea entre socios
 ALTER PUBLICATION supabase_realtime ADD TABLE sales;
@@ -183,3 +202,5 @@ ALTER PUBLICATION supabase_realtime ADD TABLE leads;
 ALTER PUBLICATION supabase_realtime ADD TABLE inventory;
 ALTER PUBLICATION supabase_realtime ADD TABLE calendar_events;
 ALTER PUBLICATION supabase_realtime ADD TABLE audit_logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE products;
+
