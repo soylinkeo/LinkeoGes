@@ -154,11 +154,12 @@ export default function App() {
     const saved = localStorage.getItem('linkeoges_plan_30');
     if (saved) {
       try {
-        if (saved.toLowerCase().includes('titulaci')) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 27 && parsed[0]?.action?.includes('Definir oferta')) {
           localStorage.setItem('linkeoges_plan_30', JSON.stringify(INITIAL_PLAN_30_DAYS));
           return INITIAL_PLAN_30_DAYS;
         }
-        return JSON.parse(saved);
+        return parsed;
       } catch (e) {}
     }
     return INITIAL_PLAN_30_DAYS;
@@ -199,7 +200,17 @@ export default function App() {
 
   const [projectionsData, setProjectionsData] = useState(() => {
     const saved = localStorage.getItem('linkeoges_projections');
-    return saved ? JSON.parse(saved) : INITIAL_PROJECTIONS_DATA;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed?.projectedProducts?.some(p => p.id === 'proj-estandar') || (parsed?.fixedCosts?.some(fc => fc.id === 'fc-3' && fc.amount === 100) && parsed?.projectedProducts?.length === 2)) {
+          localStorage.setItem('linkeoges_projections', JSON.stringify(INITIAL_PROJECTIONS_DATA));
+          return INITIAL_PROJECTIONS_DATA;
+        }
+        return parsed;
+      } catch (e) {}
+    }
+    return INITIAL_PROJECTIONS_DATA;
   });
 
   const [deleteModalConfig, setDeleteModalConfig] = useState({
@@ -1396,16 +1407,12 @@ export default function App() {
             />
           )}
 
-          {/* MÓDULO 5: Agenda & Plan 30 Días (Full CRUD) */}
+          {/* MÓDULO 5: Agenda & Coordinación de Visitas */}
           {currentTab === 'calendar' && (
             <CalendarView 
               events={calendarEvents}
               onAddNewEvent={handleAddNewEvent}
               onEditEvent={handleEditEvent}
-              plan30Days={plan30Days}
-              onTogglePlanTask={handleTogglePlanTask}
-              onAddPlanTask={handleAddPlanTask}
-              onEditPlanTask={handleEditPlanTask}
               nfcCards={nfcCards}
               onRequestDelete={handleRequestDelete}
               districts={districts}
@@ -1445,7 +1452,7 @@ export default function App() {
             />
           )}
 
-          {/* MÓDULO 8: Proyecciones & Metas Financieras (Simulador Excel) */}
+          {/* MÓDULO 8: Proyecciones, Costos & Metas (Escenario Libre & Plan 30 Días) */}
           {currentTab === 'projections' && (
             <ProjectionsView 
               projectionsData={projectionsData}
@@ -1453,7 +1460,11 @@ export default function App() {
               products={products}
               inventory={inventory}
               plan30Days={plan30Days}
+              setPlan30Days={setPlan30Days}
               onTogglePlanTask={handleTogglePlanTask}
+              onAddPlanTask={handleAddPlanTask}
+              onEditPlanTask={handleEditPlanTask}
+              onRequestDelete={handleRequestDelete}
               setCurrentTab={setCurrentTab}
             />
           )}
