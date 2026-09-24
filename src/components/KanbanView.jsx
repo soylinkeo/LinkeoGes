@@ -14,7 +14,10 @@ import {
   Mail,
   Check,
   ExternalLink,
-  Search
+  Search,
+  MessageSquare,
+  Copy,
+  Send
 } from 'lucide-react';
 import DistrictCombobox from './DistrictCombobox.jsx';
 import { INITIAL_PRODUCTS } from '../data/initialData.js';
@@ -39,9 +42,9 @@ export const normalizeLeadStage = (stage) => {
   return 'prospecto';
 };
 
-import { buildLeadWhatsAppMessage } from '../utils/leadMessages.js';
+import { buildLeadWhatsAppMessage, getLeadMessageVariants } from '../utils/leadMessages.js';
 import { formatGoogleMapsUrl } from '../utils/mapsUtils.js';
-export { buildLeadWhatsAppMessage, formatGoogleMapsUrl };
+export { buildLeadWhatsAppMessage, getLeadMessageVariants, formatGoogleMapsUrl };
 
 export default function KanbanView({
   leads = [],
@@ -61,6 +64,40 @@ export default function KanbanView({
   const [selectedLead, setSelectedLead] = useState(null);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [mobileStageFilter, setMobileStageFilter] = useState('all');
+
+  // Estado modal Speech de Ventas
+  const [speechModalLead, setSpeechModalLead] = useState(null);
+  const [selectedSpeechVariant, setSelectedSpeechVariant] = useState('vendible');
+  const [customSpeechText, setCustomSpeechText] = useState('');
+  const [speechCopied, setSpeechCopied] = useState(false);
+
+  const handleOpenSpeechModal = (lead) => {
+    setSpeechModalLead(lead);
+    setSelectedSpeechVariant('vendible');
+    setCustomSpeechText(buildLeadWhatsAppMessage(lead, 'vendible'));
+    setSpeechCopied(false);
+  };
+
+  const handleCloseSpeechModal = () => {
+    setSpeechModalLead(null);
+    setSpeechCopied(false);
+  };
+
+  const handleSelectSpeechVariant = (variantId) => {
+    setSelectedSpeechVariant(variantId);
+    if (speechModalLead) {
+      setCustomSpeechText(buildLeadWhatsAppMessage(speechModalLead, variantId));
+    }
+    setSpeechCopied(false);
+  };
+
+  const handleCopySpeech = () => {
+    if (!customSpeechText) return;
+    navigator.clipboard.writeText(customSpeechText);
+    setSpeechCopied(true);
+    if (showToast) showToast('¡Speech copiado al portapapeles!', 'success');
+    setTimeout(() => setSpeechCopied(false), 2500);
+  };
 
   // Catálogo garantizado de productos oficiales y registrados
   const catalogOptions = useMemo(() => {
@@ -607,17 +644,31 @@ export default function KanbanView({
                       {/* WhatsApp Directo */}
                       {lead.phone && (
                         <a 
-                          href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + lead.phone.replace(/[^0-9]/g, '') : lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildLeadWhatsAppMessage(lead))}`}
+                          href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + lead.phone.replace(/[^0-9]/g, '') : lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildLeadWhatsAppMessage(lead, 'vendible'))}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-icon"
                           style={{ width: '26px', height: '26px', color: '#10b981' }}
                           onClick={(e) => e.stopPropagation()}
-                          title="Contactar por WhatsApp"
+                          title="Contactar por WhatsApp (Speech Vendible)"
                         >
                           <Phone size={12} />
                         </a>
                       )}
+
+                      {/* Ver / Personalizar Speech de Ventas */}
+                      <button 
+                        type="button"
+                        className="btn-icon"
+                        style={{ width: '26px', height: '26px', color: '#3b82f6' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenSpeechModal(lead);
+                        }}
+                        title="Ver y elegir speech de ventas (WhatsApp / Correo)"
+                      >
+                        <MessageSquare size={12} />
+                      </button>
 
                       {/* Correo / Gmail Directo */}
                       {lead.email && (
@@ -1294,9 +1345,29 @@ export default function KanbanView({
                       <span style={{ fontSize: '0.72rem', color: editLeadForm.phone?.length === 9 ? '#10b981' : 'var(--text-muted)', fontWeight: 600 }}>
                         {editLeadForm.phone?.length || 0}/9 dígitos
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSpeechModal(editLeadForm)}
+                        style={{
+                          fontSize: '0.7rem',
+                          color: '#3b82f6',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          fontWeight: 600,
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0
+                        }}
+                        title="Ver variantes de speech de ventas y personalizar mensaje"
+                      >
+                        <MessageSquare size={11} />
+                        <span>Ver Speech</span>
+                      </button>
                       {editLeadForm.phone && (
                         <a
-                          href={`https://wa.me/${editLeadForm.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + editLeadForm.phone.replace(/[^0-9]/g, '') : editLeadForm.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildLeadWhatsAppMessage(editLeadForm))}`}
+                          href={`https://wa.me/${editLeadForm.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + editLeadForm.phone.replace(/[^0-9]/g, '') : editLeadForm.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildLeadWhatsAppMessage(editLeadForm, 'vendible'))}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{
@@ -1308,10 +1379,10 @@ export default function KanbanView({
                             fontWeight: 600,
                             textDecoration: 'none'
                           }}
-                          title="Abrir chat en WhatsApp con el mensaje predeterminado"
+                          title="Abrir chat en WhatsApp con el speech predeterminado"
                         >
                           <Phone size={10} />
-                          <span>Abrir WhatsApp</span>
+                          <span>WhatsApp</span>
                         </a>
                       )}
                     </div>
@@ -1513,6 +1584,159 @@ export default function KanbanView({
                 <CheckCircle2 size={16} />
                 <span>Confirmar y Registrar Venta</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Ver y Personalizar Speech de Ventas */}
+      {speechModalLead && (
+        <div className="modal-overlay" onClick={handleCloseSpeechModal}>
+          <div className="modal-content" style={{ maxWidth: '640px', width: '92%' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }}>
+                  <MessageSquare size={18} />
+                </div>
+                <div>
+                  <h3 className="modal-title" style={{ margin: 0, fontSize: '1.05rem' }}>
+                    Speech de Ventas: {speechModalLead.businessName || 'Prospecto'}
+                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                    <span className="badge" style={{ fontSize: '0.68rem', backgroundColor: STAGES.find(s => s.id === normalizeLeadStage(speechModalLead.stage))?.color || '#3b82f6', color: '#fff' }}>
+                      {STAGES.find(s => s.id === normalizeLeadStage(speechModalLead.stage))?.label || speechModalLead.stage}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      {speechModalLead.phone ? `WhatsApp: ${speechModalLead.phone}` : 'Sin teléfono'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button className="close-btn" onClick={handleCloseSpeechModal}>✕</button>
+            </div>
+
+            <div style={{ marginTop: '12px', marginBottom: '12px' }}>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+                Variante de Enfoque Comercial:
+              </label>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {getLeadMessageVariants(speechModalLead).map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => handleSelectSpeechVariant(v.id)}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.74rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: selectedSpeechVariant === v.id ? '1px solid #3b82f6' : '1px solid var(--border-color)',
+                      backgroundColor: selectedSpeechVariant === v.id ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-input)',
+                      color: selectedSpeechVariant === v.id ? '#60a5fa' : 'var(--text-primary)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span>{v.title}</span>
+                    <span style={{ 
+                      fontSize: '0.62rem', 
+                      padding: '1px 5px', 
+                      borderRadius: '4px', 
+                      backgroundColor: v.badgeColor || '#3b82f6', 
+                      color: '#fff' 
+                    }}>
+                      {v.badge}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {getLeadMessageVariants(speechModalLead).find(v => v.id === selectedSpeechVariant)?.description && (
+                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '6px 0 0 2px', fontStyle: 'italic' }}>
+                  ℹ️ {getLeadMessageVariants(speechModalLead).find(v => v.id === selectedSpeechVariant)?.description}
+                </p>
+              )}
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label className="form-label" style={{ margin: 0, fontSize: '0.78rem' }}>
+                  Texto listo para enviar (puedes editarlo o personalizarlo):
+                </label>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  {customSpeechText.length} caracteres
+                </span>
+              </div>
+              <textarea
+                className="form-control"
+                rows={9}
+                value={customSpeechText}
+                onChange={(e) => setCustomSpeechText(e.target.value)}
+                style={{
+                  fontSize: '0.82rem',
+                  lineHeight: '1.45',
+                  fontFamily: 'monospace, inherit',
+                  backgroundColor: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleCopySpeech}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                >
+                  {speechCopied ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                  <span>{speechCopied ? '¡Copiado!' : 'Copiar Texto'}</span>
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {speechModalLead.email && (
+                  <a
+                    href={`mailto:${speechModalLead.email}?subject=${encodeURIComponent(
+                      normalizeLeadStage(speechModalLead.stage) === 'prospecto'
+                        ? 'Tarjetas Inteligentes Linkeo NFC para Google Reviews'
+                        : `Propuesta de Tarjetas Inteligentes Linkeo NFC para ${speechModalLead.businessName}`
+                    )}&body=${encodeURIComponent(customSpeechText)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#ea4335' }}
+                  >
+                    <Mail size={14} />
+                    <span>Correo</span>
+                  </a>
+                )}
+
+                {speechModalLead.phone ? (
+                  <a
+                    href={`https://wa.me/${speechModalLead.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + speechModalLead.phone.replace(/[^0-9]/g, '') : speechModalLead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(customSpeechText)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-success btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                  >
+                    <Send size={14} />
+                    <span>Abrir en WhatsApp</span>
+                  </a>
+                ) : (
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    (Agrega teléfono para enviar a WhatsApp)
+                  </span>
+                )}
+
+                <button type="button" className="btn btn-secondary btn-sm" onClick={handleCloseSpeechModal}>
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>

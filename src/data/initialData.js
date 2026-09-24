@@ -45,28 +45,28 @@ export const INITIAL_INVENTORY = [
     sku: 'SKU-LNK-6781',
     name: 'Tarjeta Google NFC Cuadrado ESP',
     category: 'CHIPS / INSUMOS',
-    quantity: 2,
-    minThreshold: 10,
-    unitCost: 60.00,
+    quantity: 15,
+    minThreshold: 5,
+    unitCost: 12.93,
     supplier: 'NFC Marketing',
     leadTimeDays: 13,
-    status: 'bajo',
+    status: 'optimo',
     reorderUrl: 'https://es.aliexpress.com/',
-    notes: 'Insumo de tarjeta cuadrada con chip NTAG215 versión español.'
+    notes: 'Insumo de tarjeta cuadrada con chip NTAG215 versión español. Lote inicial fabricado (15 uds).'
   },
   {
     id: 'inv-3',
     sku: 'SKU-LNK-9972',
     name: 'Tarjeta Google NFC L ESP',
     category: 'CHIPS / INSUMOS',
-    quantity: 2,
-    minThreshold: 10,
-    unitCost: 80.00,
+    quantity: 15,
+    minThreshold: 5,
+    unitCost: 12.93,
     supplier: 'NFC Marketing',
     leadTimeDays: 13,
-    status: 'bajo',
+    status: 'optimo',
     reorderUrl: 'https://es.aliexpress.com/',
-    notes: 'Insumo formato vertical L para mostrador y mesa con chip NTAG215.'
+    notes: 'Insumo formato vertical L para mostrador y mesa con chip NTAG215. Lote inicial fabricado (15 uds).'
   },
   {
     id: 'inv-4',
@@ -107,9 +107,9 @@ export const INITIAL_PRODUCTS = [
     category: 'Individual',
     type: 'individual',
     price: 60.00,
-    cost: 60.00,
-    margin: 0.00,
-    marginPct: 0.00,
+    cost: 12.93,
+    margin: 47.07,
+    marginPct: 78.45,
     badge: 'Popular',
     description: 'Tarjeta inteligente con chip NTAG215 para reseñas de Google en español. Diseñada para mostrador y barras de restaurantes.',
     bundleItems: []
@@ -122,9 +122,9 @@ export const INITIAL_PRODUCTS = [
     category: 'Individual',
     type: 'individual',
     price: 80.00,
-    cost: 80.00,
-    margin: 0.00,
-    marginPct: 0.00,
+    cost: 12.93,
+    margin: 67.07,
+    marginPct: 83.84,
     badge: 'Premium',
     description: 'Display vertical en ángulo L de alto impacto visual para caja y recepción con reseña directa de Google Maps.',
     bundleItems: []
@@ -420,24 +420,24 @@ export const EXCEL_FIXED_COSTS_TEMPLATE = [
 
 export const EXCEL_PROJECTED_PRODUCTS_TEMPLATE = [
   {
-    id: 'proj-estandar',
-    name: 'Tarjeta NFC Estándar (Reseñas Google)',
-    sku: 'SKU-LNK-ESTD',
+    id: 'proj-cuadrado-esp',
+    name: 'Tarjeta Google NFC Cuadrado ESP',
+    sku: 'SKU-LNK-6781',
     price: 60.00,
-    baseCost: 13.00,
-    mixPercent: 60,
-    targetUnits: 45,
+    baseCost: 12.93,
+    mixPercent: 50,
+    targetUnits: 15,
     isCustom: false,
     included: true
   },
   {
-    id: 'proj-premium',
-    name: 'Display Acrílico / Pack Premium',
-    sku: 'SKU-LNK-PREM',
+    id: 'proj-formato-l-esp',
+    name: 'Tarjeta Google NFC Formato L ESP',
+    sku: 'SKU-LNK-9972',
     price: 80.00,
-    baseCost: 13.00,
-    mixPercent: 40,
-    targetUnits: 30,
+    baseCost: 12.93,
+    mixPercent: 50,
+    targetUnits: 15,
     isCustom: false,
     included: true
   }
@@ -453,6 +453,65 @@ export const EXCEL_INITIAL_INVESTMENT_TEMPLATE = [
   { id: 'inv-7', concept: 'Movilidad de prospección inicial', quantity: 1, unitCost: 200.00, total: 200.00 },
   { id: 'inv-8', concept: 'Fondo de imprevistos', quantity: 1, unitCost: 100.00, total: 100.00 }
 ];
+
+// Plantilla oficial basada en el Stock Real Fabricado (30 tarjetas: 15 Cuadrado + 15 Formato L)
+export const STOCK_FABRICADO_30_TEMPLATE = {
+  businessParams: {
+    salesDaysPerMonth: 30,
+    partnersCount: 2,
+    businessProfitTarget: 1662.10,
+    partnerProfitTarget: 831.05,
+    customProfitTarget: 1662.10
+  },
+  fixedCosts: [
+    {
+      id: 'fc-movilidad',
+      concept: 'Movilidad mensual (visitas presenciales)',
+      amount: 50.00,
+      note: 'Prospección y entrega en distritos de Lima'
+    }
+  ],
+  variableCosts: [],
+  variableUnitCosts: {
+    packagingPerUnit: 0.00,
+    setupLaborPerUnit: 0.00,
+    paymentFeePercent: 0.0,
+    deliveryPerUnit: 0.00,
+    defectReservePerUnit: 0.00
+  },
+  projectedProducts: [
+    {
+      id: 'proj-cuadrado-esp',
+      name: 'Tarjeta Google NFC Cuadrado ESP',
+      sku: 'SKU-LNK-6781',
+      price: 60.00,
+      baseCost: 12.93,
+      mixPercent: 50,
+      targetUnits: 15,
+      isCustom: false,
+      included: true
+    },
+    {
+      id: 'proj-formato-l-esp',
+      name: 'Tarjeta Google NFC Formato L ESP',
+      sku: 'SKU-LNK-9972',
+      price: 80.00,
+      baseCost: 12.93,
+      mixPercent: 50,
+      targetUnits: 15,
+      isCustom: false,
+      included: true
+    }
+  ],
+  initialInvestment: EXCEL_INITIAL_INVESTMENT_TEMPLATE,
+  funnelRatios: {
+    contactToResponse: 0.35,
+    responseToDemo: 0.70,
+    demoToCustomer: 0.40,
+    unitsPerCustomer: 1.29,
+    customUnits: 30
+  }
+};
 
 export const DEFAULT_VARIABLE_COSTS_TEMPLATE = [
   { id: 'vc-packaging', concept: 'Empaque por Unidad', type: 'unit_amount', amount: 0, note: 'Bolsa Kraft, estuche o caja protectora con sticker' },

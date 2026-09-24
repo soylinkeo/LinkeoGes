@@ -86,7 +86,9 @@ export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
   // Unidades requeridas para cubrir fijos + meta de utilidad
   let requiredUnits = 0;
   if (weightedMargin > 0) {
-    requiredUnits = Math.ceil((totalFixedCosts + targetProfit) / weightedMargin);
+    const raw = (totalFixedCosts + targetProfit) / weightedMargin;
+    const normalized = Math.round(raw * 10000) / 10000;
+    requiredUnits = Math.ceil(normalized);
   }
 
 

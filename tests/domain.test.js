@@ -402,6 +402,21 @@ test('buildLeadWhatsAppMessage customizes by stage (prospect vs visitado) with w
   assert.ok(visitadoMsg.includes('https://linkeocards.com/'));
   assert.ok(visitadoMsg.includes('https://www.instagram.com/linkeo_pe/'));
   assert.ok(visitadoMsg.includes('https://www.tiktok.com/@linkeocards'));
+
+  // Must propose visit to bring product directly with 2 min demo (vendible & brief)
+  assert.ok(visitadoMsg.includes('llevarles el producto directamente'));
+  assert.ok(visitadoMsg.includes('demostración rápida de 2 minutos'));
+
+  // Test formal direct visit variant requested by user
+  const formalMsg = buildLeadWhatsAppMessage(visitadoLead, 'visita_directa');
+  assert.ok(formalMsg.includes('Nos encantaría saber si esta propuesta les resulta interesante'));
+  assert.ok(formalMsg.includes('llevarles el producto directamente'));
+
+  // Test getLeadMessageVariants helper
+  const { getLeadMessageVariants } = await import('../src/utils/leadMessages.js');
+  const variants = getLeadMessageVariants(visitadoLead);
+  assert.equal(variants.length, 4);
+  assert.equal(variants[0].id, 'vendible');
 });
 
 test('moving a lead to Entregado y Cobrado automatically considers it a sale and links bidirectionally', () => {
