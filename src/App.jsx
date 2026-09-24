@@ -2108,11 +2108,12 @@ export default function App() {
                       ...newSaleForm,
                       paymentMethod: e.target.value
                     })}>
-                      <option value="Yape">Yape</option>
-                      <option value="Plin">Plin</option>
-                      <option value="Transferencia BCP">Transferencia BCP</option>
-                      <option value="Transferencia BBVA">Transferencia BBVA</option>
-                      <option value="Efectivo">Efectivo contraentrega</option>
+                      <option value="Yape">💜 Yape</option>
+                      <option value="Plin">🔵 Plin</option>
+                      <option value="Transferencia">🏦 Transferencia Bancaria</option>
+                      <option value="Tarjeta">💳 Tarjeta de Crédito / Débito</option>
+                      <option value="Efectivo">💵 Efectivo</option>
+                      <option value="Efectivo contraentrega">📦 Efectivo contraentrega</option>
                     </select>
                   </div>
                 </div>
@@ -2497,11 +2498,11 @@ export default function App() {
                 ...globalExpenseForm,
                 paymentMethod: e.target.value
               })}>
-                    <option value="Tarjeta">Tarjeta de Crédito / Débito</option>
-                    <option value="Yape">Yape</option>
-                    <option value="Plin">Plin</option>
-                    <option value="Transferencia BCP">Transferencia BCP</option>
-                    <option value="Efectivo">Efectivo</option>
+                    <option value="Yape">💜 Yape</option>
+                    <option value="Plin">🔵 Plin</option>
+                    <option value="Transferencia">🏦 Transferencia Bancaria</option>
+                    <option value="Tarjeta">💳 Tarjeta de Crédito / Débito</option>
+                    <option value="Efectivo">💵 Efectivo</option>
                   </select>
                 </div>
               </div>

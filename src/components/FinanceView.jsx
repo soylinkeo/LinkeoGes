@@ -849,11 +849,11 @@ export default function FinanceView({
                     value={expenseForm.paymentMethod}
                     onChange={(e) => setExpenseForm({ ...expenseForm, paymentMethod: e.target.value })}
                   >
-                    <option value="Tarjeta">Tarjeta de Crédito / Débito</option>
-                    <option value="Yape">Yape</option>
-                    <option value="Plin">Plin</option>
-                    <option value="Transferencia BCP">Transferencia BCP</option>
-                    <option value="Efectivo">Efectivo</option>
+                    <option value="Yape">💜 Yape</option>
+                    <option value="Plin">🔵 Plin</option>
+                    <option value="Transferencia">🏦 Transferencia Bancaria</option>
+                    <option value="Tarjeta">💳 Tarjeta de Crédito / Débito</option>
+                    <option value="Efectivo">💵 Efectivo</option>
                   </select>
                 </div>
               </div>
