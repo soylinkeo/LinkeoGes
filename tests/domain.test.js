@@ -352,7 +352,7 @@ test('buildLeadWhatsAppMessage customizes by stage (prospect vs visitado) with w
   const prospectMsg = buildLeadWhatsAppMessage(prospectLead);
 
   // Must start with '¡Hola!' and not contain 'visitamos' or 'Glowe Studio' in the greeting
-  assert.ok(prospectMsg.startsWith('¡Hola! 👋'));
+  assert.ok(prospectMsg.startsWith('¡Hola!'));
   assert.ok(!prospectMsg.toLowerCase().includes('encargado'));
   assert.ok(!prospectMsg.toLowerCase().includes('dueño'));
   assert.ok(!prospectMsg.toLowerCase().includes('visitar su local'));

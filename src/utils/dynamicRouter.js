@@ -117,9 +117,9 @@ export function evaluateCardHealth(card) {
       bipsQr,
       daysInactive,
       recommendation: 'Contactar al cliente para recomendar ubicarla en caja o mostrador y capacitar a su personal.',
-      followUpMessage: `¡Hola al equipo de ${bizName}! 👋 Te saluda el equipo de Linkeo.
+      followUpMessage: `¡Hola al equipo de ${bizName}! Te saluda el equipo de Linkeo.
 
-Notamos en nuestro sistema de monitoreo que su tarjeta inteligente Google NFC aún no registra lecturas de clientes. ✨
+Notamos en nuestro sistema de monitoreo que su tarjeta inteligente Google NFC aún no registra lecturas de clientes.
 
 Queríamos consultarles si necesitan algún apoyo con la ubicación de la tarjeta (recomendamos caja, mostrador o barra) o con la capacitación de sus colaboradores para invitar a los clientes satisfechos a acercar su celular y calificar con 5 estrellas.
 
@@ -137,7 +137,7 @@ Queríamos consultarles si necesitan algún apoyo con la ubicación de la tarjet
       bipsQr,
       daysInactive,
       recommendation: `No registra lecturas desde hace ${daysInactive} días. Verificar si sigue en el mostrador.`,
-      followUpMessage: `¡Hola al equipo de ${bizName}! 👋 Te saluda el equipo de Linkeo.
+      followUpMessage: `¡Hola al equipo de ${bizName}! Te saluda el equipo de Linkeo.
 
 Esperamos que se encuentren muy bien. Al revisar el desempeño de su tarjeta inteligente Linkeo NFC en nuestro sistema, notamos que no registra lecturas desde hace ${daysInactive} días.
 
@@ -158,9 +158,9 @@ Queríamos verificar que todo esté en orden en su local y ofrecerles asesoría 
       bipsQr,
       daysInactive,
       recommendation: 'Excelente tracción. Gran oportunidad para ofrecer tarjeta adicional para otra mesa o local.',
-      followUpMessage: `¡Hola al equipo de ${bizName}! 👋 Te saluda el equipo de Linkeo.
+      followUpMessage: `¡Hola al equipo de ${bizName}! Te saluda el equipo de Linkeo.
 
-¡Felicitaciones! Vemos en nuestro sistema que su tarjeta inteligente Linkeo ya superó ${totalBips} lecturas de clientes en su establecimiento 🚀⭐.
+¡Felicitaciones! Vemos en nuestro sistema que su tarjeta inteligente Linkeo ya superó ${totalBips} lecturas de clientes en su establecimiento.
 
 Nos alegra muchísimo ver cómo multiplican su reputación y posicionamiento en Google Maps. Debido al alto flujo de clientes que tienen, queríamos consultarles si les gustaría evaluar una tarjeta o display adicional para otra área, barra o sede adicional.
 
@@ -178,7 +178,7 @@ Nos alegra muchísimo ver cómo multiplican su reputación y posicionamiento en 
     bipsQr,
     daysInactive,
     recommendation: 'La tarjeta está funcionando con normalidad y sumando reseñas continuas.',
-    followUpMessage: `¡Hola al equipo de ${bizName}! 👋 Te saluda el equipo de Linkeo.
+    followUpMessage: `¡Hola al equipo de ${bizName}! Te saluda el equipo de Linkeo.
 
 Esperamos que se encuentren muy bien. Nos alegra ver que su tarjeta inteligente Linkeo NFC ya cuenta con ${totalBips} lecturas registradas.
 
