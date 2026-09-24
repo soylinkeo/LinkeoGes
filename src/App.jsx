@@ -525,6 +525,19 @@ export default function App() {
       diff: `Antes: ${oldLead?.stage} -> Ahora: ${newStage}`
     });
   };
+  const handleUpdateLead = updatedLead => {
+    const oldLead = leads.find(l => l.id === updatedLead.id);
+    setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+    logAudit({
+      actionType: 'Modificación',
+      entityType: 'Lead',
+      entityId: updatedLead.id,
+      entityName: updatedLead.businessName,
+      reason: `Actualización de datos del prospecto (${updatedLead.businessName}).`,
+      snapshot: oldLead,
+      diff: `Antes: ${oldLead?.businessName || ''} (${oldLead?.stage || ''}) -> Ahora: ${updatedLead.businessName} (${updatedLead.stage})`
+    });
+  };
   const handleConvertLeadToSale = lead => {
     try {
       if (sales.some(s => s.leadId === lead.id)) throw new Error('Este prospecto ya tiene una venta.');
@@ -1182,7 +1195,7 @@ export default function App() {
           {currentTab === 'nfc-traceability' && <NfcTraceabilityView nfcCards={nfcCards} products={products} inventory={inventory} onUpdateCard={handleUpdateCard} onAddNewCard={handleAddNewCard} selectedCardModal={selectedCardModal} setSelectedCardModal={setSelectedCardModal} onRequestDelete={handleRequestDelete} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
 
           {/* MÓDULO 4: Pipeline B2B (Kanban) */}
-          {currentTab === 'pipeline' && <KanbanView products={products} leads={leads} onUpdateLeadStage={handleUpdateLeadStage} onAddNewLead={handleAddNewLead} onConvertLeadToSale={handleConvertLeadToSale} onRequestDelete={handleRequestDelete} showToast={showToast} />}
+          {currentTab === 'pipeline' && <KanbanView products={products} leads={leads} districts={districts} onUpdateLeadStage={handleUpdateLeadStage} onUpdateLead={handleUpdateLead} onAddNewLead={handleAddNewLead} onConvertLeadToSale={handleConvertLeadToSale} onRequestDelete={handleRequestDelete} showToast={showToast} />}
 
           {/* MÓDULO 5: Agenda & Coordinación de Visitas */}
           {currentTab === 'calendar' && <CalendarView events={calendarEvents} onAddNewEvent={handleAddNewEvent} onEditEvent={handleEditEvent} nfcCards={nfcCards} onRequestDelete={handleRequestDelete} districts={districts} showToast={showToast} />}

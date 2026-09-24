@@ -8,7 +8,8 @@ import {
   MapPin, 
   CheckCircle2, 
   Sparkles, 
-  Trash2 
+  Trash2,
+  Edit3
 } from 'lucide-react';
 
 const STAGES = [
@@ -23,16 +24,38 @@ const STAGES = [
 export default function KanbanView({
   leads = [],
   products = [],
+  districts = [],
   onUpdateLeadStage,
+  onUpdateLead,
   onAddNewLead,
   onConvertLeadToSale,
   onRequestDelete,
   showToast
 }) {
   const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
+  const [isEditLeadModalOpen, setIsEditLeadModalOpen] = useState(false);
+  const [editingLead, setEditingLead] = useState(null);
   const [selectedLead, setSelectedLead] = useState(null);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [mobileStageFilter, setMobileStageFilter] = useState('all');
+
+  // Formulario editar lead
+  const [editLeadForm, setEditLeadForm] = useState({
+    id: '',
+    businessName: '',
+    rubro: 'Restaurante / Cafetería',
+    district: 'Miraflores',
+    address: '',
+    contactName: '',
+    phone: '',
+    stage: 'contactado',
+    interestedProduct: '',
+    estimatedValue: 100.00,
+    assignedTo: 'kevin',
+    notes: '',
+    nextStepNote: 'Enviar catálogo por WhatsApp',
+    nextStepDate: localDate()
+  });
 
   // Formulario nuevo lead
   const [newLeadForm, setNewLeadForm] = useState({
@@ -71,6 +94,62 @@ export default function KanbanView({
   const handleCloseConvertModal = () => {
     setSelectedLead(null);
     setIsConvertModalOpen(false);
+  };
+
+  const handleOpenEditLead = (lead) => {
+    setEditingLead(lead);
+    setEditLeadForm({
+      id: lead.id,
+      businessName: lead.businessName || '',
+      rubro: lead.rubro || 'Restaurante / Cafetería',
+      district: lead.district || (districts[0] || 'Miraflores'),
+      address: lead.address || '',
+      contactName: lead.contactName || '',
+      phone: lead.phone || '',
+      stage: lead.stage || 'contactado',
+      interestedProduct: lead.interestedProduct || '',
+      estimatedValue: Number(lead.estimatedValue ?? 100),
+      assignedTo: lead.assignedTo || 'kevin',
+      notes: lead.notes || '',
+      nextStepNote: lead.nextStepNote || 'Enviar catálogo por WhatsApp',
+      nextStepDate: lead.nextStepDate || localDate()
+    });
+    setIsEditLeadModalOpen(true);
+  };
+
+  const handleCloseEditLeadModal = () => {
+    setIsEditLeadModalOpen(false);
+    setEditingLead(null);
+  };
+
+  const handleSaveEditLead = (e) => {
+    e.preventDefault();
+    if (!editingLead) return;
+
+    const updatedLead = {
+      ...editingLead,
+      businessName: editLeadForm.businessName.trim(),
+      rubro: editLeadForm.rubro,
+      district: editLeadForm.district.trim(),
+      address: editLeadForm.address.trim(),
+      contactName: editLeadForm.contactName.trim(),
+      phone: editLeadForm.phone.trim(),
+      stage: editLeadForm.stage,
+      interestedProduct: editLeadForm.interestedProduct,
+      estimatedValue: Number(editLeadForm.estimatedValue) || 0,
+      assignedTo: editLeadForm.assignedTo,
+      notes: editLeadForm.notes.trim(),
+      nextStepNote: editLeadForm.nextStepNote.trim(),
+      nextStepDate: editLeadForm.nextStepDate
+    };
+
+    if (onUpdateLead) {
+      onUpdateLead(updatedLead);
+    }
+    if (showToast) {
+      showToast(`✏️ Prospecto "${updatedLead.businessName}" actualizado correctamente`, 'success');
+    }
+    handleCloseEditLeadModal();
   };
 
   const handleStageChange = (leadId, newStage) => {
@@ -228,7 +307,12 @@ export default function KanbanView({
 
               <div className="kanban-col-body">
                 {stageLeads.map(lead => (
-                  <div key={lead.id} className="kanban-card">
+                  <div 
+                    key={lead.id} 
+                    className="kanban-card"
+                    onClick={() => handleOpenEditLead(lead)}
+                    title="Clic para ver o editar información del prospecto"
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                       <span className="badge badge-blue" style={{ fontSize: '0.65rem', padding: '2px 5px' }}>
                         {lead.rubro}
@@ -269,14 +353,30 @@ export default function KanbanView({
                           rel="noopener noreferrer"
                           className="btn-icon"
                           style={{ width: '26px', height: '26px', color: '#10b981' }}
+                          onClick={(e) => e.stopPropagation()}
                           title="Contactar por WhatsApp"
                         >
                           <Phone size={12} />
                         </a>
                       )}
 
+                      {/* Botón Editar Prospecto */}
+                      <button 
+                        type="button"
+                        className="btn-icon"
+                        style={{ width: '26px', height: '26px', color: 'var(--primary-600)' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditLead(lead);
+                        }}
+                        title="Editar información del prospecto"
+                      >
+                        <Edit3 size={12} />
+                      </button>
+
                       {/* Botón Eliminar Prospecto */}
                       <button 
+                        type="button"
                         className="btn-icon"
                         style={{ width: '26px', height: '26px', color: '#ef4444' }}
                         onClick={(e) => {
@@ -300,6 +400,7 @@ export default function KanbanView({
                           maxWidth: '100px'
                         }}
                         value={lead.stage}
+                        onClick={(e) => e.stopPropagation()}
                         onChange={(e) => handleStageChange(lead.id, e.target.value)}
                       >
                         {STAGES.map(s => (
@@ -311,9 +412,13 @@ export default function KanbanView({
                     {/* Botón de Conversión si está en etapa avanzada */}
                     {(lead.stage === 'configurando' || lead.stage === 'entregado') && (
                       <button 
+                        type="button"
                         className="btn btn-success btn-sm"
                         style={{ width: '100%', marginTop: '8px', fontSize: '0.72rem', padding: '3px 6px' }}
-                        onClick={() => handleOpenConvert(lead)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenConvert(lead);
+                        }}
                       >
                         <Sparkles size={12} />
                         <span>Convertir en Venta</span>
@@ -372,12 +477,27 @@ export default function KanbanView({
                   <input 
                     type="text" 
                     className="form-control"
+                    list="kanban-districts-list"
                     placeholder="Miraflores, San Isidro, Surco..."
                     value={newLeadForm.district}
                     onChange={(e) => setNewLeadForm({ ...newLeadForm, district: e.target.value })}
                     required
                   />
+                  <datalist id="kanban-districts-list">
+                    {districts.map(d => <option key={d} value={d} />)}
+                  </datalist>
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Dirección / Ubicación (Opcional):</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="Av. Larco 123, Of. 401..."
+                  value={newLeadForm.address}
+                  onChange={(e) => setNewLeadForm({ ...newLeadForm, address: e.target.value })}
+                />
               </div>
 
               <div className="form-row">
@@ -413,7 +533,7 @@ export default function KanbanView({
                     onChange={(e) => {
                       const val = e.target.value;
                       const est = products.find(p => p.name === val)?.price || 0;
-                      setNewLeadForm({ ...newLeadForm, interestedProduct: val, estimatedValue: est });
+                      setNewLeadForm({ ...newLeadForm, interestedProduct: val, estimatedValue: est || newLeadForm.estimatedValue });
                     }}
                   >
                     <option value="">Por definir</option>
@@ -422,16 +542,28 @@ export default function KanbanView({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Asignado A:</label>
-                  <select 
+                  <label className="form-label">Valor Estimado (S/):</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    min="0"
                     className="form-control"
-                    value={newLeadForm.assignedTo}
-                    onChange={(e) => setNewLeadForm({ ...newLeadForm, assignedTo: e.target.value })}
-                  >
-                    <option value="luis">👨‍💼 Luis Romero (Co-CEO)</option>
-                    <option value="kevin">🚀 Kevin Servat (Co-CEO)</option>
-                  </select>
+                    value={newLeadForm.estimatedValue}
+                    onChange={(e) => setNewLeadForm({ ...newLeadForm, estimatedValue: e.target.value })}
+                  />
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Asignado A:</label>
+                <select 
+                  className="form-control"
+                  value={newLeadForm.assignedTo}
+                  onChange={(e) => setNewLeadForm({ ...newLeadForm, assignedTo: e.target.value })}
+                >
+                  <option value="luis">👨‍💼 Luis Romero (Co-CEO)</option>
+                  <option value="kevin">🚀 Kevin Servat (Co-CEO)</option>
+                </select>
               </div>
 
               <div className="form-row">
@@ -474,6 +606,220 @@ export default function KanbanView({
                 <button type="submit" className="btn btn-primary">
                   Crear Prospecto
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Editar Prospecto */}
+      {isEditLeadModalOpen && editingLead && (
+        <div className="modal-overlay" onClick={handleCloseEditLeadModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit3 size={18} color="var(--primary-600)" />
+                <span>Editar Prospecto: {editingLead.businessName}</span>
+              </h3>
+              <button className="close-btn" onClick={handleCloseEditLeadModal}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveEditLead}>
+              <div className="form-group">
+                <label className="form-label">Nombre del Negocio:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="Ej: Barbería Don Tito, Pollería Roky's..."
+                  value={editLeadForm.businessName}
+                  onChange={(e) => setEditLeadForm({ ...editLeadForm, businessName: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Rubro:</label>
+                  <select 
+                    className="form-control"
+                    value={editLeadForm.rubro}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, rubro: e.target.value })}
+                  >
+                    <option value="Restaurante / Cafetería">Restaurante / Cafetería</option>
+                    <option value="Barbería y Estética">Barbería y Estética</option>
+                    <option value="Clínica / Salud">Clínica / Salud</option>
+                    <option value="Gimnasio / Fitness">Gimnasio / Fitness</option>
+                    <option value="Tienda / Retail">Tienda / Retail</option>
+                    <option value="Hotel / Hospedaje">Hotel / Hospedaje</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Distrito de Lima:</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    list="kanban-districts-list"
+                    placeholder="Miraflores, San Isidro, Surco..."
+                    value={editLeadForm.district}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, district: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Dirección / Ubicación (Opcional):</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="Av. Larco 123, Of. 401..."
+                  value={editLeadForm.address}
+                  onChange={(e) => setEditLeadForm({ ...editLeadForm, address: e.target.value })}
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Persona de Contacto:</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    placeholder="Encargado o Dueño"
+                    value={editLeadForm.contactName}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, contactName: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Teléfono WhatsApp:</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    placeholder="+51 987 654 321"
+                    value={editLeadForm.phone}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, phone: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Fase en el Embudo:</label>
+                  <select 
+                    className="form-control"
+                    value={editLeadForm.stage}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, stage: e.target.value })}
+                  >
+                    {STAGES.map(s => (
+                      <option key={s.id} value={s.id}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Asignado A:</label>
+                  <select 
+                    className="form-control"
+                    value={editLeadForm.assignedTo}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, assignedTo: e.target.value })}
+                  >
+                    <option value="luis">👨‍💼 Luis Romero (Co-CEO)</option>
+                    <option value="kevin">🚀 Kevin Servat (Co-CEO)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Producto de Interés:</label>
+                  <select 
+                    className="form-control"
+                    value={editLeadForm.interestedProduct}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const prod = products.find(p => p.name === val);
+                      setEditLeadForm({ 
+                        ...editLeadForm, 
+                        interestedProduct: val, 
+                        estimatedValue: prod ? prod.price : editLeadForm.estimatedValue 
+                      });
+                    }}
+                  >
+                    <option value="">Por definir</option>
+                    {products.map(product => <option key={product.id} value={product.name}>{product.name} — S/ {Number(product.price).toFixed(2)}</option>)}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Valor Estimado (S/):</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="form-control"
+                    value={editLeadForm.estimatedValue}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, estimatedValue: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Próximo Paso:</label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    value={editLeadForm.nextStepNote}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, nextStepNote: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Fecha Próximo Paso:</label>
+                  <input 
+                    type="date" 
+                    className="form-control"
+                    value={editLeadForm.nextStepDate}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, nextStepDate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Notas Adicionales:</label>
+                <textarea 
+                  className="form-control"
+                  rows="2"
+                  placeholder="Detalles de la conversación, objeciones, horarios preferidos..."
+                  value={editLeadForm.notes}
+                  onChange={(e) => setEditLeadForm({ ...editLeadForm, notes: e.target.value })}
+                ></textarea>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-danger btn-sm"
+                  onClick={() => {
+                    handleCloseEditLeadModal();
+                    onRequestDelete && onRequestDelete(editingLead, 'Lead');
+                  }}
+                >
+                  <Trash2 size={14} />
+                  <span>Eliminar Prospecto</span>
+                </button>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="button" className="btn btn-secondary" onClick={handleCloseEditLeadModal}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-primary">
+                    Guardar Cambios
+                  </button>
+                </div>
               </div>
             </form>
           </div>
