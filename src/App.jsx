@@ -4,7 +4,7 @@ import { PARTNERS, INITIAL_PRODUCTS, INITIAL_EXPENSES, INITIAL_SALES, INITIAL_NF
 
 import { getAccountingMonth, ACCOUNTING_MONTHS } from './utils/dateUtils';
 import { computeDynamicTargets } from './utils/projectionsUtils';
-import { Edit3 } from 'lucide-react';
+import { Edit3, Clock, Check } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import DashboardView from './components/DashboardView';
@@ -291,7 +291,8 @@ export default function App() {
     paymentMethod: 'Tarjeta',
     paidBy: currentUser?.id || 'luis',
     month: getAccountingMonth(initialExpenseDate),
-    notes: ''
+    notes: '',
+    inventoryStatus: 'pending'
   });
   const handleGlobalProductChange = productId => {
     if (!productId) {
@@ -299,7 +300,8 @@ export default function App() {
         ...prev,
         selectedProductId: '',
         unitCost: '',
-        isCustomCost: false
+        isCustomCost: false,
+        inventoryStatus: 'pending'
       }));
       return;
     }
@@ -315,7 +317,8 @@ export default function App() {
         category: 'Compra de mercadería',
         unitCost: defaultCost.toString(),
         isCustomCost: false,
-        amount: total
+        amount: total,
+        inventoryStatus: 'pending'
       }));
     }
   };
@@ -544,7 +547,8 @@ export default function App() {
       paymentMethod: 'Tarjeta',
       paidBy: currentUser?.id || 'luis',
       month: getAccountingMonth(today),
-      notes: ''
+      notes: '',
+      inventoryStatus: 'pending'
     });
     setIsNewExpenseModalOpen(false);
   };
@@ -619,17 +623,26 @@ export default function App() {
   const handleAddNewExpense = newExp => {
     if (!(Number(newExp.amount) > 0)) { showToast('El monto debe ser mayor que cero.', 'error'); return false; }
     let stockMovements = [];
-    if (newExp.selectedProductId && newExp.addToInventory !== false) {
+    const isProductPurchase = Boolean(newExp.selectedProductId);
+    const inventoryStatus = isProductPurchase ? (newExp.inventoryStatus || 'pending') : null;
+    const isPending = inventoryStatus === 'pending';
+
+    if (isProductPurchase && newExp.addToInventory !== false) {
       const product = products.find(p => p.id === newExp.selectedProductId);
       const item = inventory.find(i => i.id === newExp.selectedProductId || i.id === product?.inventoryId || (product?.sku && i.sku === product.sku));
       if (!item) { showToast('Vincula el producto a un insumo antes de registrar la compra.', 'error'); return false; }
       const quantity = Number(newExp.quantity);
       if (!Number.isInteger(quantity) || quantity < 1) { showToast('Cantidad de compra inválida.', 'error'); return false; }
       stockMovements = [{ inventoryId: item.id, quantity }];
-      setInventory(applyStockMovements(inventory, stockMovements, 1));
+      
+      // Si ya está recibido de inmediato (NO pendiente), sumar al inventario
+      if (!isPending) {
+        setInventory(applyStockMovements(inventory, stockMovements, 1));
+      }
     }
     const expenseWithMonth = {
       ...newExp,
+      inventoryStatus,
       stockMovements,
       month: newExp.month || getAccountingMonth(newExp.date || localDate())
     };
@@ -639,26 +652,93 @@ export default function App() {
       entityType: 'Gasto',
       entityId: expenseWithMonth.id,
       entityName: `${expenseWithMonth.description} - S/ ${Number(expenseWithMonth.amount).toFixed(2)}`,
-      reason: `Gasto pagado por ${expenseWithMonth.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'} vía ${expenseWithMonth.paymentMethod} (Mes: ${expenseWithMonth.month}).`
+      reason: `Gasto pagado por ${expenseWithMonth.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'} vía ${expenseWithMonth.paymentMethod} (Mes: ${expenseWithMonth.month}).${isPending ? ' [⏳ Mercadería en camino - Pendiente de ingreso a inventario]' : ''}`
     });
+    return true;
   };
+
+  const handleReceiveExpenseStock = expenseId => {
+    const exp = expenses.find(e => e.id === expenseId);
+    if (!exp) return false;
+    if (exp.inventoryStatus === 'received') {
+      showToast('Esta compra ya fue ingresada al inventario.', 'info');
+      return false;
+    }
+    if (!exp.stockMovements?.length) {
+      showToast('No hay insumos o productos asociados a esta compra.', 'error');
+      return false;
+    }
+
+    try {
+      setInventory(applyStockMovements(inventory, exp.stockMovements, 1));
+      const updatedExp = {
+        ...exp,
+        inventoryStatus: 'received',
+        receivedAt: new Date().toISOString()
+      };
+      setExpenses(prev => prev.map(e => e.id === expenseId ? updatedExp : e));
+
+      const qty = exp.stockMovements.reduce((sum, m) => sum + (Number(m.quantity) || 0), 0);
+      const prodName = exp.description || 'Mercadería';
+
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Gasto',
+        entityId: exp.id,
+        entityName: `${exp.description} - S/ ${Number(exp.amount).toFixed(2)}`,
+        reason: `Recepción confirmada: Se ingresaron ${qty} unidades de "${prodName}" al inventario físico (OK).`
+      });
+
+      showToast(`✅ Se agregaron ${qty} unidades de "${prodName}" al inventario físico`, 'success');
+      return true;
+    } catch (error) {
+      showToast(error.message, 'error');
+      return false;
+    }
+  };
+
   const handleEditExpense = updatedExp => {
     if (!(Number(updatedExp.amount) > 0)) { showToast('El monto debe ser mayor que cero.', 'error'); return false; }
     const original = expenses.find(e => e.id === updatedExp.id);
-    if (original?.stockMovements?.length) {
+    let movements = original?.stockMovements || [];
+    
+    if (updatedExp.selectedProductId) {
       const quantity = Number(updatedExp.quantity);
-      if (!Number.isInteger(quantity) || quantity < 1 || updatedExp.selectedProductId !== original.selectedProductId) {
-        showToast('Conserva el insumo de esta compra e ingresa una cantidad válida.', 'error'); return false;
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        showToast('Ingresa una cantidad de compra válida mayor a cero.', 'error'); return false;
       }
-      const movements = original.stockMovements.map(m => ({ ...m, quantity }));
+      const product = products.find(p => p.id === updatedExp.selectedProductId);
+      const item = inventory.find(i => i.id === updatedExp.selectedProductId || i.id === product?.inventoryId || (product?.sku && i.sku === product.sku));
+      if (!item) { showToast('Vincula el producto a un insumo antes de registrar la compra.', 'error'); return false; }
+      movements = [{ inventoryId: item.id, quantity }];
+
+      const origStatus = original?.inventoryStatus || (original?.stockMovements?.length ? 'received' : 'none');
+      const newStatus = updatedExp.inventoryStatus || origStatus;
+
       try {
-        const deltas = movements.map(m => ({ ...m, quantity: m.quantity - original.stockMovements.find(o => o.inventoryId === m.inventoryId).quantity }));
-        setInventory(applyStockMovements(inventory, deltas, 1));
-      } catch (error) { showToast(error.message, 'error'); return false; }
-      updatedExp = { ...updatedExp, stockMovements: movements };
+        if (origStatus === 'pending' && newStatus === 'received') {
+          setInventory(applyStockMovements(inventory, movements, 1));
+        } else if (origStatus === 'received' && newStatus === 'pending') {
+          if (original?.stockMovements?.length) {
+            setInventory(applyStockMovements(inventory, original.stockMovements, -1));
+          }
+        } else if (origStatus === 'received' && newStatus === 'received') {
+          const oldQty = original?.stockMovements?.find(o => o.inventoryId === item.id)?.quantity || 0;
+          const delta = quantity - oldQty;
+          if (delta !== 0) {
+            setInventory(applyStockMovements(inventory, [{ inventoryId: item.id, quantity: delta }], 1));
+          }
+        }
+      } catch (error) {
+        showToast(error.message, 'error');
+        return false;
+      }
     }
+
     const expenseWithMonth = {
       ...updatedExp,
+      stockMovements: movements,
+      inventoryStatus: updatedExp.selectedProductId ? (updatedExp.inventoryStatus || original?.inventoryStatus || 'pending') : null,
       month: updatedExp.month || getAccountingMonth(updatedExp.date || localDate())
     };
     const oldExp = expenses.find(e => e.id === updatedExp.id);
@@ -672,6 +752,7 @@ export default function App() {
       snapshot: oldExp,
       diff: `Antes: S/ ${Number(oldExp?.amount || 0).toFixed(2)} (${oldExp?.description || '—'}) -> Ahora: S/ ${Number(expenseWithMonth.amount).toFixed(2)} (${expenseWithMonth.description})`
     });
+    return true;
   };
 
   // Handlers para Tarjetas NFC
@@ -1271,8 +1352,11 @@ export default function App() {
       item = { ...item, relatedCards: nfcCards.filter(c => c.saleId === item.id || item.cardIds?.includes(c.id)) };
       cascadeDetails = ' Venta y tarjetas retiradas; movimientos físicos revertidos.';
     } else if (entityType === 'Gasto') {
-      try { if (item.stockMovements?.length) setInventory(applyStockMovements(inventory, item.stockMovements, -1)); }
-      catch (error) { showToast(error.message, 'error'); return false; }
+      try { 
+        if (item.stockMovements?.length && item.inventoryStatus !== 'pending') {
+          setInventory(applyStockMovements(inventory, item.stockMovements, -1)); 
+        }
+      } catch (error) { showToast(error.message, 'error'); return false; }
       setExpenses(prev => prev.filter(e => e.id !== item.id));
       cascadeDetails += ` [Cascada: Balance 50/50 recalculado automáticamente]`;
     } else if (entityType === 'Lead') {
@@ -1412,8 +1496,11 @@ export default function App() {
         setProducts(prev => [auditLog.snapshot, ...prev]);
       } else if (auditLog.entityType === 'Gasto') {
         if (expenses.some(e => e.id === auditLog.snapshot.id)) { showToast('El gasto ya existe.', 'warning'); return; }
-        try { if (auditLog.snapshot.stockMovements?.length) setInventory(applyStockMovements(inventory, auditLog.snapshot.stockMovements, 1)); }
-        catch (error) { showToast(error.message, 'error'); return; }
+        try { 
+          if (auditLog.snapshot.stockMovements?.length && auditLog.snapshot.inventoryStatus !== 'pending') {
+            setInventory(applyStockMovements(inventory, auditLog.snapshot.stockMovements, 1)); 
+          }
+        } catch (error) { showToast(error.message, 'error'); return; }
         setExpenses(prev => [auditLog.snapshot, ...prev]);
       } else if (auditLog.entityType === 'Venta') {
         if (sales.some(s => s.id === auditLog.snapshot.id)) { showToast('La venta ya existe.', 'warning'); return; }
@@ -1738,7 +1825,7 @@ export default function App() {
           )}
 
           {/* MÓDULO 7: Finanzas & Balances 50/50 */}
-          {currentTab === 'finances' && <FinanceView sales={sales} expenses={expenses} products={products} inventory={inventory} onAddNewExpense={handleAddNewExpense} onEditExpense={handleEditExpense} onAddNewSale={handleOpenNewSaleModal} onExportExcel={handleExportExcel} partnerBalance={partnerBalance} onSettlePartnerDebt={handleSettlePartnerDebt} targets={dynamicTargets} onRequestDelete={handleRequestDelete} onAddNewProduct={handleAddNewProduct} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
+          {currentTab === 'finances' && <FinanceView sales={sales} expenses={expenses} products={products} inventory={inventory} onAddNewExpense={handleAddNewExpense} onEditExpense={handleEditExpense} onReceiveExpenseStock={handleReceiveExpenseStock} onAddNewSale={handleOpenNewSaleModal} onExportExcel={handleExportExcel} partnerBalance={partnerBalance} onSettlePartnerDebt={handleSettlePartnerDebt} targets={dynamicTargets} onRequestDelete={handleRequestDelete} onAddNewProduct={handleAddNewProduct} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
 
           {/* MÓDULO 8: Proyecciones, Costos & Metas (Escenario Libre & Plan 30 Días) */}
           {currentTab === 'projections' && <ProjectionsView projectionsData={projectionsData} onUpdateProjectionsData={setProjectionsData} products={products} inventory={inventory} leads={leads} sales={sales} plan30Days={plan30Days} setPlan30Days={setPlan30Days} onTogglePlanTask={handleTogglePlanTask} onAddPlanTask={handleAddPlanTask} onEditPlanTask={handleEditPlanTask} onRequestDelete={handleRequestDelete} logAudit={logAudit} currentUser={currentUser} setCurrentTab={setCurrentTab} showToast={showToast} />}
@@ -2124,10 +2211,11 @@ export default function App() {
             selectedProductId: globalExpenseForm.selectedProductId || null,
             unitCost: globalExpenseForm.unitCost ? Number(globalExpenseForm.unitCost) : null,
             quantity: Number(globalExpenseForm.quantity) || 1,
-            isCustomCost: globalExpenseForm.isCustomCost
+            isCustomCost: globalExpenseForm.isCustomCost,
+            inventoryStatus: globalExpenseForm.selectedProductId ? (globalExpenseForm.inventoryStatus || 'pending') : null
           });
           if (saved === false) return;
-          showToast(`✅ Gasto de S/ ${finalAmount.toFixed(2)} registrado exitosamente`, 'success');
+          showToast(`✅ Gasto de S/ ${finalAmount.toFixed(2)} registrado exitosamente${globalExpenseForm.selectedProductId && globalExpenseForm.inventoryStatus === 'pending' ? ' (Estado: ⏳ Pendiente de ingreso a almacén)' : ''}`, 'success');
           handleCloseNewExpenseModal();
         }}>
               <div className="form-row">
@@ -2308,6 +2396,82 @@ export default function App() {
             }}>
                       ✏️ Costo modificado exclusivamente para este registro de compra sin alterar el catálogo maestro.
                     </div>}
+
+                  {/* Selector de Estado de Ingreso a Inventario */}
+                  <div style={{
+                    marginTop: '12px',
+                    paddingTop: '10px',
+                    borderTop: '1px solid var(--border-subtle)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ fontSize: '0.78rem', margin: 0, fontWeight: 700 }}>
+                        📦 Estado de Ingreso a Inventario:
+                      </label>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        color: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : '#10b981'
+                      }}>
+                        {globalExpenseForm.inventoryStatus === 'pending' ? '⏳ Mercadería Pendiente' : '✓ Ingresar Inmediatamente'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <button
+                        type="button"
+                        style={{
+                          padding: '8px 10px',
+                          fontSize: '0.76rem',
+                          border: '1px solid',
+                          borderColor: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--border-subtle)',
+                          backgroundColor: globalExpenseForm.inventoryStatus === 'pending' ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-card)',
+                          color: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--text-muted)',
+                          fontWeight: globalExpenseForm.inventoryStatus === 'pending' ? 700 : 500,
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '3px',
+                          textAlign: 'center'
+                        }}
+                        onClick={() => setGlobalExpenseForm(prev => ({ ...prev, inventoryStatus: 'pending' }))}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Clock size={13} />
+                          <span>⏳ Pendiente (Por recibir)</span>
+                        </div>
+                        <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Se agregará al inventario cuando le des OK</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        style={{
+                          padding: '8px 10px',
+                          fontSize: '0.76rem',
+                          border: '1px solid',
+                          borderColor: globalExpenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--border-subtle)',
+                          backgroundColor: globalExpenseForm.inventoryStatus === 'received' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                          color: globalExpenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--text-muted)',
+                          fontWeight: globalExpenseForm.inventoryStatus === 'received' ? 700 : 500,
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '3px',
+                          textAlign: 'center'
+                        }}
+                        onClick={() => setGlobalExpenseForm(prev => ({ ...prev, inventoryStatus: 'received' }))}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Check size={13} />
+                          <span>✓ Ya Recibido en Almacén</span>
+                        </div>
+                        <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Sumar al stock disponible de inmediato</span>
+                      </button>
+                    </div>
+                  </div>
                 </div> : <div className="form-group">
                   <label className="form-label">Monto del Desembolso (Soles S/):</label>
                   <input type="number" step="0.01" className="form-control" placeholder="0.00" value={globalExpenseForm.amount} onChange={e => setGlobalExpenseForm({

@@ -11,7 +11,9 @@ import {
   Receipt, 
   ArrowRightLeft,
   Trash2,
-  Edit3
+  Edit3,
+  Clock,
+  Check
 } from 'lucide-react';
 import { getAccountingMonth, ACCOUNTING_MONTHS } from '../utils/dateUtils';
 
@@ -22,6 +24,7 @@ export default function FinanceView({
   inventory = [],
   onAddNewExpense,
   onEditExpense,
+  onReceiveExpenseStock,
   onAddNewSale,
   onExportExcel,
   partnerBalance = {},
@@ -37,6 +40,7 @@ export default function FinanceView({
   const [isNewExpenseModalOpen, setIsNewExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
+  const [expenseToReceive, setExpenseToReceive] = useState(null);
 
   // Formulario nuevo gasto con producto vinculado y costo modificable
   const todayStr = localDate();
@@ -54,6 +58,7 @@ export default function FinanceView({
     paidBy: 'luis',
     month: getAccountingMonth(todayStr),
     notes: '',
+    inventoryStatus: 'pending',
     addToInventory: true
   });
 
@@ -64,7 +69,8 @@ export default function FinanceView({
         ...prev,
         selectedProductId: '',
         unitCost: '',
-        isCustomCost: false
+        isCustomCost: false,
+        inventoryStatus: 'pending'
       }));
       return;
     }
@@ -82,7 +88,8 @@ export default function FinanceView({
         category: 'Compra de mercadería',
         unitCost: defaultCost.toString(),
         isCustomCost: false,
-        amount: total
+        amount: total,
+        inventoryStatus: 'pending'
       }));
     }
   };
@@ -116,6 +123,7 @@ export default function FinanceView({
       paidBy: 'luis',
       month: getAccountingMonth(today),
       notes: '',
+      inventoryStatus: 'pending',
       addToInventory: true
     });
     setIsNewExpenseModalOpen(true);
@@ -137,6 +145,7 @@ export default function FinanceView({
       paidBy: exp.paidBy || 'luis',
       month: exp.month || getAccountingMonth(exp.date || localDate()),
       notes: exp.notes || '',
+      inventoryStatus: exp.inventoryStatus || (exp.selectedProductId ? 'received' : 'none'),
       addToInventory: false
     });
     setIsNewExpenseModalOpen(true);
@@ -158,6 +167,7 @@ export default function FinanceView({
       paidBy: 'luis',
       month: getAccountingMonth(today),
       notes: '',
+      inventoryStatus: 'pending',
       addToInventory: true
     });
     setEditingExpense(null);
@@ -187,7 +197,8 @@ export default function FinanceView({
         selectedProductId: expenseForm.selectedProductId || null,
         unitCost: expenseForm.unitCost ? Number(expenseForm.unitCost) : null,
         quantity: Number(expenseForm.quantity) || 1,
-        isCustomCost: expenseForm.isCustomCost
+        isCustomCost: expenseForm.isCustomCost,
+        inventoryStatus: expenseForm.inventoryStatus
       };
 
       if (onEditExpense) {
@@ -214,13 +225,14 @@ export default function FinanceView({
       selectedProductId: expenseForm.selectedProductId || null,
       unitCost: expenseForm.unitCost ? Number(expenseForm.unitCost) : null,
       quantity: Number(expenseForm.quantity) || 1,
-      isCustomCost: expenseForm.isCustomCost
+      isCustomCost: expenseForm.isCustomCost,
+      inventoryStatus: expenseForm.selectedProductId ? (expenseForm.inventoryStatus || 'pending') : null
     };
 
     if (onAddNewExpense({ ...newExp, addToInventory: expenseForm.addToInventory }) === false) return;
 
     if (showToast) {
-      showToast(`✅ Gasto de S/ ${finalAmount.toFixed(2)} registrado exitosamente`, 'success');
+      showToast(`✅ Gasto de S/ ${finalAmount.toFixed(2)} registrado exitosamente${expenseForm.selectedProductId && expenseForm.inventoryStatus === 'pending' ? ' (Estado: ⏳ Pendiente de ingreso a almacén)' : ''}`, 'success');
     }
     handleCloseExpenseModal();
   };
@@ -444,56 +456,110 @@ export default function FinanceView({
                 <th>Método Pago</th>
                 <th>Socio Responsable</th>
                 <th>Mes</th>
+                <th>Estado Inventario</th>
                 <th>Notas / Impacto en Caja</th>
                 <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {filteredExpenses.map(exp => (
-                <tr key={exp.id}>
-                  <td>{exp.date}</td>
-                  <td>
-                    <span className={`badge ${exp.type === 'Ingreso' ? 'badge-green' : 'badge-red'}`}>
-                      {exp.type}
-                    </span>
-                  </td>
-                  <td>{exp.category}</td>
-                  <td><strong>{exp.description}</strong></td>
-                  <td style={{ fontWeight: 800, color: exp.type === 'Ingreso' ? '#10b981' : '#ef4444' }}>
-                    {exp.type === 'Ingreso' ? '+' : '-'}S/ {Number(exp.amount).toFixed(2)}
-                  </td>
-                  <td><span className="badge badge-blue">{exp.paymentMethod}</span></td>
-                  <td>
-                    <span style={{ fontWeight: 600 }}>
-                      {exp.paidBy === 'luis' ? '👨‍💼 Luis Romero' : '🚀 Kevin Servat'}
-                    </span>
-                  </td>
-                  <td>{exp.month}</td>
-                  <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    {exp.notes || '—'}
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                      <button 
-                        className="btn-icon" 
-                        style={{ width: '28px', height: '28px', color: 'var(--primary-600)', borderColor: 'rgba(0, 102, 255, 0.3)' }}
-                        onClick={() => handleOpenEditExpense(exp)}
-                        title="Editar gasto"
-                      >
-                        <Edit3 size={13} />
-                      </button>
-                      <button 
-                        className="btn-icon" 
-                        style={{ width: '28px', height: '28px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-                        onClick={() => onRequestDelete && onRequestDelete(exp, 'Gasto')}
-                        title="Eliminar gasto (con registro de auditoría)"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filteredExpenses.map(exp => {
+                const isPurchase = Boolean(exp.selectedProductId || exp.stockMovements?.length);
+                const isPending = isPurchase && exp.inventoryStatus === 'pending';
+                const isReceived = isPurchase && exp.inventoryStatus !== 'pending';
+                const unitsQty = exp.quantity || exp.stockMovements?.[0]?.quantity || 1;
+
+                return (
+                  <tr key={exp.id}>
+                    <td>{exp.date}</td>
+                    <td>
+                      <span className={`badge ${exp.type === 'Ingreso' ? 'badge-green' : 'badge-red'}`}>
+                        {exp.type}
+                      </span>
+                    </td>
+                    <td>{exp.category}</td>
+                    <td><strong>{exp.description}</strong></td>
+                    <td style={{ fontWeight: 800, color: exp.type === 'Ingreso' ? '#10b981' : '#ef4444' }}>
+                      {exp.type === 'Ingreso' ? '+' : '-'}S/ {Number(exp.amount).toFixed(2)}
+                    </td>
+                    <td><span className="badge badge-blue">{exp.paymentMethod}</span></td>
+                    <td>
+                      <span style={{ fontWeight: 600 }}>
+                        {exp.paidBy === 'luis' ? '👨‍💼 Luis Romero' : '🚀 Kevin Servat'}
+                      </span>
+                    </td>
+                    <td>{exp.month}</td>
+                    <td>
+                      {isPending ? (
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          style={{
+                            backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                            color: '#f59e0b',
+                            border: '1px solid rgba(245, 158, 11, 0.45)',
+                            borderRadius: 'var(--radius-full)',
+                            padding: '3px 10px',
+                            fontSize: '0.74rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}
+                          onClick={() => setExpenseToReceive(exp)}
+                          title="Haz clic para dar OK e ingresar estos productos al inventario físico"
+                        >
+                          <Clock size={12} />
+                          <span>⏳ Pendiente (Dar OK)</span>
+                        </button>
+                      ) : isReceived ? (
+                        <span 
+                          className="badge badge-green" 
+                          style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          title="Mercadería ya ingresada al inventario físico"
+                        >
+                          <Check size={12} /> Ingresado ({unitsQty} uds)
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      {exp.notes || '—'}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        {isPending && (
+                          <button 
+                            className="btn-icon" 
+                            style={{ width: '28px', height: '28px', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.35)' }}
+                            onClick={() => setExpenseToReceive(exp)}
+                            title="Dar OK e ingresar productos al inventario"
+                          >
+                            <Check size={13} />
+                          </button>
+                        )}
+                        <button 
+                          className="btn-icon" 
+                          style={{ width: '28px', height: '28px', color: 'var(--primary-600)', borderColor: 'rgba(0, 102, 255, 0.3)' }}
+                          onClick={() => handleOpenEditExpense(exp)}
+                          title="Editar gasto"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                        <button 
+                          className="btn-icon" 
+                          style={{ width: '28px', height: '28px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                          onClick={() => onRequestDelete && onRequestDelete(exp, 'Gasto')}
+                          title="Eliminar gasto (con registro de auditoría)"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -671,6 +737,82 @@ export default function FinanceView({
                       ✏️ Costo modificado exclusivamente para este registro de compra sin alterar el catálogo maestro.
                     </div>
                   )}
+
+                  {/* Selector de Estado de Ingreso a Inventario */}
+                  <div style={{
+                    marginTop: '12px',
+                    paddingTop: '10px',
+                    borderTop: '1px solid var(--border-subtle)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ fontSize: '0.78rem', margin: 0, fontWeight: 700 }}>
+                        📦 Estado de Ingreso a Inventario:
+                      </label>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        color: expenseForm.inventoryStatus === 'pending' ? '#f59e0b' : '#10b981'
+                      }}>
+                        {expenseForm.inventoryStatus === 'pending' ? '⏳ Mercadería Pendiente' : '✓ Ingresar Inmediatamente'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <button
+                        type="button"
+                        style={{
+                          padding: '8px 10px',
+                          fontSize: '0.76rem',
+                          border: '1px solid',
+                          borderColor: expenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--border-subtle)',
+                          backgroundColor: expenseForm.inventoryStatus === 'pending' ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-card)',
+                          color: expenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--text-muted)',
+                          fontWeight: expenseForm.inventoryStatus === 'pending' ? 700 : 500,
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '3px',
+                          textAlign: 'center'
+                        }}
+                        onClick={() => setExpenseForm(prev => ({ ...prev, inventoryStatus: 'pending' }))}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Clock size={13} />
+                          <span>⏳ Pendiente (Por recibir)</span>
+                        </div>
+                        <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Se agregará al inventario cuando le des OK</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        style={{
+                          padding: '8px 10px',
+                          fontSize: '0.76rem',
+                          border: '1px solid',
+                          borderColor: expenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--border-subtle)',
+                          backgroundColor: expenseForm.inventoryStatus === 'received' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                          color: expenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--text-muted)',
+                          fontWeight: expenseForm.inventoryStatus === 'received' ? 700 : 500,
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '3px',
+                          textAlign: 'center'
+                        }}
+                        onClick={() => setExpenseForm(prev => ({ ...prev, inventoryStatus: 'received' }))}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Check size={13} />
+                          <span>✓ Ya Recibido en Almacén</span>
+                        </div>
+                        <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Sumar al stock disponible de inmediato</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="form-group">
@@ -804,6 +946,100 @@ export default function FinanceView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: Confirmar Recepción de Mercadería (Dar OK e ingresar al inventario) */}
+      {expenseToReceive && (
+        <div className="modal-overlay">
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '490px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Clock size={20} color="#f59e0b" />
+                <h3 className="modal-title">Confirmar Ingreso a Inventario</h3>
+              </div>
+              <button className="close-btn" onClick={() => setExpenseToReceive(null)}>✕</button>
+            </div>
+
+            <div style={{ padding: '8px 0' }}>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-main)', marginBottom: '14px', lineHeight: 1.4 }}>
+                Esta compra está en estado <strong>⏳ Pendiente</strong>. ¿Confirmas la recepción física del pedido para ingresarlo a almacén?
+              </p>
+
+              <div style={{
+                backgroundColor: 'var(--bg-input)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-md)',
+                padding: '14px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, marginBottom: '8px', color: 'var(--text-main)' }}>
+                  📦 {expenseToReceive.description}
+                </div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>🔢 <strong>Cantidad a ingresar:</strong></span>
+                    <strong style={{ color: '#10b981', fontSize: '0.9rem' }}>
+                      +{expenseToReceive.quantity || expenseToReceive.stockMovements?.[0]?.quantity || 1} unidades
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>💰 <strong>Costo unitario:</strong></span>
+                    <span>S/ {Number(expenseToReceive.unitCost || (expenseToReceive.amount / (expenseToReceive.quantity || 1)) || 0).toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>💵 <strong>Desembolso total:</strong></span>
+                    <span>S/ {Number(expenseToReceive.amount || 0).toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>📅 <strong>Fecha del desembolso:</strong></span>
+                    <span>{expenseToReceive.date} ({expenseToReceive.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'})</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '10px 12px',
+                marginBottom: '18px',
+                fontSize: '0.78rem',
+                color: 'var(--text-main)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Check size={16} color="#10b981" />
+                <span>
+                  Al dar <strong>OK</strong>, los productos se sumarán inmediatamente al inventario real y estarán listos para la venta.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setExpenseToReceive(null)}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary"
+                  style={{ backgroundColor: '#10b981', borderColor: '#10b981', fontWeight: 700 }}
+                  onClick={() => {
+                    if (onReceiveExpenseStock) {
+                      onReceiveExpenseStock(expenseToReceive.id);
+                    }
+                    setExpenseToReceive(null);
+                  }}
+                >
+                  <Check size={15} />
+                  <span>✓ Dar OK e Ingresar a Inventario</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

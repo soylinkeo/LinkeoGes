@@ -978,6 +978,52 @@ test('inventory editing updates physical stock, unit cost, metadata and synchron
   assert.equal(linkedProd.marginPct, 75.8, 'El porcentaje de margen debe recalcularse a (45.50 / 60) * 100 = 75.8%');
 });
 
+test('expense purchases with pending status remain pending and add products to inventory only when confirmed with OK', async () => {
+  const { applyStockMovements } = await import('../src/utils/operations.js');
+
+  const initialInventory = [
+    { id: 'inv-chip', sku: 'SKU-CHIP-1', name: 'Chips NFC NTAG215', quantity: 10 }
+  ];
+
+  const purchaseExpense = {
+    id: 'exp-purchase-1',
+    description: 'Lote de 50 Chips NFC Importados',
+    amount: 200,
+    selectedProductId: 'inv-chip',
+    quantity: 50,
+    inventoryStatus: 'pending',
+    stockMovements: [{ inventoryId: 'inv-chip', quantity: 50 }]
+  };
+
+  // 1. Al crearse como pendiente, el inventario físico se mantiene en 10 uds
+  let currentInventory = [...initialInventory];
+  const isPending = purchaseExpense.inventoryStatus === 'pending';
+  if (!isPending) {
+    currentInventory = applyStockMovements(currentInventory, purchaseExpense.stockMovements, 1);
+  }
+  assert.equal(currentInventory[0].quantity, 10, 'El stock físico debe seguir siendo 10 mientras el pedido esté pendiente');
+  assert.equal(purchaseExpense.inventoryStatus, 'pending');
+
+  // 2. El usuario hace clic en el botón de Pendiente y le da OK para ingresar al inventario
+  let confirmedExpense = { ...purchaseExpense };
+  if (confirmedExpense.inventoryStatus === 'pending' && confirmedExpense.stockMovements?.length) {
+    currentInventory = applyStockMovements(currentInventory, confirmedExpense.stockMovements, 1);
+    confirmedExpense.inventoryStatus = 'received';
+    confirmedExpense.receivedAt = new Date().toISOString();
+  }
+
+  // 3. Verificación de que ahora sí se agregaron los 50 productos al inventario
+  assert.equal(currentInventory[0].quantity, 60, 'El stock físico debe ser 10 + 50 = 60 tras dar OK');
+  assert.equal(confirmedExpense.inventoryStatus, 'received', 'El estado del gasto pasa a received');
+  assert.ok(confirmedExpense.receivedAt);
+
+  // 4. Intentar dar OK de nuevo es idempotente
+  if (confirmedExpense.inventoryStatus === 'pending') {
+    currentInventory = applyStockMovements(currentInventory, confirmedExpense.stockMovements, 1);
+  }
+  assert.equal(currentInventory[0].quantity, 60, 'No debe duplicarse el stock si ya fue recibido');
+});
+
 
 
 
