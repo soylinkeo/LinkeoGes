@@ -569,3 +569,57 @@ test('dynamicRouter parses NFC and QR routes, generates redirect URLs and evalua
   assert.equal(healthRegular.alertLevel, 'info');
 });
 
+test('calculateUnitsProjection calculates bottom-up product quantities, replacement fund and reinvestment', async () => {
+  const { calculateUnitsProjection } = await import('../src/utils/projectionsUtils.js');
+
+  const scenario = {
+    projectedProducts: [
+      { id: 'p-sq', name: 'Tarjeta Cuadrado', price: 60, baseCost: 12.93, targetUnits: 15, included: true },
+      { id: 'p-l', name: 'Tarjeta Formato L', price: 80, baseCost: 12.93, targetUnits: 15, included: true }
+    ],
+    fixedCosts: [{ id: 'fc-1', amount: 50 }],
+    businessParams: {
+      salesDaysPerMonth: 30,
+      partnersCount: 2,
+      reinvestmentPercent: 20
+    }
+  };
+
+  const res = calculateUnitsProjection(scenario);
+  assert.equal(res.totalUnits, 30);
+  assert.equal(res.grossRevenue, 2100);
+  assert.equal(res.replacementFund, 387.90);
+  assert.equal(res.grossMargin, 1712.10);
+  assert.equal(res.netProfit, 1662.10);
+  assert.equal(res.reinvestmentPercent, 20);
+  assert.equal(res.reinvestmentAmount, 332.42);
+  assert.equal(res.distributableProfit, 1329.68);
+  assert.equal(res.profitPerPartner, 664.84);
+  assert.equal(res.grossProfitPerPartner, 831.05);
+  assert.equal(res.unitsPerDay, 1.0);
+
+  // Caso 0% reinversión (retiro total)
+  const resZero = calculateUnitsProjection({
+    ...scenario,
+    businessParams: { ...scenario.businessParams, reinvestmentPercent: 0 }
+  });
+  assert.equal(resZero.reinvestmentAmount, 0);
+  assert.equal(resZero.distributableProfit, 1662.10);
+  assert.equal(resZero.profitPerPartner, 831.05);
+
+  // Agregar tercer producto proyectado a futuro ("aún no tenemos pero si llegan...")
+  const resWithFuture = calculateUnitsProjection({
+    ...scenario,
+    projectedProducts: [
+      ...scenario.projectedProducts,
+      { id: 'p-future', name: 'Display Barra QR', price: 120, baseCost: 25, targetUnits: 10, included: true }
+    ]
+  });
+  assert.equal(resWithFuture.totalUnits, 40);
+  assert.equal(resWithFuture.grossRevenue, 3300); // 2100 + 1200
+  assert.equal(resWithFuture.replacementFund, 637.90); // 387.90 + 250
+  assert.equal(resWithFuture.grossMargin, 2662.10);
+  assert.equal(resWithFuture.netProfit, 2612.10);
+});
+
+

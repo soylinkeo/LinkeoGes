@@ -20,9 +20,15 @@ import {
   RotateCcw,
   FileSpreadsheet,
   Settings,
-  Scale
+  Scale,
+  Coins,
+  ArrowRight,
+  HelpCircle,
+  CheckCircle,
+  PieChart
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
+import { calculateUnitsProjection, DEFAULT_REINVESTMENT_PERCENT } from '../utils/projectionsUtils';
 import { 
   EXCEL_PLAN_30_DAYS_TEMPLATE, 
   EXCEL_FIXED_COSTS_TEMPLATE, 
@@ -107,6 +113,7 @@ export default function ProjectionsView({
       price: 60.00,
       baseCost: 13.00,
       mixPercent: 50,
+      targetUnits: 10,
       isCustom: true
     });
     setIsNewProductModalOpen(false);
@@ -137,6 +144,7 @@ export default function ProjectionsView({
     price: 60.00,
     baseCost: 13.00,
     mixPercent: 50,
+    targetUnits: 10,
     isCustom: true
   });
   const [editingProduct, setEditingProduct] = useState(null);
@@ -348,31 +356,67 @@ export default function ProjectionsView({
     return Math.ceil(normalized);
   }, [totalFixedCosts, weightedAverages.weightedMargin]);
 
+  // Porcentaje de reinversión para crecimiento de Linkeo (por defecto 20% recomendado)
+  const reinvestmentPercent = useMemo(() => {
+    return businessParams.reinvestmentPercent !== undefined
+      ? Number(businessParams.reinvestmentPercent)
+      : DEFAULT_REINVESTMENT_PERCENT;
+  }, [businessParams.reinvestmentPercent]);
+
+  // Proyección dinámica Bottom-Up a partir de las unidades reales de cada producto
+  const unitsProjection = useMemo(() => {
+    return calculateUnitsProjection({
+      projectedProducts,
+      fixedCosts,
+      variableCosts,
+      variableUnitCosts: projectionsData?.variableUnitCosts,
+      businessParams: {
+        ...businessParams,
+        reinvestmentPercent
+      }
+    });
+  }, [projectedProducts, fixedCosts, variableCosts, projectionsData?.variableUnitCosts, businessParams, reinvestmentPercent]);
+
   // Resultados de la simulación del Escenario Libre
   const simulationResults = useMemo(() => {
-    const units = unitsRequired;
-    const grossRevenue = units * weightedAverages.weightedPrice;
-    const totalVariableCosts = units * weightedAverages.weightedVariableCost;
+    const hasUnits = unitsProjection.totalUnits > 0;
+    const units = hasUnits ? unitsProjection.totalUnits : unitsRequired;
+    const grossRevenue = hasUnits ? unitsProjection.grossRevenue : (units * weightedAverages.weightedPrice);
+    const totalVariableCosts = hasUnits ? unitsProjection.totalVariableCosts : (units * weightedAverages.weightedVariableCost);
+    const replacementFund = hasUnits ? unitsProjection.replacementFund : (units * weightedAverages.weightedVariableCost);
     const totalMargin = grossRevenue - totalVariableCosts;
-    const netProfit = totalMargin - totalFixedCosts;
+    const netProfit = hasUnits ? unitsProjection.netProfit : (totalMargin - totalFixedCosts);
     const partners = Number(businessParams.partnersCount) || 2;
-    const profitPerPartner = partners > 0 ? netProfit / partners : netProfit;
-    
-    const salesDays = Number(businessParams.salesDaysPerMonth) || 24;
+
+    const reinvestmentAmount = netProfit > 0 && reinvestmentPercent > 0
+      ? Math.round(netProfit * (reinvestmentPercent / 100) * 100) / 100
+      : 0;
+    const distributableProfit = Math.max(0, Math.round((netProfit - reinvestmentAmount) * 100) / 100);
+    const profitPerPartner = partners > 0 ? Math.round((distributableProfit / partners) * 100) / 100 : distributableProfit;
+    const grossProfitPerPartner = partners > 0 ? Math.round((netProfit / partners) * 100) / 100 : netProfit;
+
+    const salesDays = Number(businessParams.salesDaysPerMonth) || 30;
     const unitsPerDay = salesDays > 0 ? Number((units / salesDays).toFixed(2)) : 0;
+    const revenuePerDay = salesDays > 0 ? Number((grossRevenue / salesDays).toFixed(2)) : 0;
 
     return {
       units,
       grossRevenue,
       totalVariableCosts,
+      replacementFund,
       totalFixedCosts,
       totalMargin,
       netProfit,
+      reinvestmentPercent,
+      reinvestmentAmount,
+      distributableProfit,
       profitPerPartner,
+      grossProfitPerPartner,
       unitsPerDay,
+      revenuePerDay,
       salesDays
     };
-  }, [unitsRequired, weightedAverages, totalFixedCosts, businessParams]);
+  }, [unitsProjection, unitsRequired, weightedAverages, totalFixedCosts, businessParams, reinvestmentPercent]);
 
   // Unidades efectivas a simular en el embudo (permite variar libremente o usar la meta mensual)
   const effectiveFunnelUnits = useMemo(() => {
@@ -453,25 +497,13 @@ export default function ProjectionsView({
 
   // Detección del escenario calibrado al stock físico fabricado (15 Cuadrado + 15 Formato L)
   const isStockScenarioActive = useMemo(() => {
-    return unitsRequired === 30 && 
-           Math.abs(Number(businessParams.customProfitTarget) - 1662.10) <= 0.5 &&
+    return simulationResults.units === 30 &&
            activeProducts.length === 2 &&
-           activeProducts.every(p => Math.abs(Number(p.mixPercent) - 50) <= 0.5);
-  }, [unitsRequired, businessParams.customProfitTarget, activeProducts]);
+           activeProducts.every(p => (Number(p.targetUnits) || 0) === 15);
+  }, [simulationResults.units, activeProducts]);
 
-  const hasSpecificStockMismatch = useMemo(() => {
-    if (isStockScenarioActive) return false;
-    const hasCuadradoOrL = activeProducts.some(p => {
-      const n = (p.name || '').toLowerCase();
-      return n.includes('cuadrado') || n.includes('formato l') || n.includes(' l ') || n.includes('estándar') || n.includes('premium');
-    });
-    return hasCuadradoOrL && (
-      unitsRequired === 38 || 
-      Number(businessParams.customProfitTarget) === 2100 || 
-      totalMixPercent !== 100 ||
-      (activeProducts.length === 2 && activeProducts.some(p => Math.abs(Number(p.mixPercent) - 50) > 0.5))
-    );
-  }, [isStockScenarioActive, activeProducts, unitsRequired, businessParams.customProfitTarget, totalMixPercent]);
+  // Ya no bloqueamos con advertencias de desajuste rígido: el modelo es 100% libre por unidades
+  const hasSpecificStockMismatch = false;
 
   // --- ACCIONES Y HANDLERS TOTALMENTE AUDITADOS ---
 
@@ -545,6 +577,64 @@ export default function ProjectionsView({
     }
   };
 
+  const handleUpdateProductUnits = (productId, newUnits) => {
+    const numUnits = Math.max(0, parseInt(newUnits, 10) || 0);
+    const targetProd = projectedProducts.find(p => p.id === productId);
+
+    const updated = projectedProducts.map(p => {
+      if (p.id === productId) {
+        return { ...p, targetUnits: numUnits };
+      }
+      return p;
+    });
+
+    const activeUpdated = updated.filter(p => p.included !== false);
+    const newTotalUnits = activeUpdated.reduce((sum, p) => sum + (Number(p.targetUnits !== undefined ? p.targetUnits : 0) || 0), 0);
+
+    const synchronized = updated.map(p => {
+      if (p.included === false) return p;
+      const u = Number(p.targetUnits !== undefined ? p.targetUnits : 0) || 0;
+      const pct = newTotalUnits > 0 ? Math.round((u / newTotalUnits) * 1000) / 10 : 0;
+      return { ...p, mixPercent: pct };
+    });
+
+    onUpdateProjectionsData({
+      ...projectionsData,
+      projectedProducts: synchronized
+    });
+
+    if (logAudit && targetProd) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Mix Producto',
+        entityId: targetProd.sku || targetProd.id,
+        entityName: targetProd.name,
+        reason: `Unidades proyectadas ajustadas a ${numUnits} uds.`
+      });
+    }
+  };
+
+  const handleUpdateReinvestmentPercent = (newPct) => {
+    const cleanPct = Math.max(0, Math.min(100, Number(newPct) || 0));
+    onUpdateProjectionsData({
+      ...projectionsData,
+      businessParams: {
+        ...businessParams,
+        reinvestmentPercent: cleanPct
+      }
+    });
+
+    if (logAudit) {
+      logAudit({
+        actionType: 'Configuración',
+        entityType: 'Parámetros Financieros',
+        entityId: 'reinvestment-percent',
+        entityName: 'Fondo de Reinversión',
+        reason: `Porcentaje de reinversión ajustado a ${cleanPct}%.`
+      });
+    }
+  };
+
   const handleUpdateProductMix = (productId, newMix) => {
     const numMix = Math.max(0, Number(newMix) || 0);
     const targetProd = projectedProducts.find(p => p.id === productId);
@@ -569,7 +659,10 @@ export default function ProjectionsView({
   };
 
   const handleOpenEditProduct = (prod) => {
-    setEditingProduct({ ...prod });
+    setEditingProduct({ 
+      ...prod,
+      targetUnits: prod.targetUnits !== undefined ? prod.targetUnits : 0
+    });
     setIsEditProductModalOpen(true);
   };
 
@@ -577,18 +670,31 @@ export default function ProjectionsView({
     e.preventDefault();
     if (!editingProduct) return;
 
+    const numUnits = Number(editingProduct.targetUnits !== undefined ? editingProduct.targetUnits : 0) || 0;
     const updated = projectedProducts.map(p => {
       if (p.id === editingProduct.id) {
         return {
           ...editingProduct,
           price: Number(editingProduct.price) || 0,
           baseCost: Number(editingProduct.baseCost) || 0,
-          mixPercent: Number(editingProduct.mixPercent) || 0
+          mixPercent: Number(editingProduct.mixPercent) || 0,
+          targetUnits: numUnits
         };
       }
       return p;
     });
-    onUpdateProjectionsData({ ...projectionsData, projectedProducts: updated });
+
+    const activeUpdated = updated.filter(p => p.included !== false);
+    const newTotalUnits = activeUpdated.reduce((sum, p) => sum + (Number(p.targetUnits !== undefined ? p.targetUnits : 0) || 0), 0);
+
+    const synchronized = updated.map(p => {
+      if (p.included === false) return p;
+      const u = Number(p.targetUnits !== undefined ? p.targetUnits : 0) || 0;
+      const pct = newTotalUnits > 0 ? Math.round((u / newTotalUnits) * 1000) / 10 : (p.mixPercent || 0);
+      return { ...p, mixPercent: pct };
+    });
+
+    onUpdateProjectionsData({ ...projectionsData, projectedProducts: synchronized });
 
     if (logAudit) {
       logAudit({
@@ -596,7 +702,7 @@ export default function ProjectionsView({
         entityType: 'Mix Producto',
         entityId: editingProduct.sku || editingProduct.id,
         entityName: editingProduct.name,
-        reason: `Edición de producto: Precio S/ ${editingProduct.price}, Costo Base S/ ${editingProduct.baseCost}, Mix ${editingProduct.mixPercent}%.`
+        reason: `Edición de producto: Cantidad ${numUnits} uds, Precio S/ ${editingProduct.price}, Costo Base S/ ${editingProduct.baseCost}.`
       });
     }
 
@@ -624,6 +730,7 @@ export default function ProjectionsView({
 
   const handleCreateNewProjectedProduct = (e) => {
     e.preventDefault();
+    const targetUnits = Number(newProjectedProductForm.targetUnits !== undefined ? newProjectedProductForm.targetUnits : 10) || 0;
     const newProd = {
       id: `proj-${Date.now()}`,
       name: newProjectedProductForm.name || 'Nuevo Modelo Linkeo',
@@ -631,13 +738,25 @@ export default function ProjectionsView({
       price: Number(newProjectedProductForm.price) || 60,
       baseCost: Number(newProjectedProductForm.baseCost) || 13,
       mixPercent: Number(newProjectedProductForm.mixPercent) || 50,
+      targetUnits: targetUnits,
       isCustom: true,
       included: true
     };
 
+    const nextProducts = [...projectedProducts, newProd];
+    const activeNext = nextProducts.filter(p => p.included !== false);
+    const newTotalUnits = activeNext.reduce((sum, p) => sum + (Number(p.targetUnits !== undefined ? p.targetUnits : 0) || 0), 0);
+
+    const synchronized = nextProducts.map(p => {
+      if (p.included === false) return p;
+      const u = Number(p.targetUnits !== undefined ? p.targetUnits : 0) || 0;
+      const pct = newTotalUnits > 0 ? Math.round((u / newTotalUnits) * 1000) / 10 : (p.mixPercent || 0);
+      return { ...p, mixPercent: pct };
+    });
+
     onUpdateProjectionsData({
       ...projectionsData,
-      projectedProducts: [...projectedProducts, newProd]
+      projectedProducts: synchronized
     });
 
     if (logAudit) {
@@ -646,12 +765,12 @@ export default function ProjectionsView({
         entityType: 'Mix Producto',
         entityId: newProd.sku,
         entityName: newProd.name,
-        reason: `Nuevo producto proyectado: Precio S/ ${newProd.price}, Costo S/ ${newProd.baseCost}, Mix ${newProd.mixPercent}%.`
+        reason: `Nuevo producto proyectado: Cantidad ${targetUnits} uds, Precio S/ ${newProd.price}, Costo S/ ${newProd.baseCost}.`
       });
     }
 
     if (showToast) {
-      showToast(`✅ Modelo proyectado "${newProd.name}" agregado`, 'success');
+      showToast(`✅ Modelo proyectado "${newProd.name}" (${targetUnits} uds) agregado`, 'success');
     }
     handleCloseNewProductModal();
   };
@@ -674,13 +793,25 @@ export default function ProjectionsView({
       price: Number(product.price) || 60,
       baseCost: Number(product.cost) || 13,
       mixPercent: 50,
+      targetUnits: 10,
       isCustom: false,
       included: true
     };
 
+    const nextProducts = [...projectedProducts, imported];
+    const activeNext = nextProducts.filter(p => p.included !== false);
+    const newTotalUnits = activeNext.reduce((sum, p) => sum + (Number(p.targetUnits !== undefined ? p.targetUnits : 0) || 0), 0);
+
+    const synchronized = nextProducts.map(p => {
+      if (p.included === false) return p;
+      const u = Number(p.targetUnits !== undefined ? p.targetUnits : 0) || 0;
+      const pct = newTotalUnits > 0 ? Math.round((u / newTotalUnits) * 1000) / 10 : (p.mixPercent || 0);
+      return { ...p, mixPercent: pct };
+    });
+
     onUpdateProjectionsData({
       ...projectionsData,
-      projectedProducts: [...projectedProducts, imported]
+      projectedProducts: synchronized
     });
 
     if (logAudit) {
@@ -1681,97 +1812,69 @@ export default function ProjectionsView({
         </div>
       </div>
 
-      {/* BANNER DE DETECCIÓN Y CALIBRACIÓN INTELIGENTE A STOCK FABRICADO (15 Cuadrado + 15 Formato L) */}
-      {hasSpecificStockMismatch && (
-        <div 
-          style={{
-            background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(124, 58, 237, 0.12) 100%)',
-            border: '1px solid rgba(59, 130, 246, 0.35)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '16px 20px',
-            marginBottom: '20px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '14px',
-            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '300px' }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              <Zap size={20} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: '0.96rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>Calibración de Stock Físico Fabricado</span>
-                <span className="badge badge-purple" style={{ fontSize: '0.72rem', fontWeight: 700 }}>
-                  30 Tarjetas en Taller
-                </span>
-              </div>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0', lineHeight: 1.45 }}>
-                Actualmente el simulador exige <strong>{simulationResults.units} unidades</strong> con Meta Neta de <strong>S/ {Number(businessParams.customProfitTarget || 0).toFixed(2)}</strong> y Mix que suma <strong>{totalMixPercent}%</strong>.
-                Para calibrar exactamente a sus <strong>30 tarjetas fabricadas</strong> (15 Cuadrado + 15 Formato L a costo S/ 12.93 y movilidad S/ 50.00), ajusta el mix al <strong>50% / 50%</strong> y la Meta a <strong>S/ 1,662.10</strong> (utilidad limpia de <strong>S/ 831.05</strong> para Luis y <strong>S/ 831.05</strong> para Kevin).
-              </p>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleQuickFixMixAndTarget}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
-                border: 'none',
-                fontWeight: 800,
-                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)',
-                padding: '8px 16px'
-              }}
-            >
-              <Zap size={15} />
-              <span>⚡ Calibrar a 30 Uds (50/50 & Meta S/ 1,662.10)</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* CONFIRMACIÓN DE ESCENARIO 30 UDS ACTIVO */}
-      {isStockScenarioActive && (
-        <div 
-          style={{
-            background: 'rgba(16, 185, 129, 0.1)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            borderRadius: 'var(--radius-md)',
-            padding: '10px 16px',
-            marginBottom: '18px',
+      {/* BANNER DINÁMICO: PROYECCIÓN POR UNIDADES REALES Y FUTURAS */}
+      <div 
+        style={{
+          background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
+          border: '1px solid rgba(0, 102, 255, 0.25)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '14px 18px',
+          marginBottom: '18px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '280px' }}>
+          <div style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #0066ff, #10b981)',
+            color: '#fff',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '10px',
-            flexWrap: 'wrap'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.84rem', color: '#10b981', fontWeight: 700 }}>
-            <span>✅</span>
-            <span>Simulador 100% calibrado al stock físico fabricado (30 unidades: 15 Cuadrado + 15 Formato L). Utilidad neta estimada: S/ 1,662.10 (S/ 831.05 por socio).</span>
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <Package size={18} />
           </div>
-          <span className="badge badge-green" style={{ fontSize: '0.72rem' }}>Lote 30 Uds Activo</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>Proyección Dinámica: {simulationResults.units} Unidades Totales en el Mix</span>
+              <span className="badge badge-blue" style={{ fontSize: '0.7rem' }}>
+                Modelo por Cantidades
+              </span>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+              Venta bruta proyectada de <strong>S/ {simulationResults.grossRevenue.toFixed(2)}</strong>. Se protege el <strong>fondo de reposición (S/ {simulationResults.replacementFund.toFixed(2)})</strong> para reponer insumos y los fijos de <strong>S/ {totalFixedCosts.toFixed(2)}</strong>, dejando una utilidad neta de <strong>S/ {simulationResults.netProfit.toFixed(2)}</strong>.
+            </p>
+          </div>
         </div>
-      )}
+
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={handleQuickFixMixAndTarget}
+            style={{ fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+            title="Ajustar a 15 Cuadrado + 15 Formato L (30 tarjetas en taller)"
+          >
+            <span>📦 Lote Taller (30 uds)</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => setActiveSubTab('products')}
+            style={{ fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+          >
+            <Edit3 size={12} />
+            <span>Editar Cantidades en Mix</span>
+          </button>
+        </div>
+      </div>
 
       {/* Navegación por Sub-Pestañas Touch-Friendly */}
       <div 
@@ -1843,27 +1946,71 @@ export default function ProjectionsView({
               <div>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                   <Sliders size={18} color="var(--primary-600)" />
-                  <span>Parámetros Operativos del Escenario Libre</span>
+                  <span>Parámetros Operativos del Escenario (Bottom-Up)</span>
                 </h3>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                  Define tus números meta en tiempo real. Todas las modificaciones se guardan y auditan automáticamente.
+                  Define tus cantidades en el mix de productos o ajusta tus metas. Todo se calcula y audita en tiempo real.
                 </p>
               </div>
-              <span className="badge badge-blue">100% Interactivo & Auditado</span>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <span className="badge badge-blue">100% Interactivo & Auditado</span>
+                {simulationResults.units === 30 && (
+                  <span className="badge badge-green">✓ Lote 30 Uds Taller</span>
+                )}
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-              {/* Meta de Utilidad Neta Deseada */}
+              {/* Unidades Totales del Mix */}
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="form-label" style={{ fontSize: '0.82rem', margin: 0 }}>
+                    Unidades Totales en el Mix:
+                  </label>
+                  <button 
+                    type="button"
+                    onClick={() => setActiveSubTab('products')}
+                    style={{ background: 'none', border: 'none', color: 'var(--primary-600)', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}
+                  >
+                    ✏️ Ir al Mix
+                  </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', height: '38px', padding: '0 12px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', fontWeight: 800, fontSize: '1.15rem', color: 'var(--primary-600)', justifyContent: 'space-between' }}>
+                  <span>{simulationResults.units} uds</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    {activeProducts.length} productos
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-secondary"
+                    onClick={handleQuickFixMixAndTarget}
+                    style={{ fontSize: '0.68rem', padding: '2px 6px' }}
+                    title="Ajustar a 15 Cuadrado + 15 Formato L"
+                  >
+                    📦 Reset a 30 uds
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-secondary"
+                    onClick={() => setActiveSubTab('products')}
+                    style={{ fontSize: '0.68rem', padding: '2px 6px' }}
+                  >
+                    + Agregar productos
+                  </button>
+                </div>
+              </div>
+
+              {/* Meta Neta del Negocio */}
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <label className="form-label" style={{ fontSize: '0.82rem', margin: 0 }}>
                     Meta Neta del Negocio (S/):
                   </label>
-                  {isStockScenarioActive && (
-                    <span className="badge badge-green" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                      ✓ 30 Uds Calibradas
-                    </span>
-                  )}
+                  <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700 }}>
+                    Limpios tras insumos
+                  </span>
                 </div>
                 <input 
                   type="number" 
@@ -1873,10 +2020,10 @@ export default function ProjectionsView({
                   placeholder="Ej: 1662.10"
                   value={businessParams.customProfitTarget}
                   onChange={(e) => handleUpdateParam('customProfitTarget', e.target.value)}
-                  style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary-600)' }}
+                  style={{ fontWeight: 800, fontSize: '1.1rem', color: '#10b981' }}
                 />
 
-                {/* Accesos rápidos a escenarios de metas */}
+                {/* Accesos rápidos a metas */}
                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
                   <button
                     type="button"
@@ -1891,9 +2038,8 @@ export default function ProjectionsView({
                       borderRadius: 'var(--radius-sm)',
                       fontWeight: 700
                     }}
-                    title="Meta exacta de S/ 1,662.10 para liquidar las 30 unidades físicas fabricadas"
                   >
-                    📦 Stock 30 uds (S/ 1,662)
+                    📦 S/ 1,662 (30 uds)
                   </button>
                   <button
                     type="button"
@@ -1908,7 +2054,7 @@ export default function ProjectionsView({
                       borderRadius: 'var(--radius-sm)'
                     }}
                   >
-                    S/ 2,100 (38 uds)
+                    S/ 2,100
                   </button>
                   <button
                     type="button"
@@ -1923,39 +2069,9 @@ export default function ProjectionsView({
                       borderRadius: 'var(--radius-sm)'
                     }}
                   >
-                    S/ 4,000 (70 uds)
+                    S/ 4,000
                   </button>
                 </div>
-
-                {/* Calculador interactivo por unidades de stock */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px' }}>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Calcular para:</span>
-                  <input 
-                    type="number"
-                    min="1"
-                    defaultValue="30"
-                    id="units-to-target-input"
-                    className="form-control"
-                    style={{ width: '48px', padding: '1px 4px', fontSize: '0.74rem', textAlign: 'center', fontWeight: 700 }}
-                  />
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>uds</span>
-                  <button
-                    type="button"
-                    className="btn btn-xs btn-secondary"
-                    style={{ fontSize: '0.68rem', padding: '1px 6px' }}
-                    onClick={() => {
-                      const input = document.getElementById('units-to-target-input');
-                      const val = Number(input?.value || 30);
-                      handleCalculateTargetFromUnits(val);
-                    }}
-                  >
-                    Calcular
-                  </button>
-                </div>
-
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                  Escribe cualquier ganancia neta deseada (o 0 para solo cubrir fijos)
-                </span>
               </div>
 
               {/* Días de venta al mes */}
@@ -1973,7 +2089,7 @@ export default function ProjectionsView({
                   style={{ fontWeight: 700 }}
                 />
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                  Días laborales activos (defecto: 24 días)
+                  Ritmo: <strong>{simulationResults.unitsPerDay} uds/día</strong> (S/ {simulationResults.revenuePerDay}/día)
                 </span>
               </div>
 
@@ -1992,7 +2108,7 @@ export default function ProjectionsView({
                   style={{ fontWeight: 700 }}
                 />
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                  División igualitaria 50/50 (Luis Romero & Kevin Servat)
+                  División 50/50 (Luis Romero & Kevin Servat)
                 </span>
               </div>
 
@@ -2032,7 +2148,7 @@ export default function ProjectionsView({
                 Tu Escenario Libre está listo para recibir productos
               </h4>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', maxWidth: '600px', margin: '0 auto 16px auto' }}>
-                Para calcular las unidades mensuales requeridas y las proyecciones exactas de facturación, agrega los productos que planeas comercializar o impórtalos directamente de tu Almacén.
+                Para calcular las proyecciones exactas de facturación, agrega los productos que planeas comercializar o impórtalos directamente de tu Almacén.
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <button 
@@ -2070,7 +2186,7 @@ export default function ProjectionsView({
             {/* Meta de Unidades */}
             <div className="kpi-card" style={{ borderLeft: '4px solid var(--primary-600)' }}>
               <div className="kpi-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Unidades Requeridas</span>
+                <span>Unidades a Vender</span>
                 <Package size={16} color="var(--primary-600)" />
               </div>
               <div className="kpi-value" style={{ color: 'var(--primary-600)', fontSize: '1.8rem' }}>
@@ -2080,14 +2196,14 @@ export default function ProjectionsView({
                 </span>
               </div>
               <div className="kpi-subtext" style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                <div>Ritmo diario necesario: <strong>{simulationResults.unitsPerDay} uds/día</strong></div>
+                <div>Ritmo diario: <strong>{simulationResults.unitsPerDay} uds/día</strong> ({businessParams.salesDaysPerMonth} días)</div>
                 {simulationResults.units === 30 ? (
                   <span style={{ color: '#10b981', fontWeight: 700, fontSize: '0.74rem' }}>
-                    ✓ 100% calibrado al stock fabricado (30 uds)
+                    ✓ 30 unidades físicas fabricadas en taller
                   </span>
                 ) : simulationResults.units > 30 ? (
-                  <span style={{ color: '#f59e0b', fontWeight: 600, fontSize: '0.74rem' }}>
-                    ⚠️ Excede el stock físico fabricado de 30 uds (+{simulationResults.units - 30} adicionales)
+                  <span style={{ color: '#38bdf8', fontWeight: 600, fontSize: '0.74rem' }}>
+                    🚀 30 uds fabricadas + {simulationResults.units - 30} adicionales por pedir
                   </span>
                 ) : null}
               </div>
@@ -2103,21 +2219,7 @@ export default function ProjectionsView({
                 S/ {simulationResults.grossRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
               <div className="kpi-subtext">
-                Ticket promedio ponderado: S/ {weightedAverages.weightedPrice.toFixed(2)}
-              </div>
-            </div>
-
-            {/* Margen Bruto Total */}
-            <div className="kpi-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
-              <div className="kpi-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Margen Bruto Total</span>
-                <TrendingUp size={16} color="#8b5cf6" />
-              </div>
-              <div className="kpi-value" style={{ color: '#8b5cf6', fontSize: '1.8rem' }}>
-                S/ {simulationResults.totalMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-              <div className="kpi-subtext">
-                Margen promedio: <strong>{weightedAverages.weightedMarginPct.toFixed(1)}%</strong>
+                Fondo reposición: <strong>S/ {simulationResults.replacementFund.toFixed(2)}</strong> reservado para insumos
               </div>
             </div>
 
@@ -2131,7 +2233,153 @@ export default function ProjectionsView({
                 S/ {simulationResults.netProfit.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
               <div className="kpi-subtext">
-                Tras pagar insumos y gastos fijos
+                Tras pagar insumos (S/ {simulationResults.replacementFund.toFixed(2)}) y fijos (S/ {totalFixedCosts.toFixed(2)})
+              </div>
+            </div>
+
+            {/* Utilidad Limpia Distribuible */}
+            <div className="kpi-card" style={{ borderLeft: '4px solid #a855f7' }}>
+              <div className="kpi-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Utilidad Distribuible</span>
+                <Coins size={16} color="#a855f7" />
+              </div>
+              <div className="kpi-value" style={{ color: '#a855f7', fontSize: '1.8rem' }}>
+                S/ {simulationResults.distributableProfit.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="kpi-subtext">
+                Tras fondo de reinversión del {simulationResults.reinvestmentPercent}% (S/ {simulationResults.reinvestmentAmount.toFixed(2)})
+              </div>
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* MÓDULO INTERACTIVO: FONDO DE REINVERSIÓN DE LO GENERADO                     */}
+          {/* ========================================================================= */}
+          <div 
+            style={{
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(37, 99, 235, 0.08) 100%)',
+              border: '1px solid rgba(139, 92, 246, 0.35)',
+              borderRadius: 'var(--radius-xl)',
+              padding: '22px 24px',
+              marginBottom: '24px'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Coins size={20} color="#a855f7" />
+                  <h3 style={{ fontSize: '1.18rem', fontWeight: 800, margin: 0 }}>
+                    Fondo de Reinversión de lo Generado ({simulationResults.reinvestmentPercent}%)
+                  </h3>
+                </div>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                  Determina qué porcentaje de la ganancia neta generada se guarda para el crecimiento de Linkeo antes del reparto entre socios.
+                </p>
+              </div>
+
+              <span className="badge badge-purple" style={{ fontSize: '0.76rem', padding: '4px 10px', fontWeight: 700 }}>
+                ⭐ Recomendación Linkeo: 20% a 30%
+              </span>
+            </div>
+
+            {/* Caja de Recomendación Financiera Profesional */}
+            <div 
+              style={{
+                background: 'rgba(139, 92, 246, 0.12)',
+                border: '1px solid rgba(139, 92, 246, 0.28)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '14px 18px',
+                marginBottom: '18px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px'
+              }}
+            >
+              <Sparkles size={22} color="#a855f7" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ fontSize: '0.83rem', lineHeight: 1.5, color: 'var(--text-main)' }}>
+                <strong>¿Cuánto reinvertir de lo generado? Nuestra recomendación estratégica:</strong>
+                <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>
+                  En etapas de lanzamiento comercial, destinar entre un <strong>20% y 30%</strong> de la utilidad neta mensual permite a Linkeo formar un fondo de tesorería propio para <strong>comprar lotes más grandes de chips NFC a menor costo por volumen, encargar displays acrílicos nuevos y correr campañas publicitarias</strong> sin descapitalizar a los socios.
+                  El <strong>70% a 80%</strong> restante se retira 100% limpio como dividendo 50/50 entre Luis y Kevin. ¡Y ten la total tranquilidad de que el dinero para reponer los productos vendidos (<strong>S/ {simulationResults.replacementFund.toFixed(2)}</strong>) ya fue apartado antes de calcular esta ganancia!
+                </p>
+              </div>
+            </div>
+
+            {/* Controles Interactivos del Fondo de Reinversión */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px', alignItems: 'center' }}>
+              <div>
+                <label className="form-label" style={{ fontSize: '0.82rem', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Porcentaje a Reinvertir del Negocio:</span>
+                  <strong style={{ color: '#a855f7', fontSize: '0.95rem' }}>{simulationResults.reinvestmentPercent}%</strong>
+                </label>
+
+                {/* Slider interactivo */}
+                <input 
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={simulationResults.reinvestmentPercent}
+                  onChange={(e) => handleUpdateReinvestmentPercent(e.target.value)}
+                  style={{ width: '100%', cursor: 'pointer', accentColor: '#a855f7', height: '6px' }}
+                />
+
+                {/* Botones de selección rápida */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
+                  {[
+                    { pct: 0, label: '0% (Todo a Socios)' },
+                    { pct: 15, label: '15% (Prudente)' },
+                    { pct: 20, label: '20% (Recomendado ⭐)' },
+                    { pct: 30, label: '30% (Escala Rápida)' },
+                    { pct: 50, label: '50% (Inversión Fuerte)' }
+                  ].map(item => (
+                    <button
+                      key={item.pct}
+                      type="button"
+                      className="btn btn-xs"
+                      onClick={() => handleUpdateReinvestmentPercent(item.pct)}
+                      style={{
+                        fontSize: '0.7rem',
+                        padding: '3px 8px',
+                        background: simulationResults.reinvestmentPercent === item.pct ? '#a855f7' : 'var(--bg-card)',
+                        border: '1px solid ' + (simulationResults.reinvestmentPercent === item.pct ? '#a855f7' : 'var(--border-subtle)'),
+                        color: simulationResults.reinvestmentPercent === item.pct ? '#fff' : 'var(--text-main)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontWeight: simulationResults.reinvestmentPercent === item.pct ? 700 : 500
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tarjetas de Resumen en Tiempo Real */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Utilidad Neta Generada:</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#06b6d4', marginTop: '2px' }}>
+                    S/ {simulationResults.netProfit.toFixed(2)}
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(168, 85, 247, 0.4)' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#a855f7', fontWeight: 700 }}>
+                    Fondo Reinversión ({simulationResults.reinvestmentPercent}%):
+                  </div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#a855f7', marginTop: '2px' }}>
+                    S/ {simulationResults.reinvestmentAmount.toFixed(2)}
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700 }}>
+                    Limpio para Socios:
+                  </div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#10b981', marginTop: '2px' }}>
+                    S/ {simulationResults.distributableProfit.toFixed(2)}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2153,15 +2401,20 @@ export default function ProjectionsView({
                 </span>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Users size={20} color="var(--primary-600)" />
-                  <span>Distribución Neta Proyectada por Socio</span>
+                  <span>Distribución Neta Proyectada por Socio (Tras Reinversión)</span>
                 </h3>
               </div>
 
               <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Utilidad por Socio Estimada:</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Cada socio recibe limpio:</span>
                 <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#10b981' }}>
                   S/ {simulationResults.profitPerPartner.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
+                {simulationResults.reinvestmentPercent > 0 && (
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    (Sin reinversión sería S/ {simulationResults.grossProfitPerPartner.toFixed(2)} c/u)
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2181,6 +2434,11 @@ export default function ProjectionsView({
                 <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#10b981' }}>
                   S/ {simulationResults.profitPerPartner.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
+                {simulationResults.reinvestmentPercent > 0 && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px' }}>
+                    + S/ {(simulationResults.reinvestmentAmount / 2).toFixed(2)} aportados a la caja de Linkeo
+                  </div>
+                )}
               </div>
 
               {/* Socio 2: Kevin Servat */}
@@ -2198,6 +2456,119 @@ export default function ProjectionsView({
                 <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#38bdf8' }}>
                   S/ {simulationResults.profitPerPartner.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
+                {simulationResults.reinvestmentPercent > 0 && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px' }}>
+                    + S/ {(simulationResults.reinvestmentAmount / 2).toFixed(2)} aportados a la caja de Linkeo
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* CASCADA DE REPOSICIÓN Y DISTRIBUCIÓN FINANCIERA (7 PASOS TRANSPARENTES)     */}
+          {/* ========================================================================= */}
+          <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
+            <h4 style={{ fontSize: '1.05rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 16px 0' }}>
+              <TrendingUp size={18} color="var(--primary-600)" />
+              <span>Cascada Financiera: De la Venta al Bolsillo de los Socios</span>
+            </h4>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Paso 1: Venta Bruta */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.1rem' }}>💰</span>
+                  <div>
+                    <strong style={{ fontSize: '0.88rem' }}>1. Venta Mensual Bruta</strong>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      Ingreso total por comercializar {simulationResults.units} unidades del Mix
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#10b981' }}>
+                  S/ {simulationResults.grossRevenue.toFixed(2)}
+                </div>
+              </div>
+
+              {/* Paso 2: Fondo de Reposición */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239, 68, 68, 0.25)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.1rem' }}>📦</span>
+                  <div>
+                    <strong style={{ fontSize: '0.88rem', color: '#ef4444' }}>2. (-) Fondo de Reposición de Mercadería (Insumos)</strong>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      Costo base para volver a comprar y fabricar las {simulationResults.units} tarjetas vendidas (¡Intocable para no descapitalizarse!)
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#ef4444' }}>
+                  - S/ {simulationResults.replacementFund.toFixed(2)}
+                </div>
+              </div>
+
+              {/* Paso 3: Gastos Fijos */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(245, 158, 11, 0.05)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.1rem' }}>🚗</span>
+                  <div>
+                    <strong style={{ fontSize: '0.88rem', color: '#f59e0b' }}>3. (-) Gastos Fijos Mensuales</strong>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      Movilidad de prospección presencial en distritos de Lima
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#f59e0b' }}>
+                  - S/ {totalFixedCosts.toFixed(2)}
+                </div>
+              </div>
+
+              {/* Paso 4: Utilidad Neta del Negocio */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'rgba(6, 182, 212, 0.1)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(6, 182, 212, 0.35)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.1rem' }}>🏁</span>
+                  <div>
+                    <strong style={{ fontSize: '0.92rem', color: '#06b6d4' }}>4. (=) Utilidad Neta del Negocio Linkeo</strong>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      Ganancia real producida por el negocio tras reponer stock y cubrir fijos
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontWeight: 900, fontSize: '1.15rem', color: '#06b6d4' }}>
+                  S/ {simulationResults.netProfit.toFixed(2)}
+                </div>
+              </div>
+
+              {/* Paso 5: Fondo de Reinversión */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'rgba(168, 85, 247, 0.06)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.1rem' }}>🏦</span>
+                  <div>
+                    <strong style={{ fontSize: '0.88rem', color: '#a855f7' }}>5. (-) Fondo de Reinversión para Crecimiento ({simulationResults.reinvestmentPercent}%)</strong>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      Se reserva en la caja del negocio para compras por volumen, displays y anuncios
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#a855f7' }}>
+                  - S/ {simulationResults.reinvestmentAmount.toFixed(2)}
+                </div>
+              </div>
+
+              {/* Paso 6: Utilidad Distribuible a Socios */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'rgba(16, 185, 129, 0.12)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '1.1rem' }}>🤝</span>
+                  <div>
+                    <strong style={{ fontSize: '0.95rem', color: '#10b981' }}>6. (=) Utilidad Limpia para los Socios (50/50)</strong>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      Lo que Luis Romero y Kevin Servat se llevan al bolsillo: <strong>S/ {simulationResults.profitPerPartner.toFixed(2)}</strong> cada uno
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontWeight: 900, fontSize: '1.25rem', color: '#10b981' }}>
+                  S/ {simulationResults.distributableProfit.toFixed(2)}
+                </div>
               </div>
             </div>
           </div>
@@ -2212,29 +2583,22 @@ export default function ProjectionsView({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0 }}>
-                Economía por Producto y Mezcla de Ventas (Sales Mix)
+                Economía por Producto y Cantidades a Vender (Sales Mix)
               </h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
-                Todos los productos son editables y auditados. Puedes cambiar precio, costo base, SKU o participación en ventas.
+                Ingresa directamente cuántas unidades tienes o planeas vender de cada modelo. Puedes proyectar modelos futuros que aún no tienes en stock.
               </p>
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {projectedProducts.length === 0 && (
-                <button 
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    onUpdateProjectionsData({
-                      ...projectionsData,
-                      projectedProducts: EXCEL_PROJECTED_PRODUCTS_TEMPLATE
-                    });
-                  }}
-                  style={{ fontSize: '0.85rem' }}
-                >
-                  <FileSpreadsheet size={15} />
-                  <span>Cargar Plantilla Excel</span>
-                </button>
-              )}
+              <button 
+                className="btn btn-secondary"
+                onClick={handleQuickFixMixAndTarget}
+                style={{ fontSize: '0.85rem' }}
+                title="Ajustar a 15 Cuadrado + 15 Formato L (30 tarjetas en taller)"
+              >
+                <span>📦 Lote 30 Uds Taller</span>
+              </button>
 
               <button 
                 className="btn btn-secondary"
@@ -2244,29 +2608,6 @@ export default function ProjectionsView({
                 <Boxes size={15} />
                 <span>Importar del Almacén</span>
               </button>
-
-              {projectedProducts.length > 0 && (
-                <>
-                  <button 
-                    className="btn btn-secondary"
-                    onClick={handleEqualizeMix}
-                    style={{ fontSize: '0.85rem' }}
-                    title="Dividir la participación a partes iguales entre todos los productos activos (ej. 50% / 50%)"
-                  >
-                    <Scale size={14} />
-                    <span>⚖️ Equilibrar (50/50)</span>
-                  </button>
-                  <button 
-                    className="btn btn-secondary"
-                    onClick={handleSyncMixFromStock}
-                    style={{ fontSize: '0.85rem' }}
-                    title="Calcular mix automáticamente según existencias de almacén (15 y 15)"
-                  >
-                    <Boxes size={14} />
-                    <span>Mix según Almacén</span>
-                  </button>
-                </>
-              )}
 
               <button 
                 className="btn btn-primary"
@@ -2279,44 +2620,6 @@ export default function ProjectionsView({
             </div>
           </div>
 
-          {/* Alerta de Descalibración de Mix cuando no suma 100% */}
-          {projectedProducts.length > 0 && totalMixPercent !== 100 && (
-            <div style={{
-              background: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.35)',
-              borderRadius: 'var(--radius-md)',
-              padding: '12px 16px',
-              marginBottom: '16px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '10px'
-            }}>
-              <div style={{ fontSize: '0.86rem', color: 'var(--text-main)' }}>
-                ⚠️ <strong>Mix de Ventas Descalibrado:</strong> La participación actual suma <strong>{totalMixPercent}%</strong> (debe sumar exactamente 100% para distribuir el esfuerzo de ventas con precisión).
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
-                  type="button" 
-                  className="btn btn-primary btn-sm"
-                  onClick={handleEqualizeMix}
-                  style={{ fontSize: '0.78rem', fontWeight: 700 }}
-                >
-                  ⚖️ Repartir 50% / 50%
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleNormalizeMix}
-                  style={{ fontSize: '0.78rem' }}
-                >
-                  Normalizar a 100%
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Tabla o Estado Vacío de Productos Proyectados */}
           {projectedProducts.length === 0 ? (
             <div className="card" style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -2325,12 +2628,12 @@ export default function ProjectionsView({
                 No hay productos en el modelo de proyección
               </h4>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', maxWidth: '520px', margin: '0 auto 20px auto' }}>
-                Agrega manualmente cualquier modelo o importa insumos de tu inventario para definir los precios, costos y porcentaje de ventas.
+                Agrega modelos existentes o futuros para definir las cantidades a vender, costos de reposición y ganancias proyectadas.
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
                 <button className="btn btn-primary" onClick={() => setIsNewProductModalOpen(true)}>
                   <Plus size={16} />
-                  <span>+ Agregar Primer Producto</span>
+                  <span>+ Proyectar Nuevo Producto</span>
                 </button>
                 <button className="btn btn-secondary" onClick={() => setIsImportProductModalOpen(true)}>
                   <Boxes size={16} />
@@ -2347,19 +2650,24 @@ export default function ProjectionsView({
                     <th>SKU</th>
                     <th>Producto / Insumo</th>
                     <th>Precio Venta</th>
-                    <th>Costo Variable Tot.</th>
-                    <th>Margen S/</th>
-                    <th>Margen %</th>
-                    <th style={{ width: '130px' }}>Mix Ventas (%)</th>
-                    <th>Unidades Meta</th>
-                    <th>Venta Estimada</th>
+                    <th style={{ width: '130px', textAlign: 'center', background: 'rgba(0, 102, 255, 0.08)' }}>
+                      Unidades a Vender
+                    </th>
+                    <th>Venta Total</th>
+                    <th>Costo Reposición Unit.</th>
+                    <th>Fondo Reposición Tot.</th>
+                    <th>Margen Ganancia</th>
+                    <th>% Mix</th>
                     <th style={{ textAlign: 'center', width: '80px' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {productsWithEconomics.map(prod => {
-                    const prodUnits = Math.round(simulationResults.units * prod.normalizedMix);
+                    const prodUnits = Number(prod.targetUnits !== undefined ? prod.targetUnits : 0) || 0;
                     const prodRevenue = prodUnits * prod.price;
+                    const prodReplacement = prodUnits * prod.baseCost;
+                    const prodTotalVarCost = prodUnits * prod.totalUnitVariableCost;
+                    const prodMargin = prodRevenue - prodTotalVarCost;
 
                     return (
                       <tr key={prod.id} style={{ opacity: prod.included === false ? 0.45 : 1 }}>
@@ -2386,55 +2694,66 @@ export default function ProjectionsView({
                               const qty = invItem ? Number(invItem.quantity) || 0 : ((prod.name || '').includes('Cuadrado') || (prod.name || '').includes('L') ? 15 : null);
                               return qty !== null ? (
                                 <span className="badge badge-purple" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                                  Stock: {qty} uds
+                                  Stock taller: {qty} uds
                                 </span>
                               ) : null;
                             })()}
                           </div>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
-                            {prod.isCustom ? '✨ Producto Proyectado Nuevo' : '📦 Producto del Catálogo'}
+                            {prod.isCustom ? '✨ Producto Proyectado / Futuro' : '📦 Producto del Catálogo'}
                           </div>
                         </td>
                         <td>
                           <strong>S/ {prod.price.toFixed(2)}</strong>
                         </td>
-                        <td>
-                          <span style={{ color: 'var(--text-muted)' }}>S/ {prod.totalUnitVariableCost.toFixed(2)}</span>
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
-                            (Base: {prod.baseCost.toFixed(2)} + Var: {(prod.totalUnitVariableCost - prod.baseCost).toFixed(2)})
-                          </div>
-                        </td>
-                        <td>
-                          <strong style={{ color: prod.unitMargin > 0 ? '#10b981' : '#ef4444' }}>
-                            S/ {prod.unitMargin.toFixed(2)}
-                          </strong>
-                        </td>
-                        <td>
-                          <span className="badge badge-green" style={{ fontSize: '0.75rem' }}>
-                            {prod.marginPct.toFixed(1)}%
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <td style={{ textAlign: 'center', background: 'rgba(0, 102, 255, 0.04)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                             <input 
                               type="number"
                               min="0"
-                              max="100"
-                              value={prod.mixPercent}
-                              onChange={(e) => handleUpdateProductMix(prod.id, e.target.value)}
+                              max="10000"
+                              value={prod.targetUnits !== undefined ? prod.targetUnits : 0}
+                              onChange={(e) => handleUpdateProductUnits(prod.id, e.target.value)}
                               className="form-control"
-                              style={{ width: '70px', padding: '4px 8px', textAlign: 'center', fontWeight: 700 }}
+                              style={{ 
+                                width: '74px', 
+                                padding: '5px 8px', 
+                                textAlign: 'center', 
+                                fontWeight: 800, 
+                                fontSize: '0.95rem',
+                                color: 'var(--primary-600)',
+                                border: '2px solid rgba(0, 102, 255, 0.3)'
+                              }}
                             />
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>%</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>uds</span>
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 800, color: '#10b981' }}>
+                          S/ {prodRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td>
+                          <span style={{ color: 'var(--text-muted)' }}>S/ {prod.baseCost.toFixed(2)}</span>
+                        </td>
+                        <td>
+                          <span style={{ color: '#ef4444', fontWeight: 700 }}>
+                            S/ {prodReplacement.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
+                            (Para reponer mercadería)
                           </div>
                         </td>
                         <td>
-                          <span className="badge badge-blue" style={{ fontSize: '0.8rem' }}>
-                            {prodUnits} uds
-                          </span>
+                          <strong style={{ color: prodMargin > 0 ? '#10b981' : '#ef4444' }}>
+                            S/ {prodMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </strong>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
+                            {prod.marginPct.toFixed(1)}% margen unit.
+                          </div>
                         </td>
-                        <td style={{ fontWeight: 700 }}>
-                          S/ {prodRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <td>
+                          <span className="badge badge-blue" style={{ fontSize: '0.78rem' }}>
+                            {prod.mixPercent}%
+                          </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -2461,23 +2780,52 @@ export default function ProjectionsView({
                 </tbody>
                 <tfoot>
                   <tr style={{ background: 'var(--bg-card)', fontWeight: 800, borderTop: '2px solid var(--border-subtle)' }}>
-                    <td colSpan={7} style={{ textAlign: 'right', padding: '12px' }}>
-                      Total Mezcla / Meta Operativa:
+                    <td colSpan={4} style={{ textAlign: 'right', padding: '12px' }}>
+                      Totales del Mix de Productos:
                     </td>
-                    <td style={{ padding: '12px' }}>
-                      <span className={`badge ${totalMixPercent === 100 ? 'badge-green' : 'badge-yellow'}`} style={{ fontSize: '0.85rem' }}>
-                        {totalMixPercent}%
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      <span className="badge badge-blue" style={{ fontSize: '0.85rem' }}>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <span className="badge badge-blue" style={{ fontSize: '0.88rem', padding: '4px 10px' }}>
                         {simulationResults.units} uds
                       </span>
                     </td>
-                    <td style={{ padding: '12px', color: '#10b981' }}>
+                    <td style={{ padding: '12px', color: '#10b981', fontSize: '0.95rem' }}>
                       S/ {simulationResults.grossRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
+                    <td style={{ padding: '12px' }}></td>
+                    <td style={{ padding: '12px', color: '#ef4444', fontSize: '0.95rem' }}>
+                      - S/ {simulationResults.replacementFund.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td style={{ padding: '12px', color: '#8b5cf6', fontSize: '0.95rem' }}>
+                      S/ {simulationResults.totalMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td style={{ padding: '12px' }}>
+                      <span className="badge badge-green" style={{ fontSize: '0.8rem' }}>
+                        100%
+                      </span>
+                    </td>
                     <td></td>
+                  </tr>
+
+                  {/* Fila Resumen Financiero Completo */}
+                  <tr style={{ background: 'rgba(0, 102, 255, 0.05)', borderTop: '1px dashed var(--border-subtle)' }}>
+                    <td colSpan={11} style={{ padding: '14px 18px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.82rem' }}>
+                          <span>Gastos Fijos: <strong style={{ color: '#f59e0b' }}>-S/ {totalFixedCosts.toFixed(2)}</strong></span>
+                          <span>|</span>
+                          <span>Utilidad Neta Negocio: <strong style={{ color: '#06b6d4' }}>S/ {simulationResults.netProfit.toFixed(2)}</strong></span>
+                          <span>|</span>
+                          <span>Fondo Reinversión ({simulationResults.reinvestmentPercent}%): <strong style={{ color: '#a855f7' }}>-S/ {simulationResults.reinvestmentAmount.toFixed(2)}</strong></span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>Reparto Limpio por Socio (50/50):</span>
+                          <span style={{ fontSize: '1.15rem', fontWeight: 900, color: '#10b981' }}>
+                            S/ {simulationResults.profitPerPartner.toFixed(2)} c/u
+                          </span>
+                        </div>
+                      </div>
+                    </td>
                   </tr>
                 </tfoot>
               </table>
@@ -3585,15 +3933,15 @@ export default function ProjectionsView({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Participación en Mezcla (% Mix):</label>
+                  <label className="form-label">Unidades a Vender:</label>
                   <input 
                     type="number" 
-                    min="1"
-                    max="100"
+                    min="0"
+                    max="10000"
                     className="form-control"
-                    placeholder="Ej: 50"
-                    value={newProjectedProductForm.mixPercent}
-                    onChange={(e) => setNewProjectedProductForm({ ...newProjectedProductForm, mixPercent: e.target.value })}
+                    placeholder="Ej: 10"
+                    value={newProjectedProductForm.targetUnits !== undefined ? newProjectedProductForm.targetUnits : 10}
+                    onChange={(e) => setNewProjectedProductForm({ ...newProjectedProductForm, targetUnits: e.target.value })}
                     required
                   />
                 </div>
@@ -3676,14 +4024,14 @@ export default function ProjectionsView({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Participación en Mezcla (% Mix):</label>
+                  <label className="form-label">Unidades a Vender:</label>
                   <input 
                     type="number" 
-                    min="1"
-                    max="100"
+                    min="0"
+                    max="10000"
                     className="form-control"
-                    value={editingProduct.mixPercent}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, mixPercent: e.target.value })}
+                    value={editingProduct.targetUnits !== undefined ? editingProduct.targetUnits : 0}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, targetUnits: e.target.value })}
                     required
                   />
                 </div>

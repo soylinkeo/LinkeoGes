@@ -1,11 +1,133 @@
 /**
- * Utilidades para cálculo dinámico de metas a partir de las proyecciones financieras de LinkeoGes.
+ * Utilidades para cálculo dinámico de metas y proyecciones financieras de LinkeoGes.
  */
 
+export const DEFAULT_REINVESTMENT_PERCENT = 20;
+
 /**
- * Calcula las metas dinámicas mensuales (facturación, unidades, utilidad neta)
- * en base a los parámetros y productos configurados en Proyecciones.
- * Si las proyecciones no tienen productos activos o valores definidos, utiliza el fallback financiero.
+ * Calcula proyecciones financieras directas en base a las unidades reales o proyectadas de cada producto (Bottom-Up).
+ * Deduce la facturación bruta, fondo de reposición de mercadería, margen bruto, gastos fijos,
+ * utilidad neta del negocio, fondo de reinversión para crecimiento y utilidad distribuible para los socios.
+ */
+export function calculateUnitsProjection({
+  projectedProducts = [],
+  fixedCosts = [],
+  variableCosts = [],
+  variableUnitCosts = {},
+  businessParams = {}
+}) {
+  const activeProducts = (projectedProducts || []).filter(p => p && p.included !== false);
+  const partnersCount = Math.max(1, Number(businessParams?.partnersCount) || 2);
+  const salesDays = Math.max(1, Number(businessParams?.salesDaysPerMonth) || 30);
+  const reinvestmentPercent = businessParams?.reinvestmentPercent !== undefined
+    ? Math.max(0, Math.min(100, Number(businessParams.reinvestmentPercent) || 0))
+    : DEFAULT_REINVESTMENT_PERCENT;
+
+  // Total gastos fijos
+  const totalFixedCosts = (fixedCosts || []).reduce((sum, item) => sum + (Number(item?.amount) || 0), 0);
+
+  // Costos variables adicionales (comisión y fijos por unidad)
+  let commonVariable = 0;
+  let totalVariablePercent = 0;
+
+  if (Array.isArray(variableCosts)) {
+    variableCosts.forEach(item => {
+      const amt = Number(item?.amount) || 0;
+      if (item?.type === 'percentage') {
+        totalVariablePercent += amt;
+      } else {
+        commonVariable += amt;
+      }
+    });
+  } else {
+    commonVariable = 
+      (Number(variableUnitCosts?.packagingPerUnit) || 0) +
+      (Number(variableUnitCosts?.setupLaborPerUnit) || 0) +
+      (Number(variableUnitCosts?.deliveryPerUnit) || 0) +
+      (Number(variableUnitCosts?.defectReservePerUnit) || 0);
+    totalVariablePercent = Number(variableUnitCosts?.paymentFeePercent) || 0;
+  }
+
+  // 1. Calcular unidades totales
+  const totalUnits = activeProducts.reduce((sum, p) => sum + (Number(p.targetUnits !== undefined ? p.targetUnits : 0) || 0), 0);
+
+  // 2. Desglose detallado por producto
+  let grossRevenue = 0;
+  let replacementFund = 0; // Costo base de insumos para reponer stock
+  let totalVariableCosts = 0; // Costo variable total incluyendo fijos unitarios y pasarela
+
+  const products = activeProducts.map(p => {
+    const units = Number(p.targetUnits !== undefined ? p.targetUnits : 0) || 0;
+    const price = Number(p.price) || 0;
+    const baseCost = Number(p.baseCost) || 0;
+    const paymentFee = price * (totalVariablePercent / 100);
+    const unitVariableCost = baseCost + commonVariable + paymentFee;
+    const unitMargin = price - unitVariableCost;
+    const marginPct = price > 0 ? (unitMargin / price) * 100 : 0;
+
+    const prodRevenue = units * price;
+    const prodReplacementCost = units * baseCost;
+    const prodTotalVarCost = units * unitVariableCost;
+    const prodMargin = prodRevenue - prodTotalVarCost;
+
+    const mixPercent = totalUnits > 0 ? Math.round((units / totalUnits) * 1000) / 10 : 0;
+
+    grossRevenue += prodRevenue;
+    replacementFund += prodReplacementCost;
+    totalVariableCosts += prodTotalVarCost;
+
+    return {
+      ...p,
+      units,
+      price,
+      baseCost,
+      unitVariableCost,
+      unitMargin,
+      marginPct,
+      mixPercent,
+      prodRevenue,
+      prodReplacementCost,
+      prodTotalVarCost,
+      prodMargin
+    };
+  });
+
+  const grossMargin = grossRevenue - totalVariableCosts;
+  const netProfit = Math.max(0, Math.round((grossMargin - totalFixedCosts) * 100) / 100);
+
+  // Fondo de reinversión para crecimiento de Linkeo
+  const reinvestmentAmount = Math.round((netProfit * (reinvestmentPercent / 100)) * 100) / 100;
+  const distributableProfit = Math.max(0, Math.round((netProfit - reinvestmentAmount) * 100) / 100);
+  const profitPerPartner = Math.round((distributableProfit / partnersCount) * 100) / 100;
+  const grossProfitPerPartner = Math.round((netProfit / partnersCount) * 100) / 100;
+
+  // Ritmo diario
+  const unitsPerDay = salesDays > 0 ? Math.round((totalUnits / salesDays) * 100) / 100 : 0;
+  const revenuePerDay = salesDays > 0 ? Math.round((grossRevenue / salesDays) * 100) / 100 : 0;
+
+  return {
+    totalUnits,
+    grossRevenue,
+    replacementFund,
+    totalVariableCosts,
+    grossMargin,
+    totalFixedCosts,
+    netProfit,
+    reinvestmentPercent,
+    reinvestmentAmount,
+    distributableProfit,
+    profitPerPartner,
+    grossProfitPerPartner,
+    salesDays,
+    unitsPerDay,
+    revenuePerDay,
+    partnersCount,
+    products
+  };
+}
+
+/**
+ * Calcula las metas dinámicas mensuales en base a los parámetros configurados.
  */
 export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
   const fallback = {
@@ -22,28 +144,37 @@ export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
   const variableUnitCosts = projectionsData.variableUnitCosts || {};
   const projectedProducts = (projectionsData.projectedProducts || []).filter(p => p.included !== false);
 
-  // Meta de utilidad y facturación personalizada elegida por los socios (o fallback si es 0)
   const customProfitTarget = Number(businessParams.customProfitTarget) || 0;
   const customRevenueTarget = Number(businessParams.customRevenueTarget) || 0;
   const targetProfit = customProfitTarget > 0 ? customProfitTarget : fallback.monthlyProfitTarget;
   const partnersCount = Number(businessParams.partnersCount) || 2;
   const targetPerPartner = partnersCount > 0 ? targetProfit / partnersCount : targetProfit / 2;
 
-  // Si no hay productos proyectados configurados aún en el escenario libre
+  const reinvestmentPercent = businessParams.reinvestmentPercent !== undefined
+    ? Number(businessParams.reinvestmentPercent)
+    : DEFAULT_REINVESTMENT_PERCENT;
+  const reinvestmentAmount = targetProfit > 0 && reinvestmentPercent > 0
+    ? Math.round(targetProfit * (reinvestmentPercent / 100) * 100) / 100
+    : 0;
+  const distributableProfit = Math.max(0, targetProfit - reinvestmentAmount);
+  const cleanProfitPerPartner = partnersCount > 0 ? distributableProfit / partnersCount : distributableProfit / 2;
+
   if (projectedProducts.length === 0) {
     return {
       monthlyProfitTarget: targetProfit,
       monthlyUnitsTarget: fallback.monthlyUnitsTarget,
       targetPerPartner,
+      cleanProfitPerPartner,
+      reinvestmentPercent,
+      reinvestmentAmount,
+      distributableProfit,
       monthlyRevenueEstimate: customRevenueTarget > 0 ? customRevenueTarget : fallback.monthlyRevenueEstimate,
       isCustom: customProfitTarget > 0 || customRevenueTarget > 0
     };
   }
 
-  // Total de gastos fijos mensuales
   const totalFixedCosts = fixedCosts.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
-  // Costo variable unitario común adicional y comisión porcentual
   let commonVariable = 0;
   let totalVariablePercent = 0;
 
@@ -65,7 +196,6 @@ export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
     totalVariablePercent = Number(variableUnitCosts.paymentFeePercent) || 0;
   }
 
-  // Suma de porcentajes de mezcla para normalizar
   const totalMix = projectedProducts.reduce((sum, p) => sum + (Number(p.mixPercent) || 0), 0) || 100;
 
   let weightedPrice = 0;
@@ -83,15 +213,12 @@ export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
     weightedMargin += margin * mix;
   });
 
-  // Unidades requeridas para cubrir fijos + meta de utilidad
   let requiredUnits = 0;
   if (weightedMargin > 0) {
     const raw = (totalFixedCosts + targetProfit) / weightedMargin;
     const normalized = Math.round(raw * 10000) / 10000;
     requiredUnits = Math.ceil(normalized);
   }
-
-
 
   const grossRevenue = customRevenueTarget > 0 ? customRevenueTarget : (requiredUnits * weightedPrice);
 
@@ -101,6 +228,10 @@ export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
     isFeasible: weightedMargin > 0,
     warning: weightedMargin <= 0 ? "La mezcla de productos no genera margen positivo: la meta no es alcanzable." : "",
     targetPerPartner,
+    cleanProfitPerPartner,
+    reinvestmentPercent,
+    reinvestmentAmount,
+    distributableProfit,
     monthlyRevenueEstimate: grossRevenue,
     totalFixedCosts,
     weightedPrice,
