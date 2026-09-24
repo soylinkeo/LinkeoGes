@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
 import { calculateUnitsProjection, DEFAULT_REINVESTMENT_PERCENT } from '../utils/projectionsUtils';
+import { normalizeLeadStage } from '../utils/leadMessages';
 import { 
   EXCEL_PLAN_30_DAYS_TEMPLATE, 
   EXCEL_FIXED_COSTS_TEMPLATE, 
@@ -74,6 +75,8 @@ export default function ProjectionsView({
   onUpdateProjectionsData,
   products = [],
   inventory = [],
+  leads = [],
+  sales = [],
   plan30Days = [],
   setPlan30Days,
   onTogglePlanTask,
@@ -478,6 +481,38 @@ export default function ProjectionsView({
       contactsPerPartnerPerDay
     };
   }, [effectiveFunnelUnits, funnelRatios, businessParams.salesDaysPerMonth, businessParams.partnersCount]);
+
+  // Métricas reales del CRM Pipeline B2B
+  const crmMetrics = useMemo(() => {
+    const totalLeads = leads.length;
+    const totalPipelineValue = leads.reduce((sum, l) => sum + (Number(l.estimatedValue) || 0), 0);
+    
+    const prospectos = leads.filter(l => normalizeLeadStage(l.stage) === 'prospecto');
+    const visitados = leads.filter(l => normalizeLeadStage(l.stage) === 'visitado');
+    const negociaciones = leads.filter(l => normalizeLeadStage(l.stage) === 'negociacion');
+    const configurando = leads.filter(l => normalizeLeadStage(l.stage) === 'configurando');
+    const entregados = leads.filter(l => normalizeLeadStage(l.stage) === 'entregado');
+    const postventas = leads.filter(l => normalizeLeadStage(l.stage) === 'postventa');
+
+    const buyersRequired = funnelResults.buyersRequired || 0;
+    const closedCount = entregados.length;
+    const progressPct = buyersRequired > 0 ? Math.min(100, Math.round((closedCount / buyersRequired) * 100)) : 0;
+    const remainingToClose = Math.max(0, buyersRequired - closedCount);
+
+    return {
+      totalLeads,
+      totalPipelineValue,
+      prospectos,
+      visitados,
+      negociaciones,
+      configurando,
+      entregados,
+      postventas,
+      closedCount,
+      progressPct,
+      remainingToClose
+    };
+  }, [leads, funnelResults.buyersRequired]);
 
   // Total de inversión inicial
   const totalInitialInvestment = useMemo(() => {
@@ -1721,26 +1756,6 @@ export default function ProjectionsView({
 
         {/* Acciones de Cabecera y Resumen Rápido */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Botón destacado: Calibrar al Stock Real Fabricado de 30 tarjetas */}
-          <button 
-            className="btn btn-primary btn-sm"
-            onClick={handleCalibrateStock30}
-            title="Calibrar automáticamente al stock físico fabricado (30 tarjetas: 15 Cuadrado + 15 Formato L, Meta S/ 1,662.10)"
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px',
-              background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
-              border: 'none',
-              color: '#fff',
-              fontWeight: 800,
-              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)'
-            }}
-          >
-            <Zap size={14} />
-            <span>⚡ Calibrar Stock Fabricado (30 uds)</span>
-          </button>
-
           {/* Botón para ver bitácora de auditoría */}
           <button 
             className="btn btn-secondary btn-sm"
@@ -1857,15 +1872,6 @@ export default function ProjectionsView({
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={handleQuickFixMixAndTarget}
-            style={{ fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '5px' }}
-            title="Ajustar a 15 Cuadrado + 15 Formato L (30 tarjetas en taller)"
-          >
-            <span>📦 Lote Taller (30 uds)</span>
-          </button>
-          <button
-            type="button"
             className="btn btn-primary btn-sm"
             onClick={() => setActiveSubTab('products')}
             style={{ fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '5px' }}
@@ -1922,7 +1928,7 @@ export default function ProjectionsView({
           style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, borderRadius: 'var(--radius-md) var(--radius-md) 0 0' }}
         >
           <Filter size={15} />
-          <span>🚀 Embudo de Ventas & Inversión</span>
+          <span>🚀 Embudo de Ventas & Pipeline CRM</span>
         </button>
 
         <button
@@ -1954,9 +1960,6 @@ export default function ProjectionsView({
               </div>
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                 <span className="badge badge-blue">100% Interactivo & Auditado</span>
-                {simulationResults.units === 30 && (
-                  <span className="badge badge-green">✓ Lote 30 Uds Taller</span>
-                )}
               </div>
             </div>
 
@@ -1981,19 +1984,10 @@ export default function ProjectionsView({
                   <button
                     type="button"
                     className="btn btn-xs btn-secondary"
-                    onClick={handleQuickFixMixAndTarget}
-                    style={{ fontSize: '0.68rem', padding: '2px 6px' }}
-                    title="Ajustar a 15 Cuadrado + 15 Formato L"
-                  >
-                    📦 Reset a 30 uds
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-xs btn-secondary"
                     onClick={() => setActiveSubTab('products')}
                     style={{ fontSize: '0.68rem', padding: '2px 6px' }}
                   >
-                    ✏️ Ir al Mix
+                    ✏️ Ir al Mix de Productos
                   </button>
                 </div>
               </div>
@@ -2160,15 +2154,9 @@ export default function ProjectionsView({
               </div>
               <div className="kpi-subtext" style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                 <div>Ritmo diario: <strong>{simulationResults.unitsPerDay} uds/día</strong> ({businessParams.salesDaysPerMonth} días)</div>
-                {simulationResults.units === 30 ? (
-                  <span style={{ color: '#10b981', fontWeight: 700, fontSize: '0.74rem' }}>
-                    ✓ 30 unidades físicas fabricadas en taller
-                  </span>
-                ) : simulationResults.units > 30 ? (
-                  <span style={{ color: '#38bdf8', fontWeight: 600, fontSize: '0.74rem' }}>
-                    🚀 30 uds fabricadas + {simulationResults.units - 30} adicionales por pedir
-                  </span>
-                ) : null}
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
+                  Meta total calculada según el mix de productos
+                </span>
               </div>
             </div>
 
@@ -2554,15 +2542,6 @@ export default function ProjectionsView({
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button 
-                className="btn btn-secondary"
-                onClick={handleQuickFixMixAndTarget}
-                style={{ fontSize: '0.85rem' }}
-                title="Ajustar a 15 Cuadrado + 15 Formato L (30 tarjetas en taller)"
-              >
-                <span>📦 Lote 30 Uds Taller</span>
-              </button>
-
               <button 
                 className="btn btn-secondary"
                 onClick={() => setIsImportProductModalOpen(true)}
@@ -3069,23 +3048,23 @@ export default function ProjectionsView({
       {/* SUB-PESTAÑA 4: EMBUDO COMERCIAL & INVERSIÓN INICIAL (EDITABLE & AUDITADO) */}
       {/* ========================================================================= */}
       {/* ========================================================================= */}
-      {/* SUB-PESTAÑA 4: EMBUDO COMERCIAL & INVERSIÓN INICIAL (EDITABLE & AUDITADO) */}
+      {/* SUB-PESTAÑA 4: EMBUDO COMERCIAL & PIPELINE CRM (100% EDITABLE & EN VIVO)  */}
       {/* ========================================================================= */}
       {activeSubTab === 'funnel' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '20px' }}>
           {/* Bloque 1: Embudo Comercial para Alcanzar la Meta (100% Interactivo y Editable) */}
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <span className="badge badge-purple" style={{ marginBottom: '6px', display: 'inline-block' }}>
-                  Pipeline de Conversión Requerido
+                  Pipeline de Conversión Comercial
                 </span>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Filter size={18} color="#8b5cf6" />
-                  <span>Embudo de Ventas (Para {effectiveFunnelUnits} Unidades)</span>
+                  <span>Embudo Comercial & Ritmo de Visitas ({effectiveFunnelUnits} uds)</span>
                 </h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
-                  Ajusta las unidades y los porcentajes de conversión para modelar el ritmo comercial en tiempo real.
+                  Ajusta las unidades y los porcentajes de conversión para calcular el esfuerzo comercial diario.
                 </p>
               </div>
 
@@ -3100,7 +3079,7 @@ export default function ProjectionsView({
               </button>
             </div>
 
-            {/* Barra de Control de Unidades a Simular */}
+            {/* Barra de Control de Unidades a Simular (100% Dinámica, sin botones de lote forzado) */}
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -3115,11 +3094,6 @@ export default function ProjectionsView({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Target size={16} color="#8b5cf6" />
                 <span style={{ fontWeight: 800, fontSize: '0.86rem' }}>Meta de Unidades a Simular:</span>
-                {effectiveFunnelUnits === 30 && (
-                  <span className="badge badge-green" style={{ fontSize: '0.72rem', padding: '2px 7px' }}>
-                    📦 Stock Fabricado (30 uds)
-                  </span>
-                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <input 
@@ -3132,24 +3106,14 @@ export default function ProjectionsView({
                   onChange={(e) => handleUpdateFunnelUnits(e.target.value)}
                 />
                 <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>uds</span>
-                {effectiveFunnelUnits !== 30 && (
-                  <button 
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '0.72rem', padding: '3px 8px' }}
-                    onClick={() => handleUpdateFunnelUnits(30)}
-                    title="Calibrar al lote fabricado de 30 unidades físicas"
-                  >
-                    Fijar a 30 uds
-                  </button>
-                )}
                 {simulationResults.units > 0 && effectiveFunnelUnits !== simulationResults.units && (
                   <button 
                     className="btn btn-secondary btn-sm"
                     style={{ fontSize: '0.72rem', padding: '3px 8px' }}
                     onClick={() => handleUpdateFunnelUnits(simulationResults.units)}
-                    title={`Restablecer a meta calculada (${simulationResults.units} uds)`}
+                    title={`Restablecer a meta del mix (${simulationResults.units} uds)`}
                   >
-                    Usar meta ({simulationResults.units})
+                    Usar meta del Mix ({simulationResults.units})
                   </button>
                 )}
               </div>
@@ -3168,8 +3132,8 @@ export default function ProjectionsView({
                 alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>1. Prospectos a Contactar</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>DM Instagram, WhatsApp y visitas en terreno</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>1. Prospectos a Contactar / Mapear</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Locales y comercios a visitar o escribir</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#3b82f6' }}>
@@ -3193,7 +3157,7 @@ export default function ProjectionsView({
               }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>2. Respuestas Obtenidas:</span>
+                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>2. Respuestas / Atención:</span>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                       <input 
                         type="number"
@@ -3211,7 +3175,7 @@ export default function ProjectionsView({
                     </div>
                   </div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Interesados que contestan en menos de 10 min
+                    Negocios que atienden en puerta o responden WhatsApp
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -3254,7 +3218,7 @@ export default function ProjectionsView({
                     </div>
                   </div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Video explicativo o muestra presencial
+                    Muestra física de tarjeta NFC funcionando al toque con smartphone
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -3279,7 +3243,7 @@ export default function ProjectionsView({
               }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>4. Negocios Compradores:</span>
+                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>4. Negocios Compradores (Cierres):</span>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                       <input 
                         type="number"
@@ -3361,183 +3325,215 @@ export default function ProjectionsView({
                 <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>👨‍💼 Luis Romero:</div>
                   <div style={{ fontSize: '1.15rem', fontWeight: 900, color: 'var(--primary-600)' }}>
-                    {funnelResults.contactsPerPartnerPerDay} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>contactos/día</span>
+                    {funnelResults.contactsPerPartnerPerDay} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>contactos o visitas/día</span>
                   </div>
                 </div>
                 <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>🚀 Kevin Servat:</div>
                   <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#8b5cf6' }}>
-                    {funnelResults.contactsPerPartnerPerDay} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>contactos/día</span>
+                    {funnelResults.contactsPerPartnerPerDay} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>contactos o visitas/día</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Bloque 2: Inversión Inicial 100% Editable y Auditada */}
+          {/* Bloque 2: Pipeline B2B en Tiempo Real (Sincronizado con CRM Kanban) */}
           <div className="card" style={{ padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <span className="badge badge-yellow" style={{ marginBottom: '6px', display: 'inline-block' }}>
-                  Inversión de Puesta en Marcha (Editable & Auditada)
+                <span className="badge badge-green" style={{ marginBottom: '6px', display: 'inline-block' }}>
+                  Sincronizado en Tiempo Real con CRM Kanban
                 </span>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Zap size={18} color="#f59e0b" />
-                  <span>Inversión Inicial Requerida</span>
+                  <Users size={18} color="#10b981" />
+                  <span>Pipeline B2B & Avance Real de Ventas</span>
                 </h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
-                  Presupuesto base editable con registro de auditoría en cada movimiento.
+                  Estado de tus prospectos reales en Lima para alcanzar las {effectiveFunnelUnits} unidades.
                 </p>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {initialInvestment.length === 0 && (
-                  <button 
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      onUpdateProjectionsData({
-                        ...projectionsData,
-                        initialInvestment: EXCEL_INITIAL_INVESTMENT_TEMPLATE
-                      });
-                      if (logAudit) {
-                        logAudit({
-                          actionType: 'Creación',
-                          entityType: 'Inversión Inicial',
-                          entityId: 'SYS-INV-TEMPLATE',
-                          entityName: 'Plantilla Inversión Inicial Excel',
-                          reason: 'Carga de plantilla base de inversión inicial desde Excel.'
-                        });
-                      }
-                    }}
-                  >
-                    <FileSpreadsheet size={14} />
-                    <span>Cargar del Excel</span>
-                  </button>
-                )}
-                <button 
-                  className="btn btn-primary btn-sm"
-                  onClick={() => setIsNewInvestmentModalOpen(true)}
-                >
-                  <Plus size={14} />
-                  <span>Agregar Ítem</span>
-                </button>
+              <button 
+                className="btn btn-secondary btn-sm"
+                onClick={() => setCurrentTab && setCurrentTab('leads')}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                title="Ir al tablero Kanban de prospectos"
+              >
+                <span>Ver en Kanban</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
+
+            {/* Métricas Resumidas del Pipeline */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+              <div style={{ padding: '10px', background: 'rgba(59, 130, 246, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.2)', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Leads Registrados</div>
+                <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#3b82f6' }}>{crmMetrics.totalLeads}</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>comercios en Lima</div>
+              </div>
+
+              <div style={{ padding: '10px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.2)', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Ventas Concretadas</div>
+                <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#10b981' }}>{crmMetrics.closedCount}</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>clientes cobrados</div>
+              </div>
+
+              <div style={{ padding: '10px', background: 'rgba(139, 92, 246, 0.08)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.2)', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Valor en Pipeline</div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#8b5cf6', marginTop: '2px' }}>S/ {crmMetrics.totalPipelineValue.toFixed(0)}</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>en negociación</div>
               </div>
             </div>
 
-            {initialInvestment.length === 0 ? (
-              <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                <p style={{ margin: '0 0 14px 0' }}>
-                  No hay ítems de inversión registrados. Agrega tus compras iniciales para calcular el aporte equitativo 50/50.
-                </p>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                  <button 
-                    className="btn btn-primary btn-sm"
-                    onClick={() => setIsNewInvestmentModalOpen(true)}
-                  >
-                    <Plus size={14} />
-                    <span>Agregar Ítem</span>
-                  </button>
-                  <button 
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => {
-                      onUpdateProjectionsData({
-                        ...projectionsData,
-                        initialInvestment: EXCEL_INITIAL_INVESTMENT_TEMPLATE
-                      });
-                    }}
-                  >
-                    <FileSpreadsheet size={14} />
-                    <span>Cargar del Excel</span>
-                  </button>
+            {/* Barra de Avance Real vs Meta */}
+            <div style={{ padding: '12px 14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                  Progreso hacia la Meta ({effectiveFunnelUnits} uds):
+                </span>
+                <span style={{ fontSize: '0.82rem', fontWeight: 900, color: crmMetrics.progressPct >= 100 ? '#10b981' : '#38bdf8' }}>
+                  {crmMetrics.closedCount} de {funnelResults.buyersRequired} clientes ({crmMetrics.progressPct}%)
+                </span>
+              </div>
+              <div style={{ height: '8px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${crmMetrics.progressPct}%`,
+                  background: 'linear-gradient(90deg, #3b82f6, #10b981)',
+                  borderRadius: '4px',
+                  transition: 'width 0.3s ease'
+                }} />
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-subtle)', marginTop: '6px' }}>
+                {crmMetrics.remainingToClose > 0 
+                  ? `Faltan ${crmMetrics.remainingToClose} clientes compradores para completar la meta de ${effectiveFunnelUnits} unidades.`
+                  : `🎉 ¡Meta de clientes alcanzada para las ${effectiveFunnelUnits} unidades!`
+                }
+              </div>
+            </div>
+
+            {/* Desglose por Etapas Activas del CRM */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '8px', color: 'var(--text-muted)' }}>
+                DISTRIBUCIÓN DE LEADS POR ETAPAS DEL CRM:
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                <div style={{ padding: '6px 10px', background: 'rgba(59, 130, 246, 0.1)', borderLeft: '3px solid #3b82f6', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>1. Prospectos</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#3b82f6' }}>{crmMetrics.prospectos.length} leads</div>
+                </div>
+                <div style={{ padding: '6px 10px', background: 'rgba(139, 92, 246, 0.1)', borderLeft: '3px solid #8b5cf6', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>2. Visitados</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#8b5cf6' }}>{crmMetrics.visitados.length} leads</div>
+                </div>
+                <div style={{ padding: '6px 10px', background: 'rgba(245, 158, 11, 0.1)', borderLeft: '3px solid #f59e0b', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>3. Negociación</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#f59e0b' }}>{crmMetrics.negociaciones.length} leads</div>
+                </div>
+                <div style={{ padding: '6px 10px', background: 'rgba(16, 185, 129, 0.1)', borderLeft: '3px solid #10b981', borderRadius: 'var(--radius-sm)' }}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>5. Entregados</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#10b981' }}>{crmMetrics.entregados.length} ventas</div>
                 </div>
               </div>
-            ) : (
-              <div className="table-responsive">
-                <table className="data-table" style={{ fontSize: '0.82rem' }}>
-                  <thead>
-                    <tr>
-                      <th>Concepto</th>
-                      <th style={{ width: '75px' }}>Cant.</th>
-                      <th style={{ width: '105px' }}>Costo Unit.</th>
-                      <th style={{ textAlign: 'right', width: '105px' }}>Total (S/)</th>
-                      <th style={{ width: '60px', textAlign: 'center' }}>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {initialInvestment.map(item => (
-                      <tr key={item.id}>
-                        <td>
-                          <input 
-                            type="text"
-                            className="form-control"
-                            style={{ padding: '3px 6px', fontWeight: 600, fontSize: '0.82rem', minWidth: '130px' }}
-                            value={item.concept}
-                            onChange={(e) => handleUpdateInvestmentConcept(item.id, e.target.value)}
-                            placeholder="Concepto..."
-                          />
-                        </td>
-                        <td>
-                          <input 
-                            type="number"
-                            min="1"
-                            className="form-control"
-                            style={{ width: '60px', padding: '3px 4px', textAlign: 'center', fontWeight: 700 }}
-                            value={item.quantity}
-                            onChange={(e) => handleUpdateInvestmentQuantity(item.id, e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>S/</span>
-                            <input 
-                              type="number"
-                              min="0"
-                              step="0.5"
-                              className="form-control"
-                              style={{ width: '70px', padding: '3px 4px', textAlign: 'center', fontWeight: 700 }}
-                              value={item.unitCost}
-                              onChange={(e) => handleUpdateInvestmentUnitCost(item.id, e.target.value)}
-                            />
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                          S/ {(Number(item.quantity || 1) * Number(item.unitCost || 0)).toFixed(2)}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <button 
-                              className="btn-icon" 
-                              onClick={() => handleOpenEditInvestment(item)}
-                              title="Editar ítem de inversión"
-                            >
-                              <Edit3 size={12} />
-                            </button>
-                            <button 
-                              className="btn-icon" 
-                              style={{ color: '#ef4444' }}
-                              onClick={() => handleDeleteInvestmentItem(item)}
-                              title="Eliminar ítem (con auditoría)"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    <tr style={{ background: 'rgba(245, 158, 11, 0.1)', fontWeight: 800 }}>
-                      <td colSpan="3">INVERSIÓN TOTAL REQUERIDA:</td>
-                      <td style={{ textAlign: 'right', color: '#f59e0b', fontSize: '1rem' }}>
-                        S/ {totalInitialInvestment.toFixed(2)}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
+            </div>
 
-            <div style={{ marginTop: '12px', fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
-              * Aporte equitativo sugerido: <strong>S/ {(totalInitialInvestment / (businessParams.partnersCount || 2)).toFixed(2)}</strong> por socio (50/50).
+            {/* Lista de Leads en Seguimiento Activo */}
+            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  PROSPECTOS ACTIVOS EN SEGUIMIENTO ({leads.slice(0, 4).length} de {leads.length}):
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentTab && setCurrentTab('leads')}
+                  style={{ background: 'none', border: 'none', color: 'var(--primary-600)', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}
+                >
+                  Ver todos los {leads.length} leads →
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {leads.slice(0, 4).map(lead => {
+                  const stage = normalizeLeadStage(lead.stage);
+                  const stageColors = {
+                    prospecto: '#3b82f6',
+                    visitado: '#8b5cf6',
+                    negociacion: '#f59e0b',
+                    configurando: '#06b6d4',
+                    entregado: '#10b981',
+                    postventa: '#ec4899'
+                  };
+                  const stageLabels = {
+                    prospecto: 'Prospecto',
+                    visitado: 'Visitado',
+                    negociacion: 'Negociación',
+                    configurando: 'Configurando',
+                    entregado: 'Entregado y Cobrado',
+                    postventa: 'Post-Venta'
+                  };
+                  return (
+                    <div 
+                      key={lead.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '6px 10px',
+                        background: 'var(--bg-input)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.78rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>
+                          {lead.businessName}
+                        </span>
+                        <span style={{
+                          fontSize: '0.66rem',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          background: `${stageColors[stage] || '#3b82f6'}22`,
+                          color: stageColors[stage] || '#3b82f6',
+                          fontWeight: 700
+                        }}>
+                          {stageLabels[stage] || lead.stage}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          {lead.assignedPartner ? lead.assignedPartner.split(' ')[0] : 'Por asignar'}
+                        </span>
+                        <span style={{ fontWeight: 800, color: '#10b981' }}>
+                          S/ {Number(lead.estimatedValue || 60).toFixed(0)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Accesos rápidos */}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setCurrentTab && setCurrentTab('leads')}
+                style={{ flex: 1, fontSize: '0.78rem', justifyContent: 'center' }}
+              >
+                <Users size={14} />
+                <span>Gestionar Pipeline en Kanban</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setCurrentTab && setCurrentTab('calendar')}
+                style={{ fontSize: '0.78rem' }}
+              >
+                <Calendar size={14} />
+                <span>Ver Citas</span>
+              </button>
             </div>
           </div>
         </div>
