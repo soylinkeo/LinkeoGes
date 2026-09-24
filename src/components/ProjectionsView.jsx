@@ -1949,7 +1949,7 @@ export default function ProjectionsView({
                   <span>Parámetros Operativos del Escenario (Bottom-Up)</span>
                 </h3>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                  Define tus cantidades en el mix de productos o ajusta tus metas. Todo se calcula y audita en tiempo real.
+                  Las unidades y la venta bruta se reflejan automáticamente desde el Mix. Ajusta los días y socios para proyectar la operación.
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -1960,22 +1960,18 @@ export default function ProjectionsView({
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-              {/* Unidades Totales del Mix */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+              {/* 1. Unidades a Vender (Reflejo del Mix - No editable) */}
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <label className="form-label" style={{ fontSize: '0.82rem', margin: 0 }}>
-                    Unidades Totales en el Mix:
+                  <label className="form-label" style={{ fontSize: '0.82rem', margin: 0, fontWeight: 700 }}>
+                    Unidades a Vender:
                   </label>
-                  <button 
-                    type="button"
-                    onClick={() => setActiveSubTab('products')}
-                    style={{ background: 'none', border: 'none', color: 'var(--primary-600)', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}
-                  >
-                    ✏️ Ir al Mix
-                  </button>
+                  <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.15)', color: '#38bdf8', fontWeight: 700 }}>
+                    Reflejo del Mix
+                  </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', height: '38px', padding: '0 12px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', fontWeight: 800, fontSize: '1.15rem', color: 'var(--primary-600)', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', height: '40px', padding: '0 12px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 800, fontSize: '1.15rem', color: '#38bdf8', justifyContent: 'space-between' }}>
                   <span>{simulationResults.units} uds</span>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                     {activeProducts.length} productos
@@ -1997,88 +1993,42 @@ export default function ProjectionsView({
                     onClick={() => setActiveSubTab('products')}
                     style={{ fontSize: '0.68rem', padding: '2px 6px' }}
                   >
-                    + Agregar productos
+                    ✏️ Ir al Mix
                   </button>
                 </div>
               </div>
 
-              {/* Meta Neta del Negocio */}
+              {/* 2. Venta Bruta a Facturar (Reflejo del Mix - No editable) */}
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <label className="form-label" style={{ fontSize: '0.82rem', margin: 0 }}>
-                    Meta Neta del Negocio (S/):
+                  <label className="form-label" style={{ fontSize: '0.82rem', margin: 0, fontWeight: 700 }}>
+                    Venta Bruta a Facturar:
                   </label>
-                  <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700 }}>
-                    Limpios tras insumos
+                  <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: 700 }}>
+                    Reflejo del Mix
                   </span>
                 </div>
-                <input 
-                  type="number" 
-                  step="0.10"
-                  min="0"
-                  className="form-control"
-                  placeholder="Ej: 1662.10"
-                  value={businessParams.customProfitTarget}
-                  onChange={(e) => handleUpdateParam('customProfitTarget', e.target.value)}
-                  style={{ fontWeight: 800, fontSize: '1.1rem', color: '#10b981' }}
-                />
-
-                {/* Accesos rápidos a metas */}
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-xs"
-                    onClick={() => handleUpdateParam('customProfitTarget', 1662.10)}
-                    style={{
-                      fontSize: '0.7rem',
-                      padding: '2px 7px',
-                      background: Math.abs(Number(businessParams.customProfitTarget) - 1662.10) <= 0.5 ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-card)',
-                      border: '1px solid ' + (Math.abs(Number(businessParams.customProfitTarget) - 1662.10) <= 0.5 ? '#10b981' : 'var(--border-subtle)'),
-                      color: Math.abs(Number(businessParams.customProfitTarget) - 1662.10) <= 0.5 ? '#10b981' : 'var(--text-main)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontWeight: 700
-                    }}
-                  >
-                    📦 S/ 1,662 (30 uds)
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-xs"
-                    onClick={() => handleUpdateParam('customProfitTarget', 2100)}
-                    style={{
-                      fontSize: '0.7rem',
-                      padding: '2px 7px',
-                      background: Number(businessParams.customProfitTarget) === 2100 ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-card)',
-                      border: '1px solid ' + (Number(businessParams.customProfitTarget) === 2100 ? '#3b82f6' : 'var(--border-subtle)'),
-                      color: Number(businessParams.customProfitTarget) === 2100 ? '#3b82f6' : 'var(--text-main)',
-                      borderRadius: 'var(--radius-sm)'
-                    }}
-                  >
-                    S/ 2,100
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-xs"
-                    onClick={() => handleUpdateParam('customProfitTarget', 4000)}
-                    style={{
-                      fontSize: '0.7rem',
-                      padding: '2px 7px',
-                      background: Number(businessParams.customProfitTarget) === 4000 ? 'rgba(168, 85, 247, 0.2)' : 'var(--bg-card)',
-                      border: '1px solid ' + (Number(businessParams.customProfitTarget) === 4000 ? '#a855f7' : 'var(--border-subtle)'),
-                      color: Number(businessParams.customProfitTarget) === 4000 ? '#a855f7' : 'var(--text-main)',
-                      borderRadius: 'var(--radius-sm)'
-                    }}
-                  >
-                    S/ 4,000
-                  </button>
+                <div style={{ display: 'flex', alignItems: 'center', height: '40px', padding: '0 12px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.3)', fontWeight: 800, fontSize: '1.15rem', color: '#10b981', justifyContent: 'space-between' }}>
+                  <span>S/ {simulationResults.grossRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    Sin gastos
+                  </span>
                 </div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '6px', display: 'block', lineHeight: 1.3 }}>
+                  Total que se busca vender sin descontar costos ni gastos
+                </span>
               </div>
 
-              {/* Días de venta al mes */}
+              {/* 3. Días de Venta al Mes (Editable) */}
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.82rem' }}>
-                  Días de Venta al Mes:
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="form-label" style={{ fontSize: '0.82rem', margin: 0, fontWeight: 700 }}>
+                    Días de Venta al Mes:
+                  </label>
+                  <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    Editable
+                  </span>
+                </div>
                 <input 
                   type="number" 
                   min="1"
@@ -2086,18 +2036,23 @@ export default function ProjectionsView({
                   className="form-control"
                   value={businessParams.salesDaysPerMonth}
                   onChange={(e) => handleUpdateParam('salesDaysPerMonth', e.target.value)}
-                  style={{ fontWeight: 700 }}
+                  style={{ fontWeight: 800, fontSize: '1.1rem', height: '40px' }}
                 />
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '6px', display: 'block' }}>
                   Ritmo: <strong>{simulationResults.unitsPerDay} uds/día</strong> (S/ {simulationResults.revenuePerDay}/día)
                 </span>
               </div>
 
-              {/* Número de Socios (Linkeo 50/50) */}
+              {/* 4. Número de Socios (Editable) */}
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.82rem' }}>
-                  Número de Socios:
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="form-label" style={{ fontSize: '0.82rem', margin: 0, fontWeight: 700 }}>
+                    Número de Socios:
+                  </label>
+                  <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.08)', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    Editable
+                  </span>
+                </div>
                 <input 
                   type="number" 
                   min="1"
@@ -2105,25 +2060,33 @@ export default function ProjectionsView({
                   className="form-control"
                   value={businessParams.partnersCount}
                   onChange={(e) => handleUpdateParam('partnersCount', e.target.value)}
-                  style={{ fontWeight: 700 }}
+                  style={{ fontWeight: 800, fontSize: '1.1rem', height: '40px' }}
                 />
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                  División 50/50 (Luis Romero & Kevin Servat)
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '6px', display: 'block' }}>
+                  {Number(businessParams.partnersCount) === 2 ? 'División 50/50 (Luis Romero & Kevin Servat)' : `División equitativa entre ${businessParams.partnersCount} socios`}
                 </span>
               </div>
 
-              {/* Gastos Fijos Totales */}
+              {/* 5. Gastos Fijos Mensuales (No editable) */}
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.82rem' }}>
-                  Gastos Fijos Mensuales:
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', height: '38px', padding: '0 12px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', fontWeight: 800 }}>
-                  S/ {totalFixedCosts.toFixed(2)}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="form-label" style={{ fontSize: '0.82rem', margin: 0, fontWeight: 700 }}>
+                    Gastos Fijos Mensuales:
+                  </label>
+                  <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', fontWeight: 700 }}>
+                    No editable
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', height: '40px', padding: '0 12px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 800, fontSize: '1.15rem', color: '#f87171', justifyContent: 'space-between' }}>
+                  <span>S/ {totalFixedCosts.toFixed(2)}</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    {fixedCosts.length} fijos
+                  </span>
                 </div>
                 <button 
                   type="button" 
                   onClick={() => setActiveSubTab('costs')}
-                  style={{ background: 'none', border: 'none', color: 'var(--primary-600)', fontSize: '0.72rem', cursor: 'pointer', padding: 0, marginTop: '4px', textAlign: 'left' }}
+                  style={{ background: 'none', border: 'none', color: 'var(--primary-600)', fontSize: '0.72rem', cursor: 'pointer', padding: 0, marginTop: '6px', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '3px' }}
                 >
                   ✏️ Ver o agregar gastos fijos ({fixedCosts.length})
                 </button>
