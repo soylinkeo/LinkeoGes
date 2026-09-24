@@ -185,3 +185,59 @@ Esperamos que se encuentren muy bien. Nos alegra ver que su tarjeta inteligente 
 Seguimos a su disposición para cualquier consulta técnica o para proveerles nuevo material publicitario cuando lo requieran. ¡Un saludo cordial a todo el equipo!`
   };
 }
+
+/**
+ * Limpia y extrae el identificador puro de Google Place ID,
+ * ya sea que el usuario ingrese el ID directamente (ej. ChIJN1t_tDeuEmsRUsoyG83frY4)
+ * o pegue una URL completa de Google Maps / Google Reviews.
+ */
+export function cleanGooglePlaceId(input) {
+  if (!input) return '';
+  const str = String(input).trim();
+  
+  // 1. Buscar coincidencia de placeid= o place_id= en querystrings o fragmentos
+  const match = str.match(/place_?id=([a-zA-Z0-9_\-]+)/i);
+  if (match && match[1]) {
+    return match[1];
+  }
+
+  // 2. Si es una URL completa, verificar searchParams
+  if (str.startsWith('http://') || str.startsWith('https://')) {
+    try {
+      const url = new URL(str);
+      const pid = url.searchParams.get('placeid') || url.searchParams.get('place_id');
+      if (pid) return pid;
+    } catch {
+      // URL no válida estándar, continuar con fallback
+    }
+  }
+
+  return str;
+}
+
+/**
+ * Une el protocolo y dominio oficial de Google Reviews con el Place ID
+ * garantizando el enlace directo de reseña de 5 estrellas.
+ */
+export function buildGoogleReviewUrl(placeId) {
+  const cleanId = cleanGooglePlaceId(placeId);
+  return cleanId ? `https://search.google.com/local/writereview?placeid=${cleanId}` : '';
+}
+
+/**
+ * Determina si un prospecto (Lead de Kanban) y una tarjeta NFC
+ * corresponden a la misma entidad comercial o negocio.
+ */
+export function areLeadAndCardLinked(lead, card) {
+  if (!lead || !card) return false;
+  if (card.leadId && lead.id && String(card.leadId) === String(lead.id)) return true;
+  if (lead.cardId && card.id && String(lead.cardId) === String(card.id)) return true;
+  if (lead.nfcCardId && card.id && String(lead.nfcCardId) === String(card.id)) return true;
+  if (lead.businessName && card.businessName) {
+    const normLead = lead.businessName.trim().toLowerCase();
+    const normCard = card.businessName.trim().toLowerCase();
+    if (normLead.length > 0 && normLead === normCard) return true;
+  }
+  return false;
+}
+

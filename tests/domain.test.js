@@ -779,5 +779,63 @@ test('kanban pipeline stage 7 (no_hecha_o_espera) and 1-week inactivity rule', a
   assert.equal(isOverOneWeek(oldDeliveredLead), false, 'Venta ya entregada y cobrada no debe enviarse a no hecha');
 });
 
+test('google place id extraction, redirected review url and bidirectional district synchronization with kanban', async () => {
+  const { cleanGooglePlaceId, buildGoogleReviewUrl, areLeadAndCardLinked } = await import('../src/utils/dynamicRouter.js');
+
+  // 1. Limpieza y extracción de Google Place ID
+  const bareId = 'ChIJN1t_tDeuEmsRUsoyG83frY4';
+  assert.equal(cleanGooglePlaceId(bareId), bareId, 'Debe mantener un ID limpio');
+
+  const fullUrl = `https://search.google.com/local/writereview?placeid=${bareId}`;
+  assert.equal(cleanGooglePlaceId(fullUrl), bareId, 'Debe extraer el ID de una URL de reseña');
+
+  const urlWithParams = `https://search.google.com/local/writereview?placeid=${bareId}&authuser=1`;
+  assert.equal(cleanGooglePlaceId(urlWithParams), bareId, 'Debe extraer el ID aun con parámetros adicionales');
+
+  const mapsUrl = `https://maps.google.com/?place_id=${bareId}`;
+  assert.equal(cleanGooglePlaceId(mapsUrl), bareId, 'Debe extraer el ID con formato place_id=');
+
+  const directParam = `placeid=${bareId}`;
+  assert.equal(cleanGooglePlaceId(directParam), bareId, 'Debe extraer el ID escrito como placeid=');
+
+  // 2. Generación del Enlace Redirigido
+  const reviewUrl = buildGoogleReviewUrl(bareId);
+  assert.equal(reviewUrl, `https://search.google.com/local/writereview?placeid=${bareId}`, 'Debe unir https con el ID');
+
+  assert.equal(buildGoogleReviewUrl(''), '', 'ID vacío debe retornar cadena vacía');
+
+  // 3. Vinculación Lead - Tarjeta NFC (areLeadAndCardLinked)
+  const lead1 = { id: 'lead-101', businessName: 'Lavatelli Dry Cleaners', district: 'Surco' };
+  const card1 = { id: 'LNK-001', leadId: 'lead-101', businessName: 'Lavatelli Dry Cleaners', district: 'Surco' };
+  assert.equal(areLeadAndCardLinked(lead1, card1), true, 'Debe vincular por leadId');
+
+  const lead2 = { id: 'lead-102', businessName: 'Lavatelli Dry Cleaners', district: 'Surco' };
+  const card2 = { id: 'LNK-002', businessName: 'Lavatelli Dry Cleaners', district: 'Miraflores' };
+  assert.equal(areLeadAndCardLinked(lead2, card2), true, 'Debe vincular por coincidencia de nombre de negocio');
+
+  const card3 = { id: 'LNK-003', businessName: 'Barbería Don Juan', district: 'Barranco' };
+  assert.equal(areLeadAndCardLinked(lead1, card3), false, 'No debe vincular negocios distintos');
+
+  // 4. Sincronización bidireccional de distrito:
+  // Caso A: Cambio de distrito en Tarjeta NFC -> Sincroniza Lead en Kanban
+  let leads = [{ id: 'lead-101', businessName: 'Lavatelli Dry Cleaners', district: 'Surco' }];
+  let cards = [{ id: 'LNK-001', leadId: 'lead-101', businessName: 'Lavatelli Dry Cleaners', district: 'Surco' }];
+
+  // Usuario cambia distrito en NFC a "Santiago de Surco"
+  const updatedCard = { ...cards[0], district: 'Santiago de Surco' };
+  cards = cards.map(c => c.id === updatedCard.id ? updatedCard : c);
+  leads = leads.map(l => areLeadAndCardLinked(l, updatedCard) ? { ...l, district: updatedCard.district } : l);
+
+  assert.equal(leads[0].district, 'Santiago de Surco', 'El cambio de distrito en NFC debe actualizar el lead en Kanban');
+
+  // Caso B: Cambio de distrito en Kanban -> Sincroniza Tarjeta NFC
+  const updatedLead = { ...leads[0], district: 'San Isidro' };
+  leads = leads.map(l => l.id === updatedLead.id ? updatedLead : l);
+  cards = cards.map(c => areLeadAndCardLinked(updatedLead, c) ? { ...c, district: updatedLead.district } : c);
+
+  assert.equal(cards[0].district, 'San Isidro', 'El cambio de distrito en Kanban debe actualizar la tarjeta NFC');
+});
+
+
 
 

@@ -1,6 +1,14 @@
 import { localDate } from '../utils/dateUtils.js';
-import { buildCardRedirectUrl, formatRelativeTime, evaluateCardHealth } from '../utils/dynamicRouter.js';
-import React, { useState, useEffect } from 'react';
+import { 
+  buildCardRedirectUrl, 
+  formatRelativeTime, 
+  evaluateCardHealth,
+  cleanGooglePlaceId,
+  buildGoogleReviewUrl,
+  areLeadAndCardLinked
+} from '../utils/dynamicRouter.js';
+import DistrictCombobox from './DistrictCombobox.jsx';
+import React, { useState, useEffect, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { 
   Cpu, 
@@ -29,6 +37,9 @@ export default function NfcTraceabilityView({
   nfcCards = [],
   products = [],
   inventory = [],
+  leads = [],
+  districts: externalDistricts = [],
+  onUpdateLead,
   onUpdateCard,
   onAddNewCard,
   onRecordBip,
@@ -184,8 +195,15 @@ export default function NfcTraceabilityView({
     return matchesSearch && matchesDistrict && matchesStatus && matchesHealth;
   });
 
-  // Distritos únicos
-  const districts = Array.from(new Set(nfcCards.map(c => c.district).filter(Boolean)));
+  // Distritos únicos combinando maestros y tarjetas existentes
+  const districts = useMemo(() => {
+    const combined = [
+      ...(Array.isArray(externalDistricts) ? externalDistricts : []),
+      ...nfcCards.map(c => c.district).filter(Boolean),
+      ...leads.map(l => l.district).filter(Boolean)
+    ];
+    return Array.from(new Set(combined));
+  }, [externalDistricts, nfcCards, leads]);
 
   const handleCopy = (text, id) => {
     navigator.clipboard.writeText(text);
@@ -194,7 +212,17 @@ export default function NfcTraceabilityView({
   };
 
   const handleOpenEdit = (card) => {
-    setEditingCard({ ...card });
+    // Buscar si existe un prospecto en Kanban coincidente por leadId o por nombre de negocio
+    const matchingLead = (leads || []).find(l => areLeadAndCardLinked(l, card));
+
+    // Si el lead en Kanban tiene distrito, sincronizar y asegurar coincidencia
+    const resolvedDistrict = card.district || matchingLead?.district || 'Miraflores';
+
+    setEditingCard({
+      ...card,
+      leadId: card.leadId || matchingLead?.id || null,
+      district: resolvedDistrict
+    });
     setSupportNote('');
     setIsEditModalOpen(true);
   };
@@ -203,37 +231,45 @@ export default function NfcTraceabilityView({
     e.preventDefault();
     if (!editingCard) return;
 
-    // Recalcular URL si el Place ID cambió
-    let updatedReviewUrl = editingCard.reviewUrl;
-    if (editingCard.placeId && !editingCard.reviewUrl.includes(editingCard.placeId)) {
-      updatedReviewUrl = `https://search.google.com/local/writereview?placeid=${editingCard.placeId}`;
-    }
+    // Recalcular URL si el Place ID cambió (usando cleanGooglePlaceId y buildGoogleReviewUrl)
+    const cleanPlaceId = cleanGooglePlaceId(editingCard.placeId);
+    const updatedReviewUrl = buildGoogleReviewUrl(cleanPlaceId) || editingCard.reviewUrl;
 
     const updatedHistory = [
       ...(editingCard.history || []),
       {
         date: new Date().toLocaleString('es-PE'),
         author: 'Admin Linkeo',
-        action: supportNote.trim() || 'Actualización de datos / Place ID en soporte técnico.'
+        action: supportNote.trim() || `Actualización de Place ID / Distrito (${editingCard.district}) en soporte técnico.`
       }
     ];
 
-    onUpdateCard({
+    const cardToSave = {
       ...editingCard,
+      placeId: cleanPlaceId,
       reviewUrl: updatedReviewUrl,
       history: updatedHistory
-    });
+    };
+
+    onUpdateCard(cardToSave);
+
+    // Sincronizar directamente con el prospecto correspondiente en Kanban
+    if (onUpdateLead) {
+      const targetLead = (leads || []).find(l => areLeadAndCardLinked(l, cardToSave));
+      if (targetLead && targetLead.district !== cardToSave.district) {
+        onUpdateLead({
+          ...targetLead,
+          district: cardToSave.district
+        });
+      }
+    }
 
     if (showToast) {
       showToast(`✅ Tarjeta "${editingCard.id}" actualizada exitosamente`, 'success');
     }
 
     if (activeModalCard && activeModalCard.id === editingCard.id) {
-      setActiveModalCard({
-        ...editingCard,
-        reviewUrl: updatedReviewUrl,
-        history: updatedHistory
-      });
+      setActiveModalCard(cardToSave);
     }
 
     handleCloseEditModal();
@@ -832,12 +868,28 @@ export default function NfcTraceabilityView({
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Distrito:</label>
-                  <input 
-                    type="text" 
-                    className="form-control"
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Distrito:</label>
+                    {(() => {
+                      const matchingLead = (leads || []).find(l => areLeadAndCardLinked(l, editingCard));
+                      return matchingLead ? (
+                        <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }} title="Sincronizado bidireccionalmente con el prospecto en Kanban">
+                          <CheckCircle2 size={12} />
+                          <span>🔗 Sincronizado con Kanban</span>
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.70rem', color: 'var(--text-muted)' }}>
+                          (Sincroniza con Kanban por negocio)
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <DistrictCombobox 
                     value={editingCard.district}
-                    onChange={(e) => setEditingCard({ ...editingCard, district: e.target.value })}
+                    onChange={(dist) => setEditingCard({ ...editingCard, district: dist })}
+                    districts={districts}
+                    placeholder="Seleccionar o escribir distrito..."
+                    required
                   />
                 </div>
                 <div className="form-group">
@@ -855,25 +907,112 @@ export default function NfcTraceabilityView({
               </div>
 
               <div className="form-group">
-                <label className="form-label">Google Place ID (Actualizable si el cliente se muda):</label>
-                <input 
-                  type="text" 
-                  className="form-control code-mono"
-                  value={editingCard.placeId}
-                  onChange={(e) => setEditingCard({ ...editingCard, placeId: e.target.value })}
-                  placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4"
-                  required
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Google Place ID (Actualizable si el cliente se muda):</label>
+                  {editingCard.placeId?.trim() && (
+                    <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 600 }}>
+                      ✓ ID: {cleanGooglePlaceId(editingCard.placeId)}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+                  <input 
+                    type="text" 
+                    className="form-control code-mono"
+                    value={editingCard.placeId}
+                    onChange={(e) => {
+                      const cleaned = cleanGooglePlaceId(e.target.value);
+                      setEditingCard({ ...editingCard, placeId: cleaned });
+                    }}
+                    placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4"
+                    required
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      const id = cleanGooglePlaceId(editingCard.placeId);
+                      if (!id) {
+                        if (showToast) showToast('Ingresa primero el Google Place ID', 'warning');
+                        return;
+                      }
+                      const url = buildGoogleReviewUrl(id);
+                      window.open(url, '_blank');
+                    }}
+                    disabled={!editingCard.placeId?.trim()}
+                    title="Abrir enlace redirigido uniendo https://search.google.com/local/writereview?placeid= con el ID"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      whiteSpace: 'nowrap',
+                      fontWeight: 700,
+                      padding: '0 16px',
+                      cursor: editingCard.placeId?.trim() ? 'pointer' : 'not-allowed',
+                      opacity: editingCard.placeId?.trim() ? 1 : 0.6
+                    }}
+                  >
+                    <ExternalLink size={15} />
+                    <span>Enlace redirigido</span>
+                  </button>
+                </div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
+                  Al ingresar el ID, el botón <strong>Enlace redirigido</strong> une <code>https://search.google.com/local/writereview?placeid=</code> con el Place ID.
+                </span>
               </div>
 
               <div className="form-group">
-                <label className="form-label">URL de Reseña Generada:</label>
-                <input 
-                  type="text" 
-                  className="form-control code-mono"
-                  value={`https://search.google.com/local/writereview?placeid=${editingCard.placeId || ''}`}
-                  readOnly
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>URL de Reseña Generada:</label>
+                  {cleanGooglePlaceId(editingCard.placeId) && (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--primary-400)', fontWeight: 600 }}>
+                      ✓ https://search.google.com/local/writereview?placeid= + ID
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="text" 
+                    className="form-control code-mono"
+                    value={buildGoogleReviewUrl(editingCard.placeId) || `https://search.google.com/local/writereview?placeid=`}
+                    readOnly
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      const url = buildGoogleReviewUrl(editingCard.placeId);
+                      if (url) {
+                        handleCopy(url, 'modal-review-url');
+                      } else {
+                        if (showToast) showToast('Ingresa un Place ID para copiar la URL', 'warning');
+                      }
+                    }}
+                    title="Copiar URL generada"
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    {copiedId === 'modal-review-url' ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
+                    <span style={{ fontSize: '0.8rem' }}>Copiar</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => {
+                      const url = buildGoogleReviewUrl(editingCard.placeId);
+                      if (url) {
+                        window.open(url, '_blank');
+                      }
+                    }}
+                    disabled={!cleanGooglePlaceId(editingCard.placeId)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                    title="Abrir enlace redirigido en nueva pestaña"
+                  >
+                    <ExternalLink size={14} />
+                    <span>Enlace redirigido</span>
+                  </button>
+                </div>
               </div>
 
               <div className="form-group">
@@ -1062,30 +1201,84 @@ export default function NfcTraceabilityView({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Distrito de Lima:</label>
-                  <input 
-                    type="text" 
-                    className="form-control"
-                    placeholder="Miraflores, San Isidro, Surco..."
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Distrito de Lima:</label>
+                    {(() => {
+                      const matchingLead = (leads || []).find(l => areLeadAndCardLinked(l, newCardForm));
+                      return matchingLead ? (
+                        <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <CheckCircle2 size={12} />
+                          <span>🔗 Vinculado a Kanban ({matchingLead.district || 'Sin distrito'})</span>
+                        </span>
+                      ) : null;
+                    })()}
+                  </div>
+                  <DistrictCombobox 
                     value={newCardForm.district}
-                    onChange={(e) => setNewCardForm({ ...newCardForm, district: e.target.value })}
+                    onChange={(dist) => setNewCardForm({ ...newCardForm, district: dist })}
+                    districts={districts}
+                    placeholder="Miraflores, San Isidro, Surco..."
                     required
                   />
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Google Place ID del Negocio:</label>
-                <input 
-                  type="text" 
-                  className="form-control code-mono"
-                  placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4"
-                  value={newCardForm.placeId}
-                  onChange={(e) => setNewCardForm({ ...newCardForm, placeId: e.target.value })}
-                  required
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Google Place ID del Negocio:</label>
+                  {newCardForm.placeId?.trim() && (
+                    <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 600 }}>
+                      ✓ ID: {cleanGooglePlaceId(newCardForm.placeId)}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+                  <input 
+                    type="text" 
+                    className="form-control code-mono"
+                    placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4"
+                    value={newCardForm.placeId}
+                    onChange={(e) => {
+                      const cleaned = cleanGooglePlaceId(e.target.value);
+                      setNewCardForm({ ...newCardForm, placeId: cleaned });
+                    }}
+                    required
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      const id = cleanGooglePlaceId(newCardForm.placeId);
+                      if (!id) {
+                        if (showToast) showToast('Ingresa primero el Google Place ID', 'warning');
+                        return;
+                      }
+                      const url = buildGoogleReviewUrl(id);
+                      window.open(url, '_blank');
+                    }}
+                    disabled={!newCardForm.placeId?.trim()}
+                    title="Abrir enlace redirigido uniendo https://search.google.com/local/writereview?placeid= con el ID"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      whiteSpace: 'nowrap',
+                      fontWeight: 700,
+                      padding: '0 16px',
+                      cursor: newCardForm.placeId?.trim() ? 'pointer' : 'not-allowed',
+                      opacity: newCardForm.placeId?.trim() ? 1 : 0.6
+                    }}
+                  >
+                    <ExternalLink size={15} />
+                    <span>Enlace redirigido</span>
+                  </button>
+                </div>
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                  El Place ID se obtiene de Google Maps Place ID Finder. Generará automáticamente la URL directa de 5 estrellas.
+                  {newCardForm.placeId?.trim()
+                    ? `URL unida: ${buildGoogleReviewUrl(newCardForm.placeId)}`
+                    : 'Al colocar el ID, el botón "Enlace redirigido" une https://search.google.com/local/writereview?placeid= con el ID.'
+                  }
                 </span>
               </div>
 

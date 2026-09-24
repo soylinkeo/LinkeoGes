@@ -29,7 +29,7 @@ import { useCloudData } from './hooks/useCloudData';
 import { calculateFinance, isSettlement, isInventoryPurchase } from './utils/financeUtils.js';
 import { getStockMovements, applyStockMovements, createSale } from './utils/operations.js';
 import { localDate } from './utils/dateUtils';
-import { parseDynamicCardRoute } from './utils/dynamicRouter.js';
+import { parseDynamicCardRoute, areLeadAndCardLinked } from './utils/dynamicRouter.js';
 import NfcRedirectScreen from './components/NfcRedirectScreen.jsx';
 import SyncStatus from './components/SyncStatus';
 import MobileBottomNav from './components/MobileBottomNav';
@@ -609,7 +609,7 @@ export default function App() {
 
       const saleWithLead = { ...result.sale, leadId: targetLeadId };
       setSales(prev => [saleWithLead, ...prev]);
-      setNfcCards(prev => [...result.cards, ...prev]);
+      setNfcCards(prev => [...result.cards.map(c => ({ ...c, leadId: targetLeadId })), ...prev]);
 
       logAudit({ actionType: 'Creación', entityType: 'Venta', entityId: result.sale.id, entityName: result.sale.clientName, reason: 'Venta y stock registrados conjuntamente. Prospecto directo a Entregado y Cobrado.' });
       cloud.engine.afterSaved(() => { handleCloseNewSaleModal(); pushToast('Venta confirmada en la nube'); });
@@ -685,8 +685,24 @@ export default function App() {
         movements = getStockMovements(product, 1, inventory);
         setInventory(applyStockMovements(inventory, movements, -1));
       }
-      setNfcCards(prev => [{ ...newCard, stockMovements: movements }, ...prev]);
-      logAudit({ actionType: 'Creación', entityType: 'Tarjeta NFC', entityId: newCard.id, entityName: newCard.businessName, reason: 'Alta de tarjeta.' });
+
+      // Sincronización con Kanban: detectar si existe un prospecto con el mismo negocio o leadId
+      const matchingLead = (leads || []).find(l => areLeadAndCardLinked(l, newCard));
+      const cardToInsert = {
+        ...newCard,
+        leadId: newCard.leadId || matchingLead?.id || null,
+        district: newCard.district || matchingLead?.district || 'Miraflores',
+        stockMovements: movements
+      };
+
+      setNfcCards(prev => [{ ...cardToInsert, stockMovements: movements }, ...prev]);
+
+      // Si el prospecto en Kanban difiere en distrito, sincronizarlo bidireccionalmente
+      if (matchingLead && cardToInsert.district && matchingLead.district !== cardToInsert.district) {
+        setLeads(prevLeads => (prevLeads || []).map(l => l.id === matchingLead.id ? { ...l, district: cardToInsert.district } : l));
+      }
+
+      logAudit({ actionType: 'Creación', entityType: 'Tarjeta NFC', entityId: cardToInsert.id, entityName: cardToInsert.businessName, reason: 'Alta de tarjeta.' });
       return true;
     } catch (error) { showToast(error.message, 'error'); return false; }
   };
@@ -694,14 +710,27 @@ export default function App() {
   const handleUpdateCard = updatedCard => {
     const oldCard = nfcCards.find(c => c.id === updatedCard.id);
     setNfcCards(prev => prev.map(c => c.id === updatedCard.id ? updatedCard : c));
+
+    // Sincronización bidireccional de localidad/distrito con Kanban:
+    // Si la tarjeta NFC cambia de distrito o se edita en soporte técnico, actualizar el prospecto en Kanban
+    if (updatedCard.district) {
+      setLeads(prevLeads => (prevLeads || []).map(l => {
+        const isMatch = areLeadAndCardLinked(l, updatedCard);
+        if (isMatch && l.district !== updatedCard.district) {
+          return { ...l, district: updatedCard.district };
+        }
+        return l;
+      }));
+    }
+
     logAudit({
       actionType: 'Modificación',
       entityType: 'Tarjeta NFC',
       entityId: updatedCard.id,
       entityName: updatedCard.businessName,
-      reason: `Modificación de enlace Place ID / datos de contacto.`,
+      reason: `Modificación de enlace Place ID / datos de contacto (Distrito: ${updatedCard.district}).`,
       snapshot: oldCard,
-      diff: `Antes: Place ID ${oldCard?.placeId || '—'} -> Ahora: ${updatedCard.placeId}`
+      diff: `Antes: Place ID ${oldCard?.placeId || '—'}, Distrito: ${oldCard?.district || '—'} -> Ahora: ${updatedCard.placeId}, Distrito: ${updatedCard.district}`
     });
   };
 
@@ -765,7 +794,22 @@ export default function App() {
 
   // Handlers para Leads / Pipeline
   const handleAddNewLead = newLead => {
-    setLeads([newLead, ...leads]);
+    setLeads(prev => [newLead, ...(Array.isArray(prev) ? prev : leads)]);
+
+    // Si ya existe una tarjeta registrada para este negocio, sincronizar distrito y asociar leadId
+    if (newLead.district && newLead.businessName) {
+      setNfcCards(prevCards => (prevCards || []).map(c => {
+        if (areLeadAndCardLinked(newLead, c)) {
+          return {
+            ...c,
+            leadId: c.leadId || newLead.id,
+            district: c.district || newLead.district
+          };
+        }
+        return c;
+      }));
+    }
+
     logAudit({
       actionType: 'Creación',
       entityType: 'Lead',
@@ -814,7 +858,7 @@ export default function App() {
         estimatedValue: Number(product.price) || l.estimatedValue 
       } : l));
       setSales(prev => [{ ...result.sale, leadId: lead.id }, ...prev]);
-      setNfcCards(prev => [...result.cards, ...prev]);
+      setNfcCards(prev => [...result.cards.map(c => ({ ...c, leadId: lead.id })), ...prev]);
       logAudit({ 
         actionType: 'Creación', 
         entityType: 'Venta', 
@@ -880,6 +924,30 @@ export default function App() {
     }
 
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+
+    // Sincronización bidireccional con Trazabilidad NFC:
+    // Si el prospecto en Kanban actualiza su localidad/distrito, reflejarlo inmediatamente en la tarjeta NFC correspondiente
+    if (updatedLead.district) {
+      setNfcCards(prevCards => (prevCards || []).map(c => {
+        const isMatch = areLeadAndCardLinked(updatedLead, c);
+        if (isMatch && c.district !== updatedLead.district) {
+          return {
+            ...c,
+            district: updatedLead.district,
+            history: [
+              ...(c.history || []),
+              {
+                date: new Date().toLocaleString('es-PE'),
+                author: 'Sincronización Kanban',
+                action: `Distrito sincronizado desde Kanban: "${updatedLead.district}".`
+              }
+            ]
+          };
+        }
+        return c;
+      }));
+    }
+
     logAudit({
       actionType: 'Modificación',
       entityType: 'Lead',
@@ -887,7 +955,7 @@ export default function App() {
       entityName: updatedLead.businessName,
       reason: `Actualización de datos del prospecto (${updatedLead.businessName}).`,
       snapshot: oldLead,
-      diff: `Antes: ${oldLead?.businessName || ''} (${oldLead?.stage || ''}) -> Ahora: ${updatedLead.businessName} (${updatedLead.stage})`
+      diff: `Antes: ${oldLead?.businessName || ''} (${oldLead?.stage || ''}, ${oldLead?.district || ''}) -> Ahora: ${updatedLead.businessName} (${updatedLead.stage}, ${updatedLead.district})`
     });
   };
 
@@ -1589,7 +1657,24 @@ export default function App() {
           {currentTab === 'lifecycle' && <ProjectLifecycleView projectPhases={projectPhases} onToggleDeliverable={handleToggleDeliverable} onAddDeliverable={handleAddDeliverable} onEditDeliverable={handleEditDeliverable} onDeleteDeliverable={(phaseId, del) => handleRequestDelete(del, 'Entregable')} currentUser={currentUser} onSyncActualProgress={handleSyncActualProgress} />}
 
           {/* MÓDULO 3: Trazabilidad Chips NFC */}
-          {currentTab === 'nfc-traceability' && <NfcTraceabilityView nfcCards={nfcCards} products={products} inventory={inventory} onUpdateCard={handleUpdateCard} onAddNewCard={handleAddNewCard} onRecordBip={handleRecordCardBip} selectedCardModal={selectedCardModal} setSelectedCardModal={setSelectedCardModal} onRequestDelete={handleRequestDelete} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
+          {currentTab === 'nfc-traceability' && (
+            <NfcTraceabilityView 
+              nfcCards={nfcCards} 
+              products={products} 
+              inventory={inventory} 
+              leads={leads}
+              onUpdateLead={handleUpdateLead}
+              districts={districts}
+              onUpdateCard={handleUpdateCard} 
+              onAddNewCard={handleAddNewCard} 
+              onRecordBip={handleRecordCardBip} 
+              selectedCardModal={selectedCardModal} 
+              setSelectedCardModal={setSelectedCardModal} 
+              onRequestDelete={handleRequestDelete} 
+              onUpdateInventoryStock={handleUpdateInventoryStock} 
+              showToast={showToast} 
+            />
+          )}
 
           {/* MÓDULO 4: Pipeline B2B (Kanban) */}
           {currentTab === 'pipeline' && <KanbanView products={products} leads={leads} sales={sales} districts={districts} onUpdateLeadStage={handleUpdateLeadStage} onUpdateLead={handleUpdateLead} onAddNewLead={handleAddNewLead} onConvertLeadToSale={handleConvertLeadToSale} onRequestDelete={handleRequestDelete} showToast={showToast} />}
