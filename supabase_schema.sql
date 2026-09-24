@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS leads (
     address TEXT,
     contact_name TEXT,
     phone TEXT,
+    email TEXT,
     stage TEXT DEFAULT 'prospecto',
     priority TEXT DEFAULT 'media',
     responsible TEXT DEFAULT 'both',

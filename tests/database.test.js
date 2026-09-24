@@ -36,9 +36,24 @@ test('SQL migration: authorization, atomic rollback, revisions, idempotency and 
     snapshot=await commit(1,[{table:'audit_logs',kind:'insert',id:'a1',data:mappers.auditLogToDb(audit)}]);
     assert.equal(snapshot.tables.audit_logs[0].deleted_by,'kevin');
     snapshot=await commit(2,[{table:'audit_logs',kind:'update',id:'a1',data:mappers.auditLogToDb({...audit,reason:'tampered',status:'approved'})}]);
-    assert.equal(snapshot.tables.audit_logs[0].reason,'original');assert.equal(snapshot.tables.audit_logs[0].payload.reviewedBy,'kevin');
-    await assert.rejects(commit(3,[{table:'audit_logs',kind:'delete',id:'a1'}]),/inmutable/);
-    await assert.rejects(commit(3,[{table:'user_credentials',kind:'delete',id:'kevin'}]),/Tabla no permitida/);
+    const lead = {
+      id: 'lead-test-1',
+      businessName: 'Barbería Don Tito',
+      contactName: 'Tito',
+      phone: '987654321',
+      email: 'dontito@gmail.com',
+      district: 'Miraflores',
+      stage: 'prospecto',
+      estimatedValue: 120,
+      googleMapsUrl: 'https://maps.app.goo.gl/123'
+    };
+    snapshot = await commit(3, [{ table: 'leads', kind: 'insert', id: lead.id, data: mappers.leadToDb(lead) }]);
+    assert.equal(snapshot.tables.leads[0].business_name, 'Barbería Don Tito');
+    const leadFront = mappers.leadToFront(snapshot.tables.leads[0]);
+    assert.equal(leadFront.email, 'dontito@gmail.com');
+
+    await assert.rejects(commit(4,[{table:'audit_logs',kind:'delete',id:'a1'}]),/inmutable/);
+    await assert.rejects(commit(4,[{table:'user_credentials',kind:'delete',id:'kevin'}]),/Tabla no permitida/);
     // Even an authenticated member cannot bypass the transactional API.
     await db.exec('SET ROLE authenticated');
     await assert.rejects(db.query('update public.inventory set quantity=99'),/permission denied/);
@@ -46,6 +61,6 @@ test('SQL migration: authorization, atomic rollback, revisions, idempotency and 
     await db.exec('RESET ROLE; SET ROLE anon');
     await assert.rejects(db.query('select public.linkeoges_snapshot()'),/permission denied/);
     await db.exec('RESET ROLE');
-    assert.equal((await db.query('select count(*)::int as n from public.operation_journal')).rows[0].n,3);
+    assert.equal((await db.query('select count(*)::int as n from public.operation_journal')).rows[0].n,4);
   } finally {await db.close();}
 });

@@ -298,7 +298,7 @@ test('lead captures and preserves optional email/gmail address', () => {
     estimatedValue: 120
   };
   const dbRow = mappers.leadToDb(leadWithEmail);
-  assert.equal(dbRow.email, 'dontito.barberia@gmail.com');
+  assert.equal(dbRow.payload.email, 'dontito.barberia@gmail.com');
   const frontObj = mappers.leadToFront(dbRow);
   assert.equal(frontObj.email, 'dontito.barberia@gmail.com');
 });
