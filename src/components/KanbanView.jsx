@@ -39,6 +39,9 @@ export const normalizeLeadStage = (stage) => {
   return 'prospecto';
 };
 
+import { buildLeadWhatsAppMessage } from '../utils/leadMessages.js';
+export { buildLeadWhatsAppMessage };
+
 export default function KanbanView({
   leads = [],
   products = [],
@@ -551,7 +554,7 @@ export default function KanbanView({
                       {/* WhatsApp Directo */}
                       {lead.phone && (
                         <a 
-                          href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + lead.phone.replace(/[^0-9]/g, '') : lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hola ${lead.contactName || ''}, te saluda el equipo de Linkeo (linkeocards.com). Te escribo sobre las tarjetas inteligentes con Google Reviews para ${lead.businessName}.`)}`}
+                          href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + lead.phone.replace(/[^0-9]/g, '') : lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildLeadWhatsAppMessage(lead))}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-icon"
@@ -566,7 +569,11 @@ export default function KanbanView({
                       {/* Correo / Gmail Directo */}
                       {lead.email && (
                         <a 
-                          href={`mailto:${lead.email}?subject=${encodeURIComponent(`Tarjetas Inteligentes Linkeo para ${lead.businessName}`)}`}
+                          href={`mailto:${lead.email}?subject=${encodeURIComponent(
+                            normalizeLeadStage(lead.stage) === 'prospecto'
+                              ? 'Tarjetas Inteligentes Linkeo NFC para Google Reviews'
+                              : `Propuesta de Tarjetas Inteligentes Linkeo NFC para ${lead.businessName}`
+                          )}&body=${encodeURIComponent(buildLeadWhatsAppMessage(lead))}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-icon"
@@ -846,7 +853,7 @@ export default function KanbanView({
                   <input 
                     type="text" 
                     className="form-control"
-                    placeholder="Encargado o Dueño"
+                    placeholder="Gerencia / Nombre de Contacto"
                     value={newLeadForm.contactName}
                     onChange={(e) => setNewLeadForm({ ...newLeadForm, contactName: e.target.value })}
                   />
@@ -1182,7 +1189,7 @@ export default function KanbanView({
                   <input 
                     type="text" 
                     className="form-control"
-                    placeholder="Encargado o Dueño"
+                    placeholder="Gerencia / Nombre de Contacto"
                     value={editLeadForm.contactName}
                     onChange={(e) => setEditLeadForm({ ...editLeadForm, contactName: e.target.value })}
                   />
@@ -1191,9 +1198,31 @@ export default function KanbanView({
                 <div className="form-group">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                     <label className="form-label" style={{ margin: 0 }}>Teléfono WhatsApp:</label>
-                    <span style={{ fontSize: '0.72rem', color: editLeadForm.phone?.length === 9 ? '#10b981' : 'var(--text-muted)', fontWeight: 600 }}>
-                      {editLeadForm.phone?.length || 0}/9 dígitos
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.72rem', color: editLeadForm.phone?.length === 9 ? '#10b981' : 'var(--text-muted)', fontWeight: 600 }}>
+                        {editLeadForm.phone?.length || 0}/9 dígitos
+                      </span>
+                      {editLeadForm.phone && (
+                        <a
+                          href={`https://wa.me/${editLeadForm.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + editLeadForm.phone.replace(/[^0-9]/g, '') : editLeadForm.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildLeadWhatsAppMessage(editLeadForm))}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: '0.7rem',
+                            color: '#10b981',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            fontWeight: 600,
+                            textDecoration: 'none'
+                          }}
+                          title="Abrir chat en WhatsApp con el mensaje predeterminado"
+                        >
+                          <Phone size={10} />
+                          <span>Abrir WhatsApp</span>
+                        </a>
+                      )}
+                    </div>
                   </div>
                   <input 
                     type="tel" 

@@ -340,5 +340,49 @@ test('phone input is strictly limited to 9 numeric digits and formats internatio
   assert.equal(waNumber, '51933668238');
 });
 
+test('buildLeadWhatsAppMessage customizes by stage (prospect vs visitado) with web, tiktok, and instagram links', async () => {
+  const { buildLeadWhatsAppMessage } = await import('../src/utils/leadMessages.js');
+
+  // Case 1: Prospecto (Cold lead)
+  const prospectLead = {
+    businessName: 'Glowe Studio',
+    stage: 'prospecto',
+    contactName: 'Encargado'
+  };
+  const prospectMsg = buildLeadWhatsAppMessage(prospectLead);
+
+  // Must start with '¡Hola!' and not contain 'visitamos' or 'Glowe Studio' in the greeting
+  assert.ok(prospectMsg.startsWith('¡Hola! 👋'));
+  assert.ok(!prospectMsg.toLowerCase().includes('encargado'));
+  assert.ok(!prospectMsg.toLowerCase().includes('dueño'));
+  assert.ok(!prospectMsg.toLowerCase().includes('visitar su local'));
+
+  // Must contain all 3 requested links
+  assert.ok(prospectMsg.includes('https://linkeocards.com/'));
+  assert.ok(prospectMsg.includes('https://www.instagram.com/linkeo_pe/'));
+  assert.ok(prospectMsg.includes('https://www.tiktok.com/@linkeocards'));
+
+  // Case 2: Visitado (Visited store)
+  const visitadoLead = {
+    businessName: 'GrekColor',
+    stage: 'visitado',
+    contactName: 'Encargado'
+  };
+  const visitadoMsg = buildLeadWhatsAppMessage(visitadoLead);
+
+  // Must address the company name and mention visiting the store
+  assert.ok(visitadoMsg.includes('GrekColor'));
+  assert.ok(visitadoMsg.toLowerCase().includes('pasar a visitar su local'));
+  assert.ok(!visitadoMsg.toLowerCase().includes('encargado'));
+  assert.ok(!visitadoMsg.toLowerCase().includes('dueño'));
+  assert.ok(visitadoMsg.toLowerCase().includes('gerencia y al equipo de dirección'));
+
+  // Must contain all 3 requested links
+  assert.ok(visitadoMsg.includes('https://linkeocards.com/'));
+  assert.ok(visitadoMsg.includes('https://www.instagram.com/linkeo_pe/'));
+  assert.ok(visitadoMsg.includes('https://www.tiktok.com/@linkeocards'));
+});
+
+
 
 
