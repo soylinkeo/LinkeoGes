@@ -379,39 +379,88 @@ export default function InventoryView({
   // -------------------------------------------------------------
   // FORMULARIO: PRODUCTO INDIVIDUAL
   // -------------------------------------------------------------
+  // FORMULARIO: PRODUCTO INDIVIDUAL
+  // -------------------------------------------------------------
   const [newProductForm, setNewProductForm] = useState({
+    inventoryId: '',
     name: '',
-    sku: generateRandomSku('LNK-PROD'),
+    sku: '',
     category: 'Individual',
     type: 'NFC Inteligente',
     price: '',
-    cost: 13.00,
-    stock: 20,
+    cost: 0,
+    stock: 0,
     badge: 'Nuevo Producto',
     description: ''
   });
 
   const handleOpenNewProductModal = () => {
-    setNewProductForm({
-      name: '',
-      sku: generateRandomSku('LNK-PROD'),
-      category: 'Individual',
-      type: 'NFC Inteligente',
-      price: '',
-      cost: 13.00,
-      stock: 20,
-      badge: 'Nuevo Producto',
-      description: ''
-    });
+    // Buscar el primer insumo disponible que aún no esté publicado en catálogo o el primer insumo de inventario
+    const availableItem = inventory.find(i => !products.some(p => p.sku === i.sku || p.inventoryId === i.id)) || (inventory.length > 0 ? inventory[0] : null);
+    if (availableItem) {
+      setNewProductForm({
+        inventoryId: availableItem.id,
+        name: availableItem.name,
+        sku: availableItem.sku,
+        category: 'Individual',
+        type: availableItem.category || 'NFC Inteligente',
+        price: (Number(availableItem.unitCost || 0) * 3).toFixed(2),
+        cost: Number(availableItem.unitCost || 0),
+        stock: availableItem.quantity ?? 0,
+        badge: 'Nuevo Producto',
+        description: `Producto fabricado con ${availableItem.name}. Configurado con chip NFC de alta fidelidad para Google Reviews y enlace directo.`
+      });
+    } else {
+      setNewProductForm({
+        inventoryId: '',
+        name: '',
+        sku: '',
+        category: 'Individual',
+        type: 'NFC Inteligente',
+        price: '',
+        cost: 0,
+        stock: 0,
+        badge: 'Nuevo Producto',
+        description: ''
+      });
+    }
     setIsNewProductModalOpen(true);
+  };
+
+  const handleSelectInventoryItem = (invId) => {
+    const item = inventory.find(i => i.id === invId);
+    if (!item) {
+      setNewProductForm(prev => ({
+        ...prev,
+        inventoryId: '',
+        name: '',
+        sku: '',
+        cost: 0,
+        stock: 0
+      }));
+      return;
+    }
+    const cost = Number(item.unitCost || 0);
+    const suggestedPrice = cost > 0 ? (cost * 3).toFixed(2) : '';
+    setNewProductForm(prev => ({
+      ...prev,
+      inventoryId: item.id,
+      name: item.name,
+      sku: item.sku,
+      type: item.category || 'NFC Inteligente',
+      cost: cost,
+      stock: item.quantity ?? 0,
+      price: prev.price && Number(prev.price) > 0 ? prev.price : suggestedPrice,
+      description: `Producto fabricado con ${item.name}. Configurado con chip NFC de alta fidelidad para Google Reviews y enlace directo.`
+    }));
   };
 
   // Publicar directamente desde un insumo físico de inventario al Catálogo
   const handlePublishInventoryToCatalog = (invItem) => {
     setNewProductForm({
+      inventoryId: invItem.id,
       name: invItem.name,
       sku: invItem.sku,
-      inventoryId: invItem.id,
       category: 'Individual',
       type: invItem.category || 'NFC Inteligente',
       price: (Number(invItem.unitCost || 0) * 3).toFixed(2),
@@ -425,16 +474,26 @@ export default function InventoryView({
 
   const handleCreateProduct = (e) => {
     e.preventDefault();
+    if (!newProductForm.inventoryId) {
+      if (showToast) {
+        showToast('⚠️ Debes seleccionar un insumo registrado en el inventario.', 'warning');
+      } else {
+        alert('⚠️ Debes seleccionar un insumo registrado en el inventario.');
+      }
+      return;
+    }
+
+    const selectedItem = inventory.find(i => i.id === newProductForm.inventoryId);
     const priceNum = Number(newProductForm.price) || 0;
-    const costNum = Number(newProductForm.cost) || 0;
+    const costNum = selectedItem ? Number(selectedItem.unitCost || 0) : (Number(newProductForm.cost) || 0);
     const marginNum = priceNum - costNum;
     const marginPct = priceNum > 0 ? (marginNum / priceNum) * 100 : 0;
-    const stockNum = Math.max(0, parseInt(newProductForm.stock) || 0);
-    const finalSku = (newProductForm.sku && newProductForm.sku.trim()) || generateRandomSku('LNK-PROD');
+    const stockNum = selectedItem ? Number(selectedItem.quantity ?? 0) : (Math.max(0, parseInt(newProductForm.stock) || 0));
+    const finalSku = selectedItem ? selectedItem.sku : ((newProductForm.sku && newProductForm.sku.trim()) || generateRandomSku('LNK-PROD'));
 
     const newProd = {
       id: `prod-${Date.now()}`,
-      name: newProductForm.name,
+      name: newProductForm.name.trim(),
       inventoryId: newProductForm.inventoryId,
       sku: finalSku,
       category: newProductForm.category,
@@ -444,13 +503,13 @@ export default function InventoryView({
       stock: stockNum,
       margin: marginNum,
       marginPct: Number(marginPct.toFixed(1)),
-      badge: newProductForm.badge,
-      description: newProductForm.description
+      badge: newProductForm.badge.trim(),
+      description: newProductForm.description.trim()
     };
 
     onAddNewProduct(newProd);
     if (showToast) {
-      showToast(`Producto "${newProd.name}" publicado en el catálogo oficial`, 'success');
+      showToast(`✅ Producto "${newProd.name}" publicado en el catálogo oficial`, 'success');
     }
     handleCloseProductModal();
   };
@@ -1675,8 +1734,46 @@ export default function InventoryView({
             </div>
 
             <form onSubmit={handleCreateProduct}>
+              {/* Selector de Insumo Físico de Inventario */}
               <div className="form-group">
-                <label className="form-label">Nombre del Producto:</label>
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--primary-400)' }}>
+                    📦 Insumo Registrado en Inventario (Obligatorio):
+                  </span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    {inventory.length} insumos en almacén
+                  </span>
+                </label>
+                {inventory.length === 0 ? (
+                  <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', fontSize: '0.84rem', marginBottom: '10px' }}>
+                    ⚠️ No hay insumos físicos registrados en almacén. Primero debes agregar el insumo en la pestaña &quot;Insumos Físicos &amp; Stock&quot; o registrar una compra a proveedores.
+                  </div>
+                ) : (
+                  <select 
+                    className="form-control"
+                    value={newProductForm.inventoryId}
+                    onChange={(e) => handleSelectInventoryItem(e.target.value)}
+                    required
+                    style={{ borderColor: 'var(--primary-500)', fontWeight: 600 }}
+                  >
+                    <option value="">-- Selecciona el insumo registrado en almacén --</option>
+                    {inventory.map(item => {
+                      const alreadyInCatalog = products.some(p => p.sku === item.sku || p.inventoryId === item.id);
+                      return (
+                        <option key={item.id} value={item.id}>
+                          {item.name} ({item.sku}) — Stock: {item.quantity} uds | Costo: S/ {Number(item.unitCost || 0).toFixed(2)}{alreadyInCatalog ? ' [Ya en catálogo]' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
+                <small style={{ color: 'var(--text-muted)', fontSize: '0.74rem', marginTop: '4px', display: 'block' }}>
+                  El producto de venta quedará vinculado directamente a este insumo para descontar stock real en cada venta.
+                </small>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Nombre Comercial del Producto:</label>
                 <input 
                   type="text" 
                   className="form-control"
@@ -1689,28 +1786,20 @@ export default function InventoryView({
 
               <div className="form-row">
                 <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label className="form-label" style={{ marginBottom: 0 }}>Código SKU:</label>
-                    <button 
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      style={{ fontSize: '0.72rem', padding: '3px 8px', gap: '4px' }}
-                      onClick={() => setNewProductForm(prev => ({ ...prev, sku: generateRandomSku('LNK-PROD') }))}
-                    >
-                      <Shuffle size={12} /> 🎲 Aleatorio
-                    </button>
-                  </div>
+                  <label className="form-label">Código SKU (Vinculado a Almacén):</label>
                   <input 
                     type="text" 
                     className="form-control code-mono"
                     value={newProductForm.sku}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, sku: e.target.value })}
+                    readOnly
+                    style={{ backgroundColor: 'rgba(255,255,255,0.05)', cursor: 'not-allowed', color: 'var(--primary-400)', fontWeight: 700 }}
+                    title="El SKU se hereda del insumo físico registrado en almacén"
                     required
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Categoría:</label>
+                  <label className="form-label">Categoría Comercial:</label>
                   <select 
                     className="form-control"
                     value={newProductForm.category}
@@ -1729,6 +1818,7 @@ export default function InventoryView({
                   <input 
                     type="number" 
                     step="0.01" 
+                    min="0"
                     className="form-control"
                     placeholder="Ej: 69.00"
                     value={newProductForm.price}
@@ -1738,30 +1828,33 @@ export default function InventoryView({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Costo Unitario por Defecto (S/):</label>
+                  <label className="form-label">Costo Real de Insumo (S/):</label>
                   <input 
                     type="number" 
                     step="0.01" 
                     className="form-control"
-                    placeholder="Ej: 13.00"
                     value={newProductForm.cost}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, cost: e.target.value })}
-                    required
+                    readOnly
+                    style={{ backgroundColor: 'rgba(255,255,255,0.05)', cursor: 'not-allowed' }}
+                    title="Costo unitario registrado en almacén para este insumo"
                   />
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Stock en Almacén (Uds):</label>
+                  <label className="form-label">Stock Físico Disponible (Uds):</label>
                   <input 
                     type="number" 
-                    min="0"
                     className="form-control"
                     value={newProductForm.stock}
-                    onChange={(e) => setNewProductForm({ ...newProductForm, stock: e.target.value })}
-                    required
+                    readOnly
+                    style={{ backgroundColor: 'rgba(255,255,255,0.05)', cursor: 'not-allowed', fontWeight: 700 }}
+                    title="Unidades físicas disponibles en almacén"
                   />
+                  <small style={{ fontSize: '0.72rem', color: newProductForm.stock <= 5 ? '#ef4444' : '#10b981', marginTop: '2px', display: 'block' }}>
+                    {newProductForm.stock <= 5 ? '⚠️ Stock bajo en almacén' : '✓ Stock óptimo en almacén'}
+                  </small>
                 </div>
 
                 <div className="form-group">
@@ -1775,6 +1868,16 @@ export default function InventoryView({
                   />
                 </div>
               </div>
+
+              {/* Cálculo dinámico de margen */}
+              {Number(newProductForm.price) > 0 && (
+                <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-input)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', fontSize: '0.82rem' }}>
+                  <span>Margen Bruto estimado:</span>
+                  <strong style={{ color: Number(newProductForm.price) >= Number(newProductForm.cost) ? '#10b981' : '#ef4444' }}>
+                    S/ {(Number(newProductForm.price) - Number(newProductForm.cost)).toFixed(2)} ({Number(newProductForm.price) > 0 ? (((Number(newProductForm.price) - Number(newProductForm.cost)) / Number(newProductForm.price)) * 100).toFixed(1) : 0}%)
+                  </strong>
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">Descripción del Producto:</label>
@@ -1791,7 +1894,7 @@ export default function InventoryView({
                 <button type="button" className="btn btn-secondary" onClick={handleCloseProductModal}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary">
+                <button type="submit" className="btn btn-primary" disabled={inventory.length === 0 || !newProductForm.inventoryId}>
                   Publicar en Catálogo
                 </button>
               </div>
