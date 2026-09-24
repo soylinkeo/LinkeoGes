@@ -2583,7 +2583,7 @@ export default function ProjectionsView({
             </div>
           </div>
 
-          {/* Tabla o Estado Vacío de Productos Proyectados */}
+          {/* Estado Vacío - solo cuando no hay productos */}
           {projectedProducts.length === 0 ? (
             <div className="card" style={{ padding: '40px 20px', textAlign: 'center' }}>
               <ShoppingBag size={40} color="var(--primary-600)" style={{ margin: '0 auto 12px auto', opacity: 0.8 }} />
@@ -2605,70 +2605,78 @@ export default function ProjectionsView({
               </div>
             </div>
           ) : (
-            <div className="table-responsive" style={{ marginBottom: '24px' }}>
-              <table className="data-table">
+          <div className="table-responsive" style={{ marginBottom: '24px', overflowX: 'auto' }}>
+              <table className="data-table" style={{ fontSize: '0.82rem', tableLayout: 'auto', width: '100%' }}>
                 <thead>
                   <tr>
-                    <th style={{ width: '38px', textAlign: 'center' }}>Activo</th>
-                    <th style={{ minWidth: '220px' }}>Producto / Modelo</th>
-                    <th style={{ width: '110px', textAlign: 'center' }}>Stock Almacén</th>
-                    <th style={{ width: '100px', textAlign: 'right' }}>Precio Venta</th>
-                    <th style={{ width: '130px', textAlign: 'center', background: 'rgba(0, 102, 255, 0.08)' }}>
-                      Unidades a Vender
+                    <th style={{ width: '32px', textAlign: 'center', padding: '8px 6px' }}>✓</th>
+                    <th style={{ minWidth: '160px', padding: '8px 6px' }}>Producto / Modelo</th>
+                    <th style={{ width: '80px', textAlign: 'center', padding: '8px 6px' }}>Stock</th>
+                    <th style={{ width: '85px', textAlign: 'right', padding: '8px 6px' }}>P. Venta</th>
+                    <th style={{ width: '110px', textAlign: 'center', background: 'rgba(0, 102, 255, 0.08)', padding: '8px 6px' }}>
+                      Uds. a Vender
                     </th>
-                    <th style={{ width: '115px', textAlign: 'right' }}>Venta Total</th>
-                    <th style={{ width: '105px', textAlign: 'right' }}>Costo Rep. Unit.</th>
-                    <th style={{ width: '120px', textAlign: 'right' }}>Fondo Reposición</th>
-                    <th style={{ width: '125px', textAlign: 'right' }}>Margen Ganancia</th>
-                    <th style={{ width: '75px', textAlign: 'center' }}>% Mix</th>
-                    <th style={{ textAlign: 'center', width: '75px' }}>Acciones</th>
+                    <th style={{ width: '95px', textAlign: 'right', padding: '8px 6px' }}>Venta Total</th>
+                    <th style={{ width: '88px', textAlign: 'right', padding: '8px 6px' }}>Costo Rep.</th>
+                    <th style={{ width: '100px', textAlign: 'right', padding: '8px 6px' }}>Fdo. Reposición</th>
+                    <th style={{ width: '105px', textAlign: 'right', padding: '8px 6px' }}>Margen</th>
+                    <th style={{ width: '60px', textAlign: 'center', padding: '8px 6px' }}>% Mix</th>
+                    <th style={{ textAlign: 'center', width: '64px', padding: '8px 4px' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {productsWithEconomics.map(prod => {
-                    const prodUnits = Number(prod.targetUnits !== undefined ? prod.targetUnits : 0) || 0;
-                    const prodRevenue = prodUnits * prod.price;
-                    const prodReplacement = prodUnits * prod.baseCost;
-                    const prodTotalVarCost = prodUnits * prod.totalUnitVariableCost;
+                  {projectedProducts.map(prod => {
+                    const isActive = prod.included !== false;
+
+                    // Calcular economics solo si activo
+                    const price = Number(prod.price) || 0;
+                    const baseCost = Number(prod.baseCost) || 0;
+                    const paymentFee = price * (totalVariablePercent / 100);
+                    const totalUnitVarCost = baseCost + commonVariablePerUnit + paymentFee;
+                    const prodUnits = isActive ? (Number(prod.targetUnits !== undefined ? prod.targetUnits : 0) || 0) : 0;
+                    const prodRevenue = prodUnits * price;
+                    const prodReplacement = prodUnits * baseCost;
+                    const prodTotalVarCost = prodUnits * totalUnitVarCost;
                     const prodMargin = prodRevenue - prodTotalVarCost;
+                    const marginPct = price > 0 ? ((price - totalUnitVarCost) / price) * 100 : 0;
 
                     const invInfo = getProductInventoryInfo(prod, inventory, products);
                     const realStock = invInfo.stock;
 
                     return (
-                      <tr key={prod.id} style={{ opacity: prod.included === false ? 0.45 : 1 }}>
-                        <td style={{ textAlign: 'center' }}>
+                      <tr key={prod.id} style={{ opacity: isActive ? 1 : 0.38 }}>
+                        <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                           <input 
                             type="checkbox"
-                            checked={prod.included !== false}
+                            checked={isActive}
                             onChange={() => handleToggleProductInclusion(prod.id)}
                             title="Incluir / Excluir de la proyección"
-                            style={{ cursor: 'pointer' }}
+                            style={{ cursor: 'pointer', width: '15px', height: '15px' }}
                           />
                         </td>
-                        <td>
-                          <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)', marginBottom: '3px' }}>
+                        <td style={{ padding: '6px 8px' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-main)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
                             {prod.name}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <span className="code-mono" style={{ fontSize: '0.72rem', background: 'var(--bg-input)', padding: '1px 5px', borderRadius: '3px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                            <span className="code-mono" style={{ fontSize: '0.68rem', background: 'var(--bg-input)', padding: '1px 4px', borderRadius: '3px', border: '1px solid var(--border-subtle)' }}>
                               {prod.sku}
                             </span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
-                              {prod.isCustom ? '✨ Modelo Proyectado' : '📦 Catálogo'}
+                            <span style={{ fontSize: '0.66rem', color: 'var(--text-subtle)' }}>
+                              {prod.isCustom ? '✨ Proyectado' : '📦 Catálogo'}
                             </span>
                           </div>
                         </td>
-                        <td style={{ textAlign: 'center' }}>
+                        <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                           {realStock !== null ? (
                             <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                               <span 
                                 className={`badge ${realStock > 0 ? 'badge-green' : 'badge-yellow'}`}
-                                style={{ fontSize: '0.75rem', fontWeight: 800, padding: '2px 8px' }}
+                                style={{ fontSize: '0.7rem', fontWeight: 800, padding: '1px 6px' }}
                               >
                                 {realStock} uds
                               </span>
-                              {prod.targetUnits !== realStock && realStock > 0 && (
+                              {isActive && prod.targetUnits !== realStock && realStock > 0 && (
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateProductUnits(prod.id, realStock)}
@@ -2676,7 +2684,7 @@ export default function ProjectionsView({
                                     background: 'none',
                                     border: 'none',
                                     color: 'var(--primary-600)',
-                                    fontSize: '0.67rem',
+                                    fontSize: '0.64rem',
                                     cursor: 'pointer',
                                     padding: 0,
                                     textDecoration: 'underline'
@@ -2688,69 +2696,80 @@ export default function ProjectionsView({
                               )}
                             </div>
                           ) : (
-                            <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>Sin stock</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>—</span>
                           )}
                         </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <strong style={{ color: 'var(--text-main)' }}>S/ {prod.price.toFixed(2)}</strong>
+                        <td style={{ textAlign: 'right', padding: '6px 8px' }}>
+                          <strong style={{ color: 'var(--text-main)', fontSize: '0.82rem' }}>S/ {price.toFixed(2)}</strong>
                         </td>
-                        <td style={{ textAlign: 'center', background: 'rgba(0, 102, 255, 0.04)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                            <input 
-                              type="number"
-                              min="0"
-                              max="10000"
-                              value={prod.targetUnits !== undefined ? prod.targetUnits : 0}
-                              onChange={(e) => handleUpdateProductUnits(prod.id, e.target.value)}
-                              className="form-control"
-                              style={{ 
-                                width: '74px', 
-                                padding: '5px 8px', 
-                                textAlign: 'center', 
-                                fontWeight: 800, 
-                                fontSize: '0.95rem',
-                                color: 'var(--primary-600)',
-                                border: '2px solid rgba(0, 102, 255, 0.3)'
-                              }}
-                            />
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>uds</span>
-                          </div>
+                        <td style={{ textAlign: 'center', background: isActive ? 'rgba(0, 102, 255, 0.04)' : 'transparent', padding: '6px 6px' }}>
+                          {isActive ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                              <input 
+                                type="number"
+                                min="0"
+                                max="10000"
+                                value={prod.targetUnits !== undefined ? prod.targetUnits : 0}
+                                onChange={(e) => handleUpdateProductUnits(prod.id, e.target.value)}
+                                className="form-control"
+                                style={{ 
+                                  width: '62px', 
+                                  padding: '4px 6px', 
+                                  textAlign: 'center', 
+                                  fontWeight: 800, 
+                                  fontSize: '0.88rem',
+                                  color: 'var(--primary-600)',
+                                  border: '2px solid rgba(0, 102, 255, 0.3)'
+                                }}
+                              />
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>uds</span>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>excluido</span>
+                          )}
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>
-                          S/ {prodRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: isActive ? '#10b981' : 'var(--text-subtle)', padding: '6px 8px' }}>
+                          {isActive ? `S/ ${prodRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                         </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <span style={{ color: 'var(--text-muted)' }}>S/ {prod.baseCost.toFixed(2)}</span>
+                        <td style={{ textAlign: 'right', padding: '6px 8px' }}>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>S/ {baseCost.toFixed(2)}</span>
                         </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <span style={{ color: '#ef4444', fontWeight: 700 }}>
-                            S/ {prodReplacement.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                          <div style={{ fontSize: '0.67rem', color: 'var(--text-subtle)' }}>
-                            (Para reponer mercadería)
-                          </div>
+                        <td style={{ textAlign: 'right', padding: '6px 8px' }}>
+                          {isActive ? (
+                            <span style={{ color: '#ef4444', fontWeight: 700 }}>
+                              S/ {prodReplacement.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          ) : <span style={{ color: 'var(--text-subtle)' }}>—</span>}
                         </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <strong style={{ color: prodMargin > 0 ? '#10b981' : '#ef4444' }}>
-                            S/ {prodMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </strong>
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
-                            {prod.marginPct.toFixed(1)}% margen unit.
-                          </div>
+                        <td style={{ textAlign: 'right', padding: '6px 8px' }}>
+                          {isActive ? (
+                            <>
+                              <strong style={{ color: prodMargin > 0 ? '#10b981' : '#ef4444', fontSize: '0.82rem' }}>
+                                S/ {prodMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </strong>
+                              <div style={{ fontSize: '0.65rem', color: 'var(--text-subtle)' }}>
+                                {marginPct.toFixed(1)}% unit.
+                              </div>
+                            </>
+                          ) : <span style={{ color: 'var(--text-subtle)' }}>—</span>}
                         </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className="badge badge-blue" style={{ fontSize: '0.78rem' }}>
-                            {prod.mixPercent}%
-                          </span>
+                        <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                          {isActive ? (
+                            <span className="badge badge-blue" style={{ fontSize: '0.72rem', padding: '2px 5px' }}>
+                              {prod.mixPercent}%
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>—</span>
+                          )}
                         </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                             <button 
                               className="btn-icon"
                               onClick={() => handleOpenEditProduct(prod)}
                               title="Editar producto proyectado"
                             >
-                              <Edit3 size={13} />
+                              <Edit3 size={12} />
                             </button>
                             <button 
                               className="btn-icon"
@@ -2758,7 +2777,7 @@ export default function ProjectionsView({
                               onClick={() => handleDeleteProjectedProduct(prod)}
                               title="Eliminar de la proyección (con auditoría)"
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={12} />
                             </button>
                           </div>
                         </td>
