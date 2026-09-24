@@ -301,3 +301,60 @@ export function getProductInventoryInfo(prod, inventoryList = [], productsList =
   return { stock, cost, invItem: match };
 }
 
+/**
+ * Calcula la custodia y cuadre de ventas recaudadas en cuentas personales
+ * de los socios (Luis Romero y Kevin Servat) hasta la apertura de cuenta empresarial propia.
+ */
+export function calculatePartnerCashAccounts(sales = [], partnerCashAccounts = null) {
+  const sumSales = (list, partnerKey) => {
+    return list
+      .filter(s => {
+        const seller = String(s.soldBy || '').toLowerCase();
+        if (partnerKey === 'luis') {
+          return seller === 'luis' || seller.includes('romero');
+        }
+        if (partnerKey === 'kevin') {
+          return seller === 'kevin' || seller.includes('servat');
+        }
+        return false;
+      })
+      .reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0);
+  };
+
+  const autoLuis = Math.round((sumSales(sales, 'luis') + Number.EPSILON) * 100) / 100;
+  const autoKevin = Math.round((sumSales(sales, 'kevin') + Number.EPSILON) * 100) / 100;
+  const totalSales = Math.round((sales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0) + Number.EPSILON) * 100) / 100;
+
+  const isCustom = !!partnerCashAccounts?.isCustom;
+  const luisHeld = isCustom && partnerCashAccounts?.luis !== undefined
+    ? Number(partnerCashAccounts.luis)
+    : autoLuis;
+
+  const kevinHeld = isCustom && partnerCashAccounts?.kevin !== undefined
+    ? Number(partnerCashAccounts.kevin)
+    : autoKevin;
+
+  const totalInAccounts = Math.round((luisHeld + kevinHeld + Number.EPSILON) * 100) / 100;
+  const pendingToAccount = Math.round((totalSales - totalInAccounts + Number.EPSILON) * 100) / 100;
+
+  // Cuadre 50/50: Si Luis tiene más dinero en su cuenta que Kevin,
+  // Luis debe transferirle la mitad de la diferencia a Kevin
+  const targetPerPartner = Math.round((totalInAccounts / 2 + Number.EPSILON) * 100) / 100;
+  const debtLuisToKevin = Math.round(((luisHeld - kevinHeld) / 2 + Number.EPSILON) * 100) / 100;
+
+  return {
+    totalSales,
+    totalSalesAmount: totalSales,
+    autoLuis,
+    autoKevin,
+    luisHeld,
+    kevinHeld,
+    totalInAccounts,
+    pendingToAccount,
+    targetPerPartner,
+    debtLuisToKevin,
+    isCustom
+  };
+}
+
+

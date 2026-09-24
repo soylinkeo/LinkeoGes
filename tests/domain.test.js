@@ -669,4 +669,57 @@ test('projections sales mix matches real warehouse inventory and prevents duplic
   assert.ok(availableToImport.some(p => p.sku === 'SKU-PACK-TRIO'), 'Pack Trío debe estar disponible');
 });
 
+test('calculatePartnerCashAccounts correctly handles sales held in personal accounts and 50/50 reconciliation', async () => {
+  const { calculatePartnerCashAccounts } = await import('../src/utils/projectionsUtils.js');
+
+  const mockSales = [
+    { id: 's1', totalAmount: 120, soldBy: 'luis' },
+    { id: 's2', totalAmount: 80, soldBy: 'luis' },
+    { id: 's3', totalAmount: 100, soldBy: 'kevin' }
+  ];
+
+  // 1. Cálculo automático basado en ventas registradas (sin ajuste manual)
+  // Luis vendió S/ 200, Kevin vendió S/ 100 -> Total Ventas = S/ 300
+  const autoResult = calculatePartnerCashAccounts(mockSales, null);
+  assert.equal(autoResult.totalSalesAmount, 300);
+  assert.equal(autoResult.autoLuis, 200);
+  assert.equal(autoResult.autoKevin, 100);
+  assert.equal(autoResult.luisHeld, 200);
+  assert.equal(autoResult.kevinHeld, 100);
+  assert.equal(autoResult.totalInAccounts, 300);
+  assert.equal(autoResult.pendingToAccount, 0); // No falta nada por ingresar
+  assert.equal(autoResult.targetPerPartner, 150); // Mitad de 300 = 150 c/u
+  assert.equal(autoResult.debtLuisToKevin, 50); // Luis tiene 200, debe pasar 50 a Kevin para quedar 150/150
+  assert.equal(autoResult.isCustom, false);
+
+  // 2. Ajuste manual de custodia de dinero (ej. Luis tiene S/ 140 y Kevin S/ 100 en sus cuentas)
+  const customAccounts = {
+    isCustom: true,
+    luis: 140,
+    kevin: 100
+  };
+  const customResult = calculatePartnerCashAccounts(mockSales, customAccounts);
+  assert.equal(customResult.totalSalesAmount, 300);
+  assert.equal(customResult.luisHeld, 140);
+  assert.equal(customResult.kevinHeld, 100);
+  assert.equal(customResult.totalInAccounts, 240);
+  // Resta entre ventas totales y dinero en cuentas: 300 - 240 = 60 pendiente
+  assert.equal(customResult.pendingToAccount, 60);
+  assert.equal(customResult.targetPerPartner, 120); // 240 / 2 = 120 c/u
+  assert.equal(customResult.debtLuisToKevin, 20); // Luis tiene 140, transfiere 20 a Kevin para quedar 120/120
+  assert.equal(customResult.isCustom, true);
+
+  // 3. Caso donde Kevin tiene más dinero que Luis
+  const kevinHasMore = {
+    isCustom: true,
+    luis: 50,
+    kevin: 150
+  };
+  const kevinResult = calculatePartnerCashAccounts(mockSales, kevinHasMore);
+  assert.equal(kevinResult.totalInAccounts, 200);
+  assert.equal(kevinResult.pendingToAccount, 100);
+  assert.equal(kevinResult.targetPerPartner, 100);
+  assert.equal(kevinResult.debtLuisToKevin, -50); // Negativo significa que Kevin le transfiere 50 a Luis
+});
+
 

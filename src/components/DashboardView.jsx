@@ -1,5 +1,6 @@
 import { calculateFinance } from '../utils/financeUtils.js';
-import React, { useState } from 'react';
+import { calculatePartnerCashAccounts } from '../utils/projectionsUtils.js';
+import React, { useState, useMemo } from 'react';
 import { 
   TrendingUp, 
   DollarSign, 
@@ -11,7 +12,9 @@ import {
   ExternalLink, 
   ShoppingBag, 
   Trash2,
-  Edit3
+  Edit3,
+  Wallet,
+  ArrowRightLeft
 } from 'lucide-react';
 
 export default function DashboardView({
@@ -44,48 +47,67 @@ export default function DashboardView({
   const inventoryCapacity = totalInventoryStock + totalUnitsSold;
   const unitsProgressPct = inventoryCapacity > 0 ? Math.min(100, Math.round((totalUnitsSold / inventoryCapacity) * 100)) : 0;
 
-  // Metas monetarias configurables manualmente (o calculadas desde proyecciones)
-  const revenueTarget = Number(projectionsData?.businessParams?.customRevenueTarget) || Number(targets.monthlyRevenueEstimate) || 5100;
-  const revenueProgressPct = Math.min(100, Math.round((revenueTarget > 0 ? (totalSalesAmount / revenueTarget) * 100 : 0)));
+  // Cálculos de recaudación en cuentas personales y conciliación 50/50
+  const partnerCashAccounts = projectionsData?.partnerCashAccounts || null;
+  const cashCalculations = useMemo(() => {
+    return calculatePartnerCashAccounts(sales, partnerCashAccounts);
+  }, [sales, partnerCashAccounts]);
 
-  const profitTarget = Number(projectionsData?.businessParams?.customProfitTarget) || Number(targets.monthlyProfitTarget) || 4000;
-  const profitProgressPct = Math.min(100, Math.max(0, Math.round((profitTarget > 0 ? (netProfit / profitTarget) * 100 : 0))));
-  const partnerShareTarget = profitTarget / 2;
+  const {
+    autoLuis,
+    autoKevin,
+    luisHeld,
+    kevinHeld,
+    totalInAccounts,
+    pendingToAccount,
+    debtLuisToKevin: debtBetweenPartnersForSales
+  } = cashCalculations;
 
-  const handleOpenTargetModal = () => {
-    setManualRevenue(revenueTarget.toString());
-    setManualProfit(profitTarget.toString());
-    setIsTargetModalOpen(true);
+  const accountsProgressPct = totalSalesAmount > 0 
+    ? Math.min(100, Math.round((totalInAccounts / totalSalesAmount) * 100)) 
+    : (totalInAccounts > 0 ? 100 : 0);
+
+  // Modal para configurar custodia de cuentas personales
+  const [isCashAccountsModalOpen, setIsCashAccountsModalOpen] = useState(false);
+  const [manualLuisCash, setManualLuisCash] = useState('');
+  const [manualKevinCash, setManualKevinCash] = useState('');
+
+  const handleOpenCashAccountsModal = () => {
+    setManualLuisCash(luisHeld.toString());
+    setManualKevinCash(kevinHeld.toString());
+    setIsCashAccountsModalOpen(true);
   };
 
-  const handleSaveTargets = (e) => {
+  const handleSaveCashAccounts = (e) => {
     e.preventDefault();
-    const revNum = parseFloat(manualRevenue);
-    const profNum = parseFloat(manualProfit);
+    const numLuis = parseFloat(manualLuisCash);
+    const numKevin = parseFloat(manualKevinCash);
 
-    if (isNaN(revNum) || revNum < 0) {
-      if (showToast) showToast('Ingresa un valor válido para la meta de facturación', 'warning');
-      return;
-    }
-    if (isNaN(profNum) || profNum < 0) {
-      if (showToast) showToast('Ingresa un valor válido para la meta de utilidad', 'warning');
+    if (isNaN(numLuis) || numLuis < 0 || isNaN(numKevin) || numKevin < 0) {
+      if (showToast) showToast('Ingresa montos válidos para ambos socios', 'warning');
       return;
     }
 
     if (onUpdateProjectionsData) {
       onUpdateProjectionsData({
         ...(projectionsData || {}),
-        businessParams: {
-          ...(projectionsData?.businessParams || {}),
-          customRevenueTarget: revNum,
-          customProfitTarget: profNum
+        partnerCashAccounts: {
+          luis: numLuis,
+          kevin: numKevin,
+          isCustom: true,
+          updatedAt: new Date().toISOString()
         }
       });
       if (showToast) {
-        showToast('✓ Metas financieras manuales actualizadas y sincronizadas en la nube', 'success');
+        showToast('✓ Distribución de ventas en cuentas personales guardada', 'success');
       }
     }
-    setIsTargetModalOpen(false);
+    setIsCashAccountsModalOpen(false);
+  };
+
+  const handleResetToAutoSales = () => {
+    setManualLuisCash(autoLuis.toString());
+    setManualKevinCash(autoKevin.toString());
   };
 
   // Alertas de inventario
@@ -150,18 +172,18 @@ export default function DashboardView({
             🎯
           </div>
           <span style={{ fontSize: '0.86rem', color: 'var(--text-main)' }}>
-            <strong>Metas Comerciales:</strong> Facturación: <strong>S/ {revenueTarget.toFixed(2)}</strong> · Stock en Almacén: <strong>{totalUnitsSold} / {totalInventoryStock} uds</strong> · Utilidad Neta: <strong>S/ {profitTarget.toFixed(2)}</strong> (S/ {partnerShareTarget.toFixed(2)} por socio al 50/50).
+            <strong>Custodia de Ventas (Cuentas Personales):</strong> Ventas Totales: <strong>S/ {totalSalesAmount.toFixed(2)}</strong> · En Cuentas: <strong>S/ {totalInAccounts.toFixed(2)}</strong> (Luis: S/ {luisHeld.toFixed(2)} | Kevin: S/ {kevinHeld.toFixed(2)}) · Resta por conciliar: <strong style={{ color: pendingToAccount > 0 ? '#f59e0b' : '#10b981' }}>S/ {pendingToAccount.toFixed(2)}</strong>.
           </span>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            onClick={handleOpenTargetModal}
+            onClick={handleOpenCashAccountsModal}
             style={{ fontSize: '0.78rem', padding: '5px 12px', gap: '5px' }}
           >
-            <Edit3 size={13} />
-            <span>Editar Metas Manuales</span>
+            <Wallet size={13} />
+            <span>Ajustar Dinero en Cuentas</span>
           </button>
           <button
             type="button"
@@ -228,38 +250,60 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* KPI 3: Utilidad Acumulada */}
+        {/* KPI 3: Recaudación en Cuentas Personales (Reemplaza a Utilidad Neta Operativa) */}
         <div className="kpi-card kpi-yellow">
           <div className="kpi-header">
-            <span className="kpi-label">Utilidad Neta Operativa</span>
+            <span className="kpi-label">Ventas en Cuentas Personales</span>
             <div className="kpi-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b' }}>
-              <DollarSign size={18} />
+              <Wallet size={18} />
             </div>
           </div>
-          <div className="kpi-value" style={{ color: netProfit >= 0 ? '#10b981' : '#f59e0b' }}>
-            S/ {netProfit.toFixed(2)}
+          <div className="kpi-value" style={{ color: totalInAccounts >= totalSalesAmount && totalSalesAmount > 0 ? '#10b981' : '#f59e0b' }}>
+            S/ {totalInAccounts.toFixed(2)}
           </div>
           <div className="kpi-subtext" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span>Meta: S/ {profitTarget.toFixed(2)} (S/ {partnerShareTarget.toFixed(2)} c/u)</span>
+              <span>Ventas del negocio: S/ {totalSalesAmount.toFixed(2)}</span>
               <button 
                 type="button"
-                onClick={handleOpenTargetModal}
+                onClick={handleOpenCashAccountsModal}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#f59e0b', display: 'inline-flex' }}
-                title="Editar meta monetaria de utilidad neta"
+                title="Ajustar dinero que tiene cada socio en su cuenta personal"
               >
                 <Edit3 size={12} />
               </button>
             </span>
-            <span style={{ fontWeight: 700, color: '#f59e0b' }}>
-              {profitProgressPct}%
+            <span style={{ fontWeight: 700, color: accountsProgressPct >= 100 ? '#10b981' : '#f59e0b' }}>
+              {accountsProgressPct}%
             </span>
           </div>
           <div className="progress-bar-container">
-            <div className="progress-bar-fill" style={{ width: `${profitProgressPct}%`, background: '#f59e0b' }}></div>
+            <div className="progress-bar-fill" style={{ width: `${accountsProgressPct}%`, background: accountsProgressPct >= 100 ? '#10b981' : '#f59e0b' }}></div>
           </div>
-          <div style={{ fontSize: '0.74rem', color: 'var(--text-subtle)', marginTop: '8px' }}>
-            Margen S/ {totalGrossProfit.toFixed(2)} - Gastos S/ {totalExpenses.toFixed(2)}
+          
+          {/* Desglose de quién tiene cuánto y la resta solicitada */}
+          <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--border-subtle)', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-main)' }}>
+              <span>👨‍💼 Luis: <strong>S/ {luisHeld.toFixed(2)}</strong></span>
+              <span>🚀 Kevin: <strong>S/ {kevinHeld.toFixed(2)}</strong></span>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: pendingToAccount > 0 ? '#f59e0b' : '#10b981', fontWeight: 700 }}>
+              <span>Resta (Ventas – En cuentas):</span>
+              <span>S/ {pendingToAccount.toFixed(2)}</span>
+            </div>
+
+            {Math.abs(debtBetweenPartnersForSales) > 0.01 ? (
+              <div style={{ color: '#38bdf8', fontSize: '0.71rem', marginTop: '2px', fontWeight: 600 }}>
+                {debtBetweenPartnersForSales > 0 
+                  ? `👉 Luis transfiere S/ ${debtBetweenPartnersForSales.toFixed(2)} a Kevin (50/50)` 
+                  : `👉 Kevin transfiere S/ ${Math.abs(debtBetweenPartnersForSales).toFixed(2)} a Luis (50/50)`}
+              </div>
+            ) : (
+              <div style={{ color: '#10b981', fontSize: '0.71rem', marginTop: '2px', fontWeight: 600 }}>
+                ✓ Ventas equilibradas al 50/50 (Sin cuenta propia)
+              </div>
+            )}
           </div>
         </div>
 
@@ -573,79 +617,131 @@ export default function DashboardView({
         )}
       </div>
 
-      {/* Modal para configurar metas manuales */}
-      {isTargetModalOpen && (
+      {/* Modal para configurar custodia de ventas en cuentas personales */}
+      {isCashAccountsModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <TrendingUp size={18} style={{ color: 'var(--primary-500)' }} />
-                <span>Configurar Metas Comerciales Manuales</span>
+                <Wallet size={18} style={{ color: 'var(--primary-500)' }} />
+                <span>Custodia de Ventas en Cuentas Personales</span>
               </h3>
-              <button className="close-btn" onClick={() => setIsTargetModalOpen(false)}>✕</button>
+              <button className="close-btn" onClick={() => setIsCashAccountsModalOpen(false)}>✕</button>
             </div>
 
-            <form onSubmit={handleSaveTargets}>
-              <div className="form-group">
-                <label className="form-label" style={{ fontWeight: 600 }}>
-                  Meta Mensual de Facturación / Ventas (S/):
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-muted)' }}>
-                    S/
-                  </span>
-                  <input 
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    className="form-control"
-                    style={{ paddingLeft: '38px', fontSize: '1rem', fontWeight: 600 }}
-                    value={manualRevenue}
-                    onChange={(e) => setManualRevenue(e.target.value)}
-                    required
-                    placeholder="Ej: 5100.00"
-                  />
-                </div>
-                <small style={{ color: 'var(--text-muted)', fontSize: '0.74rem', marginTop: '4px', display: 'block' }}>
-                  Define el objetivo monetario contra el cual se calcula el progreso en la tarjeta "Ventas Totales".
-                </small>
+            <form onSubmit={handleSaveCashAccounts}>
+              <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(234, 179, 8, 0.08)', border: '1px solid rgba(234, 179, 8, 0.25)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                ℹ️ <strong>Régimen Transitorio:</strong> Hasta abrir la cuenta bancaria propia de Linkeo, registren aquí cuánto dinero de las ventas cobradas custodia cada socio en sus cuentas (Yape, Plin, BCP, efectivo) para cuadrar y restar contra las ventas totales.
               </div>
 
-              <div className="form-group" style={{ marginTop: '16px' }}>
-                <label className="form-label" style={{ fontWeight: 600 }}>
-                  Meta Mensual de Utilidad Neta Operativa (S/):
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-muted)' }}>
-                    S/
-                  </span>
-                  <input 
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    className="form-control"
-                    style={{ paddingLeft: '38px', fontSize: '1rem', fontWeight: 600 }}
-                    value={manualProfit}
-                    onChange={(e) => setManualProfit(e.target.value)}
-                    required
-                    placeholder="Ej: 4000.00"
-                  />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>👨‍💼 Luis Romero</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Ventas: S/ {autoLuis.toFixed(2)}</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-muted)' }}>
+                      S/
+                    </span>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="form-control"
+                      style={{ paddingLeft: '38px', fontSize: '1rem', fontWeight: 600 }}
+                      value={manualLuisCash}
+                      onChange={(e) => setManualLuisCash(e.target.value)}
+                      required
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
-                <div style={{ marginTop: '10px', padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(0, 102, 255, 0.08)', border: '1px solid rgba(0, 102, 255, 0.2)', fontSize: '0.78rem' }}>
-                  <span>🤝 <strong>Reparto Societario 50/50:</strong></span>
-                  <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', color: 'var(--text-main)' }}>
-                    <span>Luis Romero: <strong>S/ {(parseFloat(manualProfit || 0) / 2).toFixed(2)}</strong></span>
-                    <span>Kevin Servat: <strong>S/ {(parseFloat(manualProfit || 0) / 2).toFixed(2)}</strong></span>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>🚀 Kevin Servat</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Ventas: S/ {autoKevin.toFixed(2)}</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-muted)' }}>
+                      S/
+                    </span>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="form-control"
+                      style={{ paddingLeft: '38px', fontSize: '1rem', fontWeight: 600 }}
+                      value={manualKevinCash}
+                      onChange={(e) => setManualKevinCash(e.target.value)}
+                      required
+                      placeholder="0.00"
+                    />
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setIsTargetModalOpen(false)}>
+              {/* Botón rápido para autocompletar con las ventas registradas por cada uno */}
+              <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                  onClick={handleResetToAutoSales}
+                >
+                  ⚡ Autocompletar con ventas registradas (Luis S/ {autoLuis.toFixed(2)} | Kevin S/ {autoKevin.toFixed(2)})
+                </button>
+              </div>
+
+              {/* Resumen en vivo de resta y cuadre */}
+              {(() => {
+                const liveLuis = parseFloat(manualLuisCash) || 0;
+                const liveKevin = parseFloat(manualKevinCash) || 0;
+                const liveTotalHeld = liveLuis + liveKevin;
+                const livePending = totalSalesAmount - liveTotalHeld;
+                const targetPerPartner = liveTotalHeld / 2;
+                const liveTransferDiff = Math.abs(liveLuis - targetPerPartner);
+
+                return (
+                  <div style={{ marginTop: '16px', padding: '14px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--card-bg)', border: '1px solid var(--border-color)', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--border-color)', paddingBottom: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Ventas Totales Registradas:</span>
+                      <strong style={{ color: 'var(--text-main)' }}>S/ {totalSalesAmount.toFixed(2)}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--border-color)', paddingBottom: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Total en Cuentas Personales:</span>
+                      <strong style={{ color: '#10b981' }}>S/ {liveTotalHeld.toFixed(2)}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--border-color)', paddingBottom: '6px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Resta por Ingresar/Conciliar:</span>
+                      <strong style={{ color: livePending > 0.01 ? '#eab308' : livePending < -0.01 ? '#3b82f6' : '#10b981' }}>
+                        S/ {livePending.toFixed(2)} {livePending > 0.01 ? '(Falta recaudar)' : livePending < -0.01 ? '(Sobrante)' : '(Cuadrado exacto)'}
+                      </strong>
+                    </div>
+
+                    <div style={{ marginTop: '4px', padding: '8px 10px', borderRadius: 'var(--radius-xs)', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', color: 'var(--text-main)' }}>
+                      <strong>⚖️ Nivelación 50/50 entre socios:</strong>
+                      <div style={{ marginTop: '2px', fontSize: '0.78rem' }}>
+                        {liveTransferDiff < 0.01 ? (
+                          <span style={{ color: '#10b981' }}>✓ Las cuentas de ambos están exactamente balanceadas al 50/50 (S/ {targetPerPartner.toFixed(2)} cada uno).</span>
+                        ) : liveLuis > liveKevin ? (
+                          <span>👉 Luis debe transferir <strong>S/ {liveTransferDiff.toFixed(2)}</strong> a Kevin para quedar 50/50 (S/ {targetPerPartner.toFixed(2)} c/u).</span>
+                        ) : (
+                          <span>👉 Kevin debe transferir <strong>S/ {liveTransferDiff.toFixed(2)}</strong> a Luis para quedar 50/50 (S/ {targetPerPartner.toFixed(2)} c/u).</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsCashAccountsModalOpen(false)}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Guardar Metas
+                  Guardar Custodia
                 </button>
               </div>
             </form>
