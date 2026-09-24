@@ -108,7 +108,10 @@ const legacyMappers = {
     reviewUrl: c.url || '',
     status: c.status || 'virgen',
     businessName: c.assigned_to || '',
-    readCount: Number(c.read_count || 0)
+    readCount: Number(c.read_count || 0),
+    bipsNfc: Number(c.bips_nfc || 0),
+    bipsQr: Number(c.bips_qr || 0),
+    lastReadAt: c.last_read_at || null
   }),
 
   nfcToDb: (c) => ({
@@ -120,7 +123,10 @@ const legacyMappers = {
     url: c.reviewUrl || '',
     status: c.status || 'virgen',
     assigned_to: c.businessName || '',
-    read_count: Number(c.readCount || 0)
+    read_count: Number(c.readCount || (Number(c.bipsNfc || 0) + Number(c.bipsQr || 0)) || 0),
+    bips_nfc: Number(c.bipsNfc || 0),
+    bips_qr: Number(c.bipsQr || 0),
+    last_read_at: c.lastReadAt || null
   }),
 
   inventoryToFront: (i) => ({

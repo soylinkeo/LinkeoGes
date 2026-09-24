@@ -29,6 +29,8 @@ import { useCloudData } from './hooks/useCloudData';
 import { calculateFinance, isSettlement, isInventoryPurchase } from './utils/financeUtils.js';
 import { getStockMovements, applyStockMovements, createSale } from './utils/operations.js';
 import { localDate } from './utils/dateUtils';
+import { parseDynamicCardRoute } from './utils/dynamicRouter.js';
+import NfcRedirectScreen from './components/NfcRedirectScreen.jsx';
 import SyncStatus from './components/SyncStatus';
 import MobileBottomNav from './components/MobileBottomNav';
 export default function App() {
@@ -38,6 +40,20 @@ export default function App() {
   });
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [dynamicCardRoute, setDynamicCardRoute] = useState(() => parseDynamicCardRoute());
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      setDynamicCardRoute(parseDynamicCardRoute());
+    };
+    window.addEventListener('hashchange', handleUrlChange);
+    window.addEventListener('popstate', handleUrlChange);
+    return () => {
+      window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('popstate', handleUrlChange);
+    };
+  }, []);
+
   const cloud = useCloudData(currentUser);
   useEffect(() => {
     let active = true;
@@ -687,6 +703,64 @@ export default function App() {
       snapshot: oldCard,
       diff: `Antes: Place ID ${oldCard?.placeId || '—'} -> Ahora: ${updatedCard.placeId}`
     });
+  };
+
+  const handleRecordCardBip = (cardId, src = 'nfc') => {
+    const isNfc = src === 'nfc';
+    const timestamp = new Date().toISOString();
+
+    setNfcCards(prev => {
+      const cardExists = prev.some(c => c.id === cardId);
+      if (!cardExists) return prev;
+      return prev.map(c => {
+        if (c.id === cardId) {
+          const currentTotal = Number(c.readCount || (Number(c.bipsNfc || 0) + Number(c.bipsQr || 0)) || 0);
+          return {
+            ...c,
+            readCount: currentTotal + 1,
+            bipsNfc: Number(c.bipsNfc || 0) + (isNfc ? 1 : 0),
+            bipsQr: Number(c.bipsQr || 0) + (!isNfc ? 1 : 0),
+            lastReadAt: timestamp
+          };
+        }
+        return c;
+      });
+    });
+
+    // Persistencia inmediata en localStorage
+    try {
+      const localKey = 'linkeo_nfc_cards';
+      const localCards = JSON.parse(localStorage.getItem(localKey) || '[]');
+      const updatedLocal = localCards.map(c => {
+        if (c.id === cardId) {
+          const currentTotal = Number(c.readCount || (Number(c.bipsNfc || 0) + Number(c.bipsQr || 0)) || 0);
+          return {
+            ...c,
+            readCount: currentTotal + 1,
+            bipsNfc: Number(c.bipsNfc || 0) + (isNfc ? 1 : 0),
+            bipsQr: Number(c.bipsQr || 0) + (!isNfc ? 1 : 0),
+            lastReadAt: timestamp
+          };
+        }
+        return c;
+      });
+      localStorage.setItem(localKey, JSON.stringify(updatedLocal));
+    } catch (e) {}
+
+    // Persistencia en Supabase
+    if (supabase) {
+      supabase.from('nfc_cards').select('read_count, bips_nfc, bips_qr').eq('id', cardId).maybeSingle()
+        .then(({ data }) => {
+          if (data) {
+            supabase.from('nfc_cards').update({
+              read_count: Number(data.read_count || 0) + 1,
+              bips_nfc: Number(data.bips_nfc || 0) + (isNfc ? 1 : 0),
+              bips_qr: Number(data.bips_qr || 0) + (!isNfc ? 1 : 0),
+              last_read_at: timestamp
+            }).eq('id', cardId).then(() => {});
+          }
+        }).catch(() => {});
+    }
   };
 
   // Handlers para Leads / Pipeline
@@ -1446,6 +1520,18 @@ export default function App() {
     });
   };
 
+  // 1. Enrutador Dinámico de Redirección para clientes (Público, no requiere login)
+  if (dynamicCardRoute) {
+    return (
+      <NfcRedirectScreen
+        cardId={dynamicCardRoute.cardId}
+        src={dynamicCardRoute.src}
+        nfcCards={nfcCards}
+        onRecordBip={handleRecordCardBip}
+      />
+    );
+  }
+
   if (authLoading) return <div className="loading-screen">Validando sesión…</div>;
   // Si no hay usuario autenticado, renderizar exclusivamente el Login modal bloqueando el acceso
   if (!currentUser) {
@@ -1503,7 +1589,7 @@ export default function App() {
           {currentTab === 'lifecycle' && <ProjectLifecycleView projectPhases={projectPhases} onToggleDeliverable={handleToggleDeliverable} onAddDeliverable={handleAddDeliverable} onEditDeliverable={handleEditDeliverable} onDeleteDeliverable={(phaseId, del) => handleRequestDelete(del, 'Entregable')} currentUser={currentUser} onSyncActualProgress={handleSyncActualProgress} />}
 
           {/* MÓDULO 3: Trazabilidad Chips NFC */}
-          {currentTab === 'nfc-traceability' && <NfcTraceabilityView nfcCards={nfcCards} products={products} inventory={inventory} onUpdateCard={handleUpdateCard} onAddNewCard={handleAddNewCard} selectedCardModal={selectedCardModal} setSelectedCardModal={setSelectedCardModal} onRequestDelete={handleRequestDelete} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
+          {currentTab === 'nfc-traceability' && <NfcTraceabilityView nfcCards={nfcCards} products={products} inventory={inventory} onUpdateCard={handleUpdateCard} onAddNewCard={handleAddNewCard} onRecordBip={handleRecordCardBip} selectedCardModal={selectedCardModal} setSelectedCardModal={setSelectedCardModal} onRequestDelete={handleRequestDelete} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
 
           {/* MÓDULO 4: Pipeline B2B (Kanban) */}
           {currentTab === 'pipeline' && <KanbanView products={products} leads={leads} sales={sales} districts={districts} onUpdateLeadStage={handleUpdateLeadStage} onUpdateLead={handleUpdateLead} onAddNewLead={handleAddNewLead} onConvertLeadToSale={handleConvertLeadToSale} onRequestDelete={handleRequestDelete} showToast={showToast} />}

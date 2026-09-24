@@ -457,3 +457,79 @@ test('moving a lead to Entregado y Cobrado automatically considers it a sale and
   assert.equal(sales.length, 1);
   assert.equal(secondAttempt.id, sales[0].id);
 });
+
+test('buildLeadWhatsAppMessage customizes for all 6 pipeline stages with social media links', async () => {
+  const { buildLeadWhatsAppMessage } = await import('../src/utils/leadMessages.js');
+
+  const stages = [
+    { id: 'prospecto', expectedSnippet: 'multiplicar sus clientes y reseñas positivas' },
+    { id: 'visitado', expectedSnippet: 'pasar a visitar su local' },
+    { id: 'negociacion', expectedSnippet: 'definir el modelo ideal para sus instalaciones' },
+    { id: 'configurando', expectedSnippet: 'en nuestro taller en proceso de personalización técnica' },
+    { id: 'entregado', expectedSnippet: '¡Felicitaciones por la recepción de su tarjeta inteligente' },
+    { id: 'postventa', expectedSnippet: 'hacer un seguimiento a la experiencia con su tarjeta inteligente' }
+  ];
+
+  for (const { id, expectedSnippet } of stages) {
+    const msg = buildLeadWhatsAppMessage({ businessName: 'Café Don Tito', stage: id });
+    
+    // Contiene el fragmento distintivo de la fase
+    assert.ok(msg.includes(expectedSnippet), `Etapa ${id} no contiene: ${expectedSnippet}`);
+
+    // Todas las etapas contienen los 3 enlaces obligatorios
+    assert.ok(msg.includes('https://linkeocards.com/'), `Etapa ${id} no contiene web`);
+    assert.ok(msg.includes('https://www.instagram.com/linkeo_pe/'), `Etapa ${id} no contiene IG`);
+    assert.ok(msg.includes('https://www.tiktok.com/@linkeocards'), `Etapa ${id} no contiene TikTok`);
+
+    // No asume ni desprestigia dueños o encargados
+    assert.ok(!msg.toLowerCase().includes('encargado'), `Etapa ${id} no debe mencionar encargado`);
+    assert.ok(!msg.toLowerCase().includes('dueño'), `Etapa ${id} no debe mencionar dueño`);
+  }
+});
+
+test('dynamicRouter parses NFC and QR routes, generates redirect URLs and evaluates post-sale health', async () => {
+  const { parseDynamicCardRoute, buildCardRedirectUrl, evaluateCardHealth } = await import('../src/utils/dynamicRouter.js');
+
+  // 1. Parsing pathname /r/:cardId?src=nfc
+  const locPath = { pathname: '/r/LNK-508d9e5f', search: '?src=nfc', hash: '' };
+  const route1 = parseDynamicCardRoute(locPath);
+  assert.equal(route1.cardId, 'LNK-508d9e5f');
+  assert.equal(route1.src, 'nfc');
+
+  // 2. Parsing hash #/r/:cardId?src=qr
+  const locHash = { pathname: '/', search: '', hash: '#/r/LNK-508d9e5f?src=qr' };
+  const route2 = parseDynamicCardRoute(locHash);
+  assert.equal(route2.cardId, 'LNK-508d9e5f');
+  assert.equal(route2.src, 'qr');
+
+  // 3. Parsing standard ERP URL returns null
+  assert.equal(parseDynamicCardRoute({ pathname: '/', search: '', hash: '#/pipeline' }), null);
+
+  // 4. URL Builder
+  const urlNfc = buildCardRedirectUrl('LNK-test-1', 'nfc', 'https://linkeocards.com');
+  assert.equal(urlNfc, 'https://linkeocards.com/#/r/LNK-test-1?src=nfc');
+  const urlQr = buildCardRedirectUrl('LNK-test-1', 'qr', 'https://linkeocards.com');
+  assert.equal(urlQr, 'https://linkeocards.com/#/r/LNK-test-1?src=qr');
+
+  // 5. Card Health: Inactive (0 bips)
+  const inactiveCard = { id: 'c1', businessName: 'Café Surco', readCount: 0, bipsNfc: 0, bipsQr: 0 };
+  const healthInactive = evaluateCardHealth(inactiveCard);
+  assert.equal(healthInactive.status, 'inactive');
+  assert.equal(healthInactive.alertLevel, 'danger');
+  assert.ok(healthInactive.followUpMessage.includes('aún no registra lecturas'));
+
+  // 6. Card Health: High Performance (50+ bips)
+  const starCard = { id: 'c2', businessName: 'Barbería Silver', readCount: 85, bipsNfc: 62, bipsQr: 23, lastReadAt: new Date().toISOString() };
+  const healthStar = evaluateCardHealth(starCard);
+  assert.equal(healthStar.status, 'high_performance');
+  assert.equal(healthStar.alertLevel, 'success');
+  assert.ok(healthStar.followUpMessage.includes('superó 85 lecturas'));
+  assert.ok(healthStar.followUpMessage.includes('tarjeta o display adicional'));
+
+  // 7. Card Health: Active regular (1-49 bips)
+  const regularCard = { id: 'c3', businessName: 'Lavatelli Dry Cleaners', readCount: 15, bipsNfc: 10, bipsQr: 5, lastReadAt: new Date().toISOString() };
+  const healthRegular = evaluateCardHealth(regularCard);
+  assert.equal(healthRegular.status, 'active');
+  assert.equal(healthRegular.alertLevel, 'info');
+});
+

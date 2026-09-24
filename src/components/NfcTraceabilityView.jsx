@@ -1,4 +1,5 @@
 import { localDate } from '../utils/dateUtils.js';
+import { buildCardRedirectUrl, formatRelativeTime, evaluateCardHealth } from '../utils/dynamicRouter.js';
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { 
@@ -14,7 +15,14 @@ import {
   Smartphone,
   MapPin,
   Building,
-  Trash2
+  Trash2,
+  Activity,
+  Sparkles,
+  MessageSquare,
+  Play,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2
 } from 'lucide-react';
 
 export default function NfcTraceabilityView({
@@ -23,6 +31,7 @@ export default function NfcTraceabilityView({
   inventory = [],
   onUpdateCard,
   onAddNewCard,
+  onRecordBip,
   onRequestDelete,
   selectedCardModal,
   setSelectedCardModal,
@@ -32,6 +41,7 @@ export default function NfcTraceabilityView({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDistrict, setFilterDistrict] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterHealth, setFilterHealth] = useState('all');
   const [activeModalCard, setActiveModalCard] = useState(null);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copiedId, setCopiedId] = useState(null);
@@ -120,10 +130,11 @@ export default function NfcTraceabilityView({
     }
   }, [selectedCardModal]);
 
-  // Generar QR dinámico cuando se abre el modal de una tarjeta
+  // Generar QR dinámico (con enrutador inteligente y contador de bips) cuando se abre el modal
   useEffect(() => {
-    if (activeModalCard && activeModalCard.reviewUrl) {
-      QRCode.toDataURL(activeModalCard.reviewUrl, {
+    if (activeModalCard) {
+      const dynamicQrUrl = buildCardRedirectUrl(activeModalCard.id, 'qr');
+      QRCode.toDataURL(dynamicQrUrl, {
         width: 250,
         margin: 2,
         color: {
@@ -136,6 +147,25 @@ export default function NfcTraceabilityView({
     }
   }, [activeModalCard]);
 
+  // Mantener la tarjeta activa sincronizada si cambian sus contadores o estado
+  useEffect(() => {
+    if (activeModalCard) {
+      const fresh = nfcCards.find(c => c.id === activeModalCard.id);
+      if (fresh && (fresh.readCount !== activeModalCard.readCount || fresh.bipsNfc !== activeModalCard.bipsNfc || fresh.bipsQr !== activeModalCard.bipsQr || fresh.lastReadAt !== activeModalCard.lastReadAt)) {
+        setActiveModalCard(fresh);
+      }
+    }
+  }, [nfcCards, activeModalCard]);
+
+  const handleSimulateBip = (cardId, src = 'nfc') => {
+    if (onRecordBip) {
+      onRecordBip(cardId, src);
+      if (showToast) {
+        showToast(`⚡ ¡Bip ${src.toUpperCase()} simulado! +1 a ${src === 'nfc' ? 'Chip NFC' : 'Código QR'}`, 'success');
+      }
+    }
+  };
+
   // Filtros
   const filteredCards = nfcCards.filter(card => {
     const matchesSearch = 
@@ -146,8 +176,12 @@ export default function NfcTraceabilityView({
 
     const matchesDistrict = filterDistrict === 'all' || card.district === filterDistrict;
     const matchesStatus = filterStatus === 'all' || card.status === filterStatus;
+    const matchesHealth = filterHealth === 'all' || (() => {
+      const h = evaluateCardHealth(card);
+      return h.status === filterHealth;
+    })();
 
-    return matchesSearch && matchesDistrict && matchesStatus;
+    return matchesSearch && matchesDistrict && matchesStatus && matchesHealth;
   });
 
   // Distritos únicos
@@ -318,6 +352,19 @@ export default function NfcTraceabilityView({
             </select>
           </div>
 
+          <div>
+            <select 
+              className="form-control"
+              value={filterHealth}
+              onChange={(e) => setFilterHealth(e.target.value)}
+            >
+              <option value="all">🩺 Toda la Salud Operativa</option>
+              <option value="high_performance">🟢 Alto Rendimiento (+50 bips)</option>
+              <option value="active">🟡 En Uso Regular</option>
+              <option value="inactive">🔴 Alerta: Inactivas (0 bips / 7d+)</option>
+            </select>
+          </div>
+
           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'right' }}>
             Mostrando <strong>{filteredCards.length}</strong> de {nfcCards.length} tarjetas
           </div>
@@ -326,135 +373,251 @@ export default function NfcTraceabilityView({
 
       {/* Grid de Tarjetas NFC */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '16px' }}>
-        {filteredCards.map(card => (
-          <div 
-            key={card.id} 
-            className="card"
-            style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              justifyContent: 'space-between',
-              position: 'relative'
-            }}
-          >
-            <div>
-              {/* Header de la tarjeta */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="code-mono" style={{ fontSize: '0.9rem', fontWeight: 700 }}>
-                    {card.id}
-                  </span>
-                  <span className={`badge ${card.status === 'Activa' ? 'badge-green' : 'badge-yellow'}`}>
-                    {card.status}
-                  </span>
-                </div>
+        {filteredCards.map(card => {
+          const health = evaluateCardHealth(card);
+          const dynamicNfcUrl = buildCardRedirectUrl(card.id, 'nfc');
 
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button 
-                    className="btn-icon" 
-                    style={{ width: '30px', height: '30px' }}
-                    onClick={() => handleOpenEdit(card)}
-                    title="Editar o registrar soporte técnico"
-                  >
-                    <Edit3 size={14} />
-                  </button>
-                  <button 
-                    className="btn-icon" 
-                    style={{ width: '30px', height: '30px', color: '#ef4444' }}
-                    onClick={() => onRequestDelete && onRequestDelete(card, 'Tarjeta NFC')}
-                    title="Eliminar tarjeta NFC (Auditoría)"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Nombre del Negocio */}
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '4px' }}>
-                {card.businessName}
-              </h3>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                <Building size={14} />
-                <span>{card.category}</span>
-                <span>•</span>
-                <MapPin size={14} />
-                <span>{card.district}</span>
-              </div>
-
-              {/* Detalles Técnicos */}
-              <div 
-                style={{
-                  backgroundColor: 'var(--bg-input)',
-                  padding: '10px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: '0.78rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '6px',
-                  marginBottom: '14px'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Modelo:</span>
-                  <span style={{ fontWeight: 600 }}>{card.model}</span>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>UID Chip NFC:</span>
-                  <span className="code-mono" style={{ fontSize: '0.75rem' }}>{card.chipUid || 'No asignado'}</span>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Google Place ID:</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span className="code-mono" style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {card.placeId || 'Pendiente'}
+          return (
+            <div 
+              key={card.id} 
+              className="card"
+              style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                justifyContent: 'space-between',
+                position: 'relative'
+              }}
+            >
+              <div>
+                {/* Header de la tarjeta */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span className="code-mono" style={{ fontSize: '0.88rem', fontWeight: 700 }}>
+                      {card.id}
                     </span>
-                    {card.placeId && (
-                      <button 
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
-                        onClick={() => handleCopy(card.placeId, `pid-${card.id}`)}
-                        title="Copiar Place ID"
-                      >
-                        {copiedId === `pid-${card.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-                      </button>
-                    )}
+                    <span className={`badge ${card.status === 'Activa' ? 'badge-green' : 'badge-yellow'}`}>
+                      {card.status}
+                    </span>
+                    <span 
+                      className={`badge ${health.alertLevel === 'success' ? 'badge-green' : health.alertLevel === 'danger' ? 'badge-red' : health.alertLevel === 'warning' ? 'badge-yellow' : 'badge-blue'}`}
+                      style={{ fontSize: '0.68rem', padding: '2px 6px', fontWeight: 700 }}
+                    >
+                      {health.label}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button 
+                      className="btn-icon" 
+                      style={{ width: '30px', height: '30px' }}
+                      onClick={() => handleOpenEdit(card)}
+                      title="Editar o registrar soporte técnico"
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                    <button 
+                      className="btn-icon" 
+                      style={{ width: '30px', height: '30px', color: '#ef4444' }}
+                      onClick={() => onRequestDelete && onRequestDelete(card, 'Tarjeta NFC')}
+                      title="Eliminar tarjeta NFC (Auditoría)"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Vencimiento Anual:</span>
-                  <span style={{ color: '#38bdf8' }}>{card.renewalDate || '15/09/2027'}</span>
+                {/* Nombre del Negocio */}
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '4px' }}>
+                  {card.businessName}
+                </h3>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                  <Building size={14} />
+                  <span>{card.category}</span>
+                  <span>•</span>
+                  <MapPin size={14} />
+                  <span>{card.district}</span>
+                </div>
+
+                {/* Métricas de Tráfico Dinámico (Bips NFC vs QR) */}
+                <div 
+                  style={{
+                    backgroundColor: 'rgba(0, 102, 255, 0.05)',
+                    border: '1px solid rgba(0, 102, 255, 0.18)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '10px 12px',
+                    marginBottom: '12px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary-400)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <Activity size={13} />
+                      <span>Tráfico & Bips Dinámicos</span>
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      Último: <strong style={{ color: card.lastReadAt ? '#38bdf8' : 'var(--text-muted)' }}>{formatRelativeTime(card.lastReadAt)}</strong>
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center' }}>
+                    <div style={{ backgroundColor: 'var(--bg-input)', padding: '6px 4px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>{health.totalBips}</div>
+                      <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>Total Bips</div>
+                    </div>
+                    <div style={{ backgroundColor: 'var(--bg-input)', padding: '6px 4px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0066FF' }}>{health.bipsNfc}</div>
+                      <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>📲 NFC</div>
+                    </div>
+                    <div style={{ backgroundColor: 'var(--bg-input)', padding: '6px 4px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#10b981' }}>{health.bipsQr}</div>
+                      <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>📷 QR</div>
+                    </div>
+                  </div>
+
+                  {/* Acciones Post-Venta según salud */}
+                  {health.status === 'inactive' && (
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#f87171', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertTriangle size={12} />
+                        <span>{health.recommendation}</span>
+                      </div>
+                      {card.contactPhone && (
+                        <a
+                          href={`https://wa.me/${card.contactPhone.replace(/[^0-9]/g, '').length === 9 ? '51' + card.contactPhone.replace(/[^0-9]/g, '') : card.contactPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(health.followUpMessage)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-sm"
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px',
+                            fontSize: '0.72rem',
+                            padding: '4px 8px',
+                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                            border: '1px solid rgba(239, 68, 68, 0.4)',
+                            color: '#f87171',
+                            textDecoration: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            fontWeight: 700
+                          }}
+                        >
+                          <MessageSquare size={12} />
+                          <span>Escribir Soporte Post-Venta (WhatsApp)</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {health.status === 'high_performance' && card.contactPhone && (
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                      <div style={{ fontSize: '0.7rem', color: '#34d399', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Sparkles size={12} />
+                        <span>{health.recommendation}</span>
+                      </div>
+                      <a
+                        href={`https://wa.me/${card.contactPhone.replace(/[^0-9]/g, '').length === 9 ? '51' + card.contactPhone.replace(/[^0-9]/g, '') : card.contactPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(health.followUpMessage)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-sm"
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '5px',
+                          fontSize: '0.72rem',
+                          padding: '4px 8px',
+                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                          border: '1px solid rgba(16, 185, 129, 0.4)',
+                          color: '#34d399',
+                          textDecoration: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          fontWeight: 700
+                        }}
+                      >
+                        <Sparkles size={12} />
+                        <span>Ofrecer Recompra / Tarjeta Adicional</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* Detalles Técnicos */}
+                <div 
+                  style={{
+                    backgroundColor: 'var(--bg-input)',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.78rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    marginBottom: '14px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Modelo:</span>
+                    <span style={{ fontWeight: 600 }}>{card.model}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>UID Chip NFC:</span>
+                    <span className="code-mono" style={{ fontSize: '0.75rem' }}>{card.chipUid || 'No asignado'}</span>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Google Place ID:</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="code-mono" style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {card.placeId || 'Pendiente'}
+                      </span>
+                      {card.placeId && (
+                        <button 
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
+                          onClick={() => handleCopy(card.placeId, `pid-${card.id}`)}
+                          title="Copiar Place ID"
+                        >
+                          {copiedId === `pid-${card.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Vencimiento Anual:</span>
+                    <span style={{ color: '#38bdf8' }}>{card.renewalDate || '15/09/2027'}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Acciones de la Tarjeta */}
-            <div style={{ display: 'flex', gap: '8px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
-              <a 
-                href={card.reviewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-secondary btn-sm"
-                style={{ flex: 1, textDecoration: 'none' }}
-                title="Probar que el enlace abre las reseñas de Google directamente"
-              >
-                <ExternalLink size={14} />
-                <span>Probar Enlace</span>
-              </a>
+              {/* Acciones de la Tarjeta */}
+              <div style={{ display: 'flex', gap: '8px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
+                <a 
+                  href={card.reviewUrl || (card.placeId ? `https://search.google.com/local/writereview?placeid=${card.placeId}` : 'https://linkeocards.com/')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary btn-sm"
+                  style={{ flex: 1, textDecoration: 'none' }}
+                  title="Probar que el enlace abre las reseñas de Google directamente"
+                >
+                  <ExternalLink size={14} />
+                  <span>Probar Enlace</span>
+                </a>
 
-              <button 
-                className="btn btn-primary btn-sm"
-                style={{ flex: 1 }}
-                onClick={() => setActiveModalCard(card)}
-              >
-                <QrCode size={14} />
-                <span>Ver QR & NFC</span>
-              </button>
+                <button 
+                  className="btn btn-primary btn-sm"
+                  style={{ flex: 1 }}
+                  onClick={() => setActiveModalCard(card)}
+                >
+                  <QrCode size={14} />
+                  <span>Ver QR & NFC</span>
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* MODAL 1: Visor QR, Payload NFC y Bitácora de Soporte */}
@@ -482,47 +645,123 @@ export default function NfcTraceabilityView({
                 </div>
               </div>
 
-              {/* Datos de Grabación NFC NDEF */}
+              {/* Datos de Grabación NFC NDEF & Analítica Dinámica */}
               <div>
                 <h4 style={{ fontSize: '0.95rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Smartphone size={16} color="var(--primary-600)" />
-                  <span>Payload para Grabar en Chip NFC</span>
+                  <span>Enrutador Dinámico para Chip NFC & QR (Linkeo)</span>
                 </h4>
 
-                <div className="form-group">
-                  <label className="form-label">Tipo de Registro NDEF:</label>
-                  <input type="text" className="form-control" value="URI Record (https://)" readOnly />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">URL Completa a Escribir en Chip:</label>
+                <div className="form-group" style={{ marginBottom: '10px' }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
+                    URL Inteligente para Chip NFC (?src=nfc):
+                  </label>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <input 
                       type="text" 
                       className="form-control code-mono" 
-                      style={{ fontSize: '0.75rem' }} 
-                      value={activeModalCard.reviewUrl} 
+                      style={{ fontSize: '0.72rem' }} 
+                      value={buildCardRedirectUrl(activeModalCard.id, 'nfc')} 
                       readOnly 
                     />
                     <button 
                       className="btn btn-secondary btn-sm"
-                      onClick={() => handleCopy(activeModalCard.reviewUrl, 'modal-url')}
+                      onClick={() => handleCopy(buildCardRedirectUrl(activeModalCard.id, 'nfc'), 'modal-nfc-url')}
                       title="Copiar URL para NFC Tools"
                     >
-                      {copiedId === 'modal-url' ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                      {copiedId === 'modal-nfc-url' ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
+                    URL Inteligente para Código QR (?src=qr):
+                  </label>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input 
+                      type="text" 
+                      className="form-control code-mono" 
+                      style={{ fontSize: '0.72rem' }} 
+                      value={buildCardRedirectUrl(activeModalCard.id, 'qr')} 
+                      readOnly 
+                    />
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleCopy(buildCardRedirectUrl(activeModalCard.id, 'qr'), 'modal-qr-url')}
+                      title="Copiar URL para QR"
+                    >
+                      {copiedId === 'modal-qr-url' ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Simulador de Bips & Analítica en Vivo */}
+                <div style={{
+                  padding: '10px 12px',
+                  backgroundColor: 'var(--bg-input)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid rgba(0, 102, 255, 0.25)',
+                  marginBottom: '12px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary-400)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Activity size={13} />
+                      <span>Simulador de Bips en Vivo</span>
+                    </span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                      Última: <strong style={{ color: activeModalCard.lastReadAt ? '#38bdf8' : 'var(--text-muted)' }}>{formatRelativeTime(activeModalCard.lastReadAt)}</strong>
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center', marginBottom: '8px' }}>
+                    <div style={{ backgroundColor: 'var(--bg-card)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '1rem', fontWeight: 800 }}>{Number(activeModalCard.readCount || 0)}</div>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Total Bips</div>
+                    </div>
+                    <div style={{ backgroundColor: 'var(--bg-card)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0066FF' }}>{Number(activeModalCard.bipsNfc || 0)}</div>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>📲 NFC</div>
+                    </div>
+                    <div style={{ backgroundColor: 'var(--bg-card)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontSize: '1rem', fontWeight: 800, color: '#10b981' }}>{Number(activeModalCard.bipsQr || 0)}</div>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>📷 QR</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ flex: 1, fontSize: '0.72rem', padding: '4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      onClick={() => handleSimulateBip(activeModalCard.id, 'nfc')}
+                      title="Probar incremento de bip NFC"
+                    >
+                      <Smartphone size={12} color="#0066FF" />
+                      <span>Simular Bip NFC</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ flex: 1, fontSize: '0.72rem', padding: '4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      onClick={() => handleSimulateBip(activeModalCard.id, 'qr')}
+                      title="Probar incremento de escaneo QR"
+                    >
+                      <QrCode size={12} color="#10b981" />
+                      <span>Simular Bip QR</span>
                     </button>
                   </div>
                 </div>
 
                 <a 
-                  href={activeModalCard.reviewUrl}
+                  href={activeModalCard.reviewUrl || (activeModalCard.placeId ? `https://search.google.com/local/writereview?placeid=${activeModalCard.placeId}` : 'https://linkeocards.com/')}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn btn-success btn-sm"
-                  style={{ width: '100%', textDecoration: 'none' }}
+                  style={{ width: '100%', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                 >
                   <ExternalLink size={14} />
-                  <span>Abrir Reseña en Google Maps</span>
+                  <span>Probar Destino Final en Google Maps</span>
                 </a>
               </div>
             </div>

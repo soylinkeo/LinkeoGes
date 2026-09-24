@@ -42,6 +42,7 @@ export function createSale({ form, product, inventory, userId }) {
     district: form.district, placeId: form.googlePlaceId?.trim() || '',
     reviewUrl: form.googlePlaceId?.trim() ? `https://search.google.com/local/writereview?placeid=${encodeURIComponent(form.googlePlaceId.trim())}` : '',
     status: 'Pendiente de grabación', assignedDate: date, saleId: id, history: [],
+    readCount: 0, bipsNfc: 0, bipsQr: 0, lastReadAt: null
   }));
   const cost = Math.round(unitCost * quantity * 100) / 100;
   const totalAmount = Math.round(unitPrice * quantity * 100) / 100;

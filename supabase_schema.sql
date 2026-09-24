@@ -54,6 +54,9 @@ CREATE TABLE IF NOT EXISTS nfc_cards (
     status TEXT DEFAULT 'virgen',
     assigned_to TEXT,
     read_count INTEGER DEFAULT 0,
+    bips_nfc INTEGER DEFAULT 0,
+    bips_qr INTEGER DEFAULT 0,
+    last_read_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
