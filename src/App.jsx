@@ -130,18 +130,59 @@ export default function App() {
   const rawProducts = cloud.data.products;
   const setProducts = value => cloud.set('products', value);
 
+  // Registro persistente de productos/packs eliminados para asegurar que "nada es data fija"
+  const [deletedProductIds, setDeletedProductIds] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('linkeo_deleted_products') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const markProductDeleted = (id, sku, name) => {
+    setDeletedProductIds(prev => {
+      const norm = name ? name.trim().toLowerCase() : null;
+      const next = Array.from(new Set([...prev, id, sku, norm].filter(Boolean)));
+      try {
+        localStorage.setItem('linkeo_deleted_products', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const unmarkProductDeleted = (id, sku, name) => {
+    setDeletedProductIds(prev => {
+      const norm = name ? name.trim().toLowerCase() : null;
+      const next = prev.filter(x => x !== id && x !== sku && x !== norm);
+      try {
+        localStorage.setItem('linkeo_deleted_products', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
   // Catálogo comercial consolidado: unifica nube, productos oficiales y stock físico de inventario
   const products = useMemo(() => {
-    const list = Array.isArray(rawProducts) ? [...rawProducts].filter(p => p && p.name && p.name.trim()) : [];
+    const isItemDeleted = (p) => {
+      if (!p) return false;
+      const norm = p.name ? p.name.trim().toLowerCase() : null;
+      return (p.id && deletedProductIds.includes(p.id)) ||
+             (p.sku && deletedProductIds.includes(p.sku)) ||
+             (norm && deletedProductIds.includes(norm));
+    };
+
+    const list = Array.isArray(rawProducts) 
+      ? [...rawProducts].filter(p => p && p.name && p.name.trim() && !isItemDeleted(p)) 
+      : [];
     const seenSkus = new Set(list.map(p => p.sku).filter(Boolean));
     const seenNames = new Set(list.map(p => p.name?.trim().toLowerCase()).filter(Boolean));
     const seenInvIds = new Set(list.map(p => p.inventoryId).filter(Boolean));
 
-    // 1. Garantizar que todos los productos oficiales base de Linkeo siempre estén en el catálogo
+    // 1. Garantizar productos oficiales base de Linkeo SOLO si no han sido eliminados por el usuario
     if (Array.isArray(INITIAL_PRODUCTS)) {
       INITIAL_PRODUCTS.forEach(ip => {
         const norm = ip.name?.trim().toLowerCase();
-        if (!seenNames.has(norm) && (!ip.sku || !seenSkus.has(ip.sku))) {
+        if (!isItemDeleted(ip) && !seenNames.has(norm) && (!ip.sku || !seenSkus.has(ip.sku))) {
           list.push({ ...ip });
           if (ip.sku) seenSkus.add(ip.sku);
           if (ip.name) seenNames.add(norm);
@@ -152,6 +193,7 @@ export default function App() {
 
     // 2. Traer e incorporar automáticamente todo el inventario físico al Catálogo comercial
     inventory.forEach(item => {
+      if (isItemDeleted(item)) return;
       const normName = item.name?.trim().toLowerCase();
       const existing = list.find(p => 
         (item.sku && p.sku === item.sku) || 
@@ -1372,7 +1414,11 @@ export default function App() {
       }
       setInventory(prev => prev.filter(i => i.id !== item.id));
     } else if (entityType === 'Producto') {
-      setProducts(prev => prev.filter(p => p.id !== item.id));
+      const baseList = (rawProducts && rawProducts.length > 0) ? rawProducts : products;
+      const updated = baseList.filter(p => p.id !== item.id && p.sku !== item.sku);
+      setProducts(updated);
+      markProductDeleted(item.id, item.sku, item.name);
+      cascadeDetails = ` Producto / Pack "${item.name}" retirado del catálogo comercial y sincronizado.`;
     } else if (entityType === 'Proveedor') {
       setSuppliers(prev => prev.filter(s => s.id !== item.id));
     } else if (entityType === 'Evento') {
@@ -1516,6 +1562,9 @@ export default function App() {
         try { if (auditLog.snapshot.stockMovements?.length) setInventory(applyStockMovements(inventory, auditLog.snapshot.stockMovements, -1)); }
         catch (error) { showToast(error.message, 'error'); return; }
         setNfcCards(prev => [auditLog.snapshot, ...prev]);
+      } else if (auditLog.entityType === 'Producto') {
+        unmarkProductDeleted(auditLog.snapshot.id, auditLog.snapshot.sku, auditLog.snapshot.name);
+        setProducts(prev => [...(prev || []), auditLog.snapshot]);
       } else if (auditLog.entityType === 'Insumo') {
         setInventory(prev => [auditLog.snapshot, ...prev]);
       } else if (auditLog.entityType === 'Proveedor') {
@@ -1810,6 +1859,8 @@ export default function App() {
               inventory={inventory} 
               products={products} 
               suppliers={suppliers} 
+              expenses={expenses}
+              onReceiveExpenseStock={handleReceiveExpenseStock}
               onUpdateInventoryStock={handleUpdateInventoryStock} 
               onAddNewInventoryItem={handleAddNewInventoryItem} 
               onEditInventoryItem={handleEditInventoryItem}
@@ -2270,7 +2321,7 @@ export default function App() {
                 </div>
                 <select className="form-control" value={globalExpenseForm.selectedProductId} onChange={e => handleGlobalProductChange(e.target.value)}>
                   <option value="">— Escribir gasto libre o seleccionar producto de Almacén —</option>
-                  {products.map(p => <option key={p.id} value={p.id}>
+                  {products.filter(p => p.category !== 'Pack' && p.type !== 'pack' && !p.bundleItems?.length).map(p => <option key={p.id} value={p.id}>
                       📦 {p.name} — Costo por default: S/ {Number(p.cost).toFixed(2)} | Venta: S/ {Number(p.price).toFixed(2)}
                     </option>)}
                   {inventory.filter(i => !products.some(p => p.name === i.name)).map(i => <option key={i.id} value={i.id}>
@@ -2473,13 +2524,98 @@ export default function App() {
                       </button>
                     </div>
                   </div>
-                </div> : <div className="form-group">
-                  <label className="form-label">Monto del Desembolso (Soles S/):</label>
-                  <input type="number" step="0.01" className="form-control" placeholder="0.00" value={globalExpenseForm.amount} onChange={e => setGlobalExpenseForm({
-              ...globalExpenseForm,
-              amount: e.target.value
-            })} required />
-                </div>}
+                </div> : (
+                  <div>
+                    <div className="form-group">
+                      <label className="form-label">Monto del Desembolso (Soles S/):</label>
+                      <input type="number" step="0.01" className="form-control" placeholder="0.00" value={globalExpenseForm.amount} onChange={e => setGlobalExpenseForm({
+                        ...globalExpenseForm,
+                        amount: e.target.value
+                      })} required />
+                    </div>
+
+                    {/* Selector de Estado de Ingreso para compra libre de mercadería */}
+                    {globalExpenseForm.category === 'Compra de mercadería' && (
+                      <div style={{
+                        marginTop: '10px',
+                        marginBottom: '16px',
+                        padding: '12px 14px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <label className="form-label" style={{ fontSize: '0.78rem', margin: 0, fontWeight: 700 }}>
+                            📦 Estado de Recepción de la Mercadería:
+                          </label>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            color: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : '#10b981'
+                          }}>
+                            {globalExpenseForm.inventoryStatus === 'pending' ? '⏳ Mercadería Pendiente' : '✓ Ya Recibido'}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <button
+                            type="button"
+                            style={{
+                              padding: '8px 10px',
+                              fontSize: '0.76rem',
+                              border: '1px solid',
+                              borderColor: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--border-subtle)',
+                              backgroundColor: globalExpenseForm.inventoryStatus === 'pending' ? 'rgba(245, 158, 11, 0.18)' : 'var(--bg-card)',
+                              color: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--text-muted)',
+                              fontWeight: globalExpenseForm.inventoryStatus === 'pending' ? 700 : 500,
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '3px',
+                              textAlign: 'center'
+                            }}
+                            onClick={() => setGlobalExpenseForm(prev => ({ ...prev, inventoryStatus: 'pending' }))}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <Clock size={13} />
+                              <span>⏳ Pendiente (Por recibir)</span>
+                            </div>
+                            <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Se agregará al inventario cuando le des OK</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            style={{
+                              padding: '8px 10px',
+                              fontSize: '0.76rem',
+                              border: '1px solid',
+                              borderColor: globalExpenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--border-subtle)',
+                              backgroundColor: globalExpenseForm.inventoryStatus === 'received' ? 'rgba(16, 185, 129, 0.18)' : 'var(--bg-card)',
+                              color: globalExpenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--text-muted)',
+                              fontWeight: globalExpenseForm.inventoryStatus === 'received' ? 700 : 500,
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '3px',
+                              textAlign: 'center'
+                            }}
+                            onClick={() => setGlobalExpenseForm(prev => ({ ...prev, inventoryStatus: 'received' }))}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <Check size={13} />
+                              <span>✓ Ya Recibido en Almacén</span>
+                            </div>
+                            <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Sumar al stock disponible de inmediato</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
               <div className="form-row">
                 <div className="form-group">

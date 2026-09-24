@@ -849,13 +849,13 @@ export default function KanbanView({
                     onClick={() => handleOpenEditLead(lead)}
                     title="Clic para ver o editar información del prospecto"
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <span className="badge badge-blue" style={{ fontSize: '0.65rem', padding: '2px 5px' }}>
-                          {lead.rubro}
+                    {/* Fila 1: Rubro, Estado Contactado y Monto */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span className="badge badge-blue" style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
+                          {lead.rubro || 'General'}
                         </span>
 
-                        {/* Botón interactivo para marcar si fue contactado o no */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -869,17 +869,17 @@ export default function KanbanView({
                                   ? `✅ "${lead.businessName}" marcado como contactado` 
                                   : `⏳ "${lead.businessName}" marcado como pendiente de contacto`, 
                                 'info', 
-                                1600
+                                1400
                               );
                             }
                           }}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '3px',
-                            padding: '1px 6px',
+                            gap: '2px',
+                            padding: '1px 5px',
                             borderRadius: '10px',
-                            fontSize: '0.65rem',
+                            fontSize: '0.62rem',
                             fontWeight: 600,
                             border: lead.contacted ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.35)',
                             backgroundColor: lead.contacted ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.1)',
@@ -888,81 +888,64 @@ export default function KanbanView({
                           }}
                           title="Clic para alternar si se contactó o no"
                         >
-                          {lead.contacted ? <CheckCircle2 size={10} color="#10b981" /> : <XCircle size={10} color="#f87171" />}
+                          {lead.contacted ? <CheckCircle2 size={9} color="#10b981" /> : <XCircle size={9} color="#f87171" />}
                           <span>{lead.contacted ? 'Contactado' : 'Sin contactar'}</span>
                         </button>
                       </div>
 
-                      <span style={{ fontWeight: 700, color: '#10b981', fontSize: '0.82rem' }}>
+                      <span style={{ fontWeight: 800, color: '#10b981', fontSize: '0.8rem' }}>
                         S/ {lead.estimatedValue}
                       </span>
                     </div>
 
+                    {/* Fila 2: Nombre del Negocio / Cliente */}
                     <div className="kanban-card-title">{lead.businessName}</div>
 
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
-                      {lead.googleMapsUrl ? (
+                    {/* Fila 3: Ubicación y Contacto relevante */}
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <MapPin size={10} color="#3b82f6" style={{ flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.district || 'Lima'}</span>
+                      {lead.contactName && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>• {lead.contactName.split(' ')[0]}</span>}
+                      {lead.googleMapsUrl && (
                         <a 
                           href={formatGoogleMapsUrl(lead.googleMapsUrl, { businessName: lead.businessName, address: lead.address, district: lead.district })}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            color: '#3b82f6',
-                            textDecoration: 'none',
-                            fontWeight: 600
-                          }}
-                          title="Abrir ubicación en Google Maps"
+                          style={{ color: '#3b82f6', display: 'inline-flex', alignItems: 'center' }}
+                          title="Abrir en Maps"
                         >
-                          <MapPin size={11} color="#3b82f6" />
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: 'underline' }}>{lead.district}</span>
                           <ExternalLink size={9} />
                         </a>
-                      ) : (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                          <MapPin size={11} />
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.district}</span>
-                        </div>
-                      )}
-                      {lead.contactName && <span>• {lead.contactName.split(' ')[0]}</span>}
-                      {lead.email && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: 'var(--text-muted)' }} title={lead.email}>
-                          • <Mail size={10} color="#ea4335" /> {lead.email.length > 20 ? `${lead.email.slice(0, 18)}...` : lead.email}
-                        </span>
                       )}
                     </div>
 
-                    <div style={{ marginTop: '6px', padding: '5px 7px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-input)', fontSize: '0.72rem' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        📦 {lead.interestedProduct || 'Por definir'}
+                    {/* Fila 4: Producto / Nota relevante (solo si existe y no es genérico) */}
+                    {( (lead.interestedProduct && lead.interestedProduct !== 'Por definir') || (lead.nextStepNote && lead.nextStepNote !== 'Seguimiento comercial') ) && (
+                      <div style={{ fontSize: '0.67rem', color: 'var(--text-subtle)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {lead.interestedProduct && lead.interestedProduct !== 'Por definir' ? `📦 ${lead.interestedProduct}` : `👉 ${lead.nextStepNote}`}
                       </div>
-                      <div style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        👉 {lead.nextStepNote || 'Seguimiento comercial'}
-                      </div>
-                    </div>
+                    )}
 
-                    {/* Alerta de Antigüedad (+7 días) y traslado a Espera */}
+                    {/* Alerta compacta si lleva +7 días */}
                     {isLeadOverOneWeek(lead) && normalizeLeadStage(lead.stage) !== 'no_hecha_o_espera' && (
                       <div 
                         style={{
-                          marginTop: '6px',
-                          padding: '4px 8px',
+                          marginTop: '3px',
+                          padding: '2px 5px',
                           borderRadius: 'var(--radius-xs)',
                           backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                          border: '1px solid rgba(244, 63, 94, 0.28)',
+                          border: '1px solid rgba(244, 63, 94, 0.25)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          fontSize: '0.68rem',
+                          fontSize: '0.64rem',
                           color: '#fda4af',
                           fontWeight: 600
                         }}
                       >
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Clock size={11} color="#f43f5e" /> +7 días sin concretar
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <Clock size={9} color="#f43f5e" /> +7 días
                         </span>
                         <button
                           type="button"
@@ -971,14 +954,14 @@ export default function KanbanView({
                             handleStageChange(lead.id, 'no_hecha_o_espera');
                           }}
                           style={{
-                            background: 'rgba(244, 63, 94, 0.2)',
-                            border: '1px solid rgba(244, 63, 94, 0.4)',
-                            borderRadius: '4px',
+                            background: 'rgba(244, 63, 94, 0.25)',
+                            border: 'none',
+                            borderRadius: '3px',
                             color: '#fff',
                             fontWeight: 700,
                             cursor: 'pointer',
-                            padding: '1px 6px',
-                            fontSize: '0.66rem'
+                            padding: '1px 4px',
+                            fontSize: '0.62rem'
                           }}
                           title="Enviar a 7. Venta no hecha o cliente en espera"
                         >
@@ -987,218 +970,112 @@ export default function KanbanView({
                       </div>
                     )}
 
-                    {/* Badge de Reactivación si está en Fase 7 */}
-                    {normalizeLeadStage(lead.stage) === 'no_hecha_o_espera' && (
-                      <div 
-                        style={{
-                          marginTop: '6px',
-                          padding: '4px 8px',
-                          borderRadius: 'var(--radius-xs)',
-                          backgroundColor: 'rgba(244, 63, 94, 0.08)',
-                          border: '1px solid rgba(244, 63, 94, 0.22)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          fontSize: '0.68rem',
-                          color: '#fda4af'
-                        }}
-                      >
-                        <span>⏳ En espera / No hecha</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStageChange(lead.id, 'negociacion');
-                          }}
-                          style={{
-                            background: 'rgba(59, 130, 246, 0.15)',
-                            border: '1px solid rgba(59, 130, 246, 0.35)',
-                            borderRadius: '4px',
-                            color: '#60a5fa',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            padding: '1px 6px',
-                            fontSize: '0.66rem'
-                          }}
-                          title="Reactivar negociación comercial"
-                        >
-                          ⚡ Reactivar
-                        </button>
-                      </div>
-                    )}
-
+                    {/* Footer compacto con vendedor y acciones clave */}
                     <div className="kanban-card-footer">
-                      {/* Asignado */}
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        {lead.assignedTo === 'luis' ? '👨‍💼 Luis Romero' : '🚀 Kevin Servat'}
+                      <span style={{ fontSize: '0.67rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        {lead.assignedTo === 'luis' ? '👨‍💼 Luis' : '🚀 Kevin'}
                       </span>
 
-                      {/* Google Maps Directo */}
-                      {lead.googleMapsUrl && (
-                        <a 
-                          href={formatGoogleMapsUrl(lead.googleMapsUrl, { businessName: lead.businessName, address: lead.address, district: lead.district })}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        {/* WhatsApp directo */}
+                        {lead.phone && (
+                          <a 
+                            href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + lead.phone.replace(/[^0-9]/g, '') : lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildLeadWhatsAppMessage(lead, 'vendible'))}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-icon"
+                            style={{ width: '22px', height: '22px', color: '#10b981', padding: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Chat WhatsApp"
+                          >
+                            <Phone size={11} />
+                          </a>
+                        )}
+
+                        {/* Speech modal */}
+                        <button 
+                          type="button"
                           className="btn-icon"
-                          style={{ width: '26px', height: '26px', color: '#3b82f6' }}
-                          onClick={(e) => e.stopPropagation()}
-                          title="Abrir ubicación en Google Maps"
+                          style={{ width: '22px', height: '22px', color: '#3b82f6', padding: 0 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenSpeechModal(lead);
+                          }}
+                          title="Speech de ventas"
                         >
-                          <MapPin size={12} />
-                        </a>
-                      )}
+                          <MessageSquare size={11} />
+                        </button>
 
-                      {/* WhatsApp Directo */}
-                      {lead.phone && (
-                        <a 
-                          href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + lead.phone.replace(/[^0-9]/g, '') : lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildLeadWhatsAppMessage(lead, 'vendible'))}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        {/* Botón / Estado de Venta */}
+                        {associatedSale ? (
+                          <span 
+                            style={{ fontSize: '0.63rem', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: 700 }}
+                            title={`Venta registrada #${associatedSale.saleNumber || associatedSale.id}`}
+                          >
+                            ✓ Venta
+                          </span>
+                        ) : normalizeLeadStage(lead.stage) !== 'postventa' ? (
+                          <button 
+                            type="button"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '2px',
+                              fontSize: '0.63rem',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              backgroundColor: '#10b981',
+                              color: '#fff',
+                              border: 'none',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenConvert(lead);
+                            }}
+                            title="Convertir en Venta Directa"
+                          >
+                            <Sparkles size={9} />
+                            <span>Venta</span>
+                          </button>
+                        ) : null}
+
+                        {/* Selector de fase */}
+                        <select 
+                          style={{
+                            fontSize: '0.64rem',
+                            padding: '1px 2px',
+                            borderRadius: 'var(--radius-xs)',
+                            background: 'var(--bg-input)',
+                            color: 'var(--text-main)',
+                            border: '1px solid var(--border-subtle)',
+                            maxWidth: '72px'
+                          }}
+                          value={normalizeLeadStage(lead.stage)}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => handleStageChange(lead.id, e.target.value)}
+                        >
+                          {STAGES.map(s => (
+                            <option key={s.id} value={s.id}>{s.label.split('.')[1] || s.label}</option>
+                          ))}
+                        </select>
+
+                        {/* Eliminar lead */}
+                        <button 
+                          type="button"
                           className="btn-icon"
-                          style={{ width: '26px', height: '26px', color: '#10b981' }}
-                          onClick={(e) => e.stopPropagation()}
-                          title="Contactar por WhatsApp (Speech Vendible)"
+                          style={{ width: '22px', height: '22px', color: '#ef4444', padding: 0 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRequestDelete && onRequestDelete(lead, 'Lead');
+                          }}
+                          title="Eliminar prospecto"
                         >
-                          <Phone size={12} />
-                        </a>
-                      )}
-
-                      {/* Ver / Personalizar Speech de Ventas */}
-                      <button 
-                        type="button"
-                        className="btn-icon"
-                        style={{ width: '26px', height: '26px', color: '#3b82f6' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenSpeechModal(lead);
-                        }}
-                        title="Ver y elegir speech de ventas (WhatsApp / Correo)"
-                      >
-                        <MessageSquare size={12} />
-                      </button>
-
-                      {/* Correo / Gmail Directo */}
-                      {lead.email && (
-                        <a 
-                          href={`mailto:${lead.email}?subject=${encodeURIComponent(
-                            normalizeLeadStage(lead.stage) === 'prospecto'
-                              ? 'Tarjetas Inteligentes Linkeo NFC para Google Reviews'
-                              : `Propuesta de Tarjetas Inteligentes Linkeo NFC para ${lead.businessName}`
-                          )}&body=${encodeURIComponent(buildLeadWhatsAppMessage(lead))}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn-icon"
-                          style={{ width: '26px', height: '26px', color: '#ea4335' }}
-                          onClick={(e) => e.stopPropagation()}
-                          title={`Enviar correo a: ${lead.email}`}
-                        >
-                          <Mail size={12} />
-                        </a>
-                      )}
-
-                      {/* Botón Editar Prospecto */}
-                      <button 
-                        type="button"
-                        className="btn-icon"
-                        style={{ width: '26px', height: '26px', color: 'var(--primary-600)' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditLead(lead);
-                        }}
-                        title="Editar información del prospecto"
-                      >
-                        <Edit3 size={12} />
-                      </button>
-
-                      {/* Botón Eliminar Prospecto */}
-                      <button 
-                        type="button"
-                        className="btn-icon"
-                        style={{ width: '26px', height: '26px', color: '#ef4444' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRequestDelete && onRequestDelete(lead, 'Lead');
-                        }}
-                        title="Eliminar prospecto (Registra en Auditoría)"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-
-                      {/* Selector de siguiente etapa */}
-                      <select 
-                        style={{
-                          fontSize: '0.68rem',
-                          padding: '2px 4px',
-                          borderRadius: 'var(--radius-sm)',
-                          background: 'var(--bg-input)',
-                          color: 'var(--text-main)',
-                          border: '1px solid var(--border-subtle)',
-                          maxWidth: '100px'
-                        }}
-                        value={normalizeLeadStage(lead.stage)}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => handleStageChange(lead.id, e.target.value)}
-                      >
-                        {STAGES.map(s => (
-                          <option key={s.id} value={s.id}>{s.label.split('.')[1] || s.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Conexión de Venta: Badge verificado o botón de conversión */}
-                    {associatedSale ? (
-                      <div 
-                        style={{
-                          width: '100%',
-                          marginTop: '8px',
-                          fontSize: '0.72rem',
-                          padding: '4px 8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          borderRadius: 'var(--radius-sm)',
-                          backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                          border: '1px solid rgba(16, 185, 129, 0.35)',
-                          color: '#10b981',
-                          fontWeight: 700
-                        }}
-                        title={`Venta oficial registrada en el sistema (#${associatedSale.saleNumber || associatedSale.id || 'VTA'})`}
-                      >
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Sparkles size={11} color="#10b981" />
-                          <span>Venta Concretada {associatedSale.saleNumber ? `(${associatedSale.saleNumber})` : ''}</span>
-                        </span>
-                        <span>S/ {Number(associatedSale.totalAmount ?? lead.estimatedValue).toFixed(2)}</span>
+                          <Trash2 size={11} />
+                        </button>
                       </div>
-                    ) : isDelivered ? (
-                      <button 
-                        type="button"
-                        className="btn btn-success btn-sm"
-                        style={{ width: '100%', marginTop: '8px', fontSize: '0.72rem', padding: '4px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', backgroundColor: '#10b981', fontWeight: 700 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenConvert(lead);
-                        }}
-                        title="Este prospecto está en Entregado y Cobrado: clic para confirmar y registrar su venta oficial en el sistema"
-                      >
-                        <Sparkles size={12} />
-                        <span>⚡ Conectar Registro de Venta</span>
-                      </button>
-                    ) : normalizeLeadStage(lead.stage) !== 'postventa' ? (
-                      <button 
-                        type="button"
-                        className="btn btn-success btn-sm"
-                        style={{ width: '100%', marginTop: '8px', fontSize: '0.72rem', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenConvert(lead);
-                        }}
-                        title="Registrar venta directa (pasa a Entregado y Cobrado)"
-                      >
-                        <Sparkles size={12} />
-                        <span>Convertir en Venta Directa</span>
-                      </button>
-                    ) : null}
+                    </div>
                   </div>
                 );
               }))}

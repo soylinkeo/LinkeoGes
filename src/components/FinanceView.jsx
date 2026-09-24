@@ -630,7 +630,7 @@ export default function FinanceView({
                   onChange={(e) => handleProductChange(e.target.value)}
                 >
                   <option value="">— Escribir gasto libre o seleccionar producto de Almacén —</option>
-                  {products.map(p => (
+                  {products.filter(p => p.category !== 'Pack' && p.type !== 'pack' && !p.bundleItems?.length).map(p => (
                     <option key={p.id} value={p.id}>
                       📦 {p.name} — Costo por default: S/ {Number(p.cost).toFixed(2)} | Venta: S/ {Number(p.price).toFixed(2)}
                     </option>
@@ -815,17 +815,100 @@ export default function FinanceView({
                   </div>
                 </div>
               ) : (
-                <div className="form-group">
-                  <label className="form-label">Monto del Desembolso (Soles S/):</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    className="form-control"
-                    placeholder="0.00"
-                    value={expenseForm.amount}
-                    onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                    required
-                  />
+                <div>
+                  <div className="form-group">
+                    <label className="form-label">Monto del Desembolso (Soles S/):</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      className="form-control"
+                      placeholder="0.00"
+                      value={expenseForm.amount}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  {/* Selector de Estado de Ingreso para compra libre de mercadería */}
+                  {expenseForm.category === 'Compra de mercadería' && (
+                    <div style={{
+                      marginTop: '10px',
+                      marginBottom: '16px',
+                      padding: '12px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                      border: '1px solid rgba(245, 158, 11, 0.3)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <label className="form-label" style={{ fontSize: '0.78rem', margin: 0, fontWeight: 700 }}>
+                          📦 Estado de Recepción de la Mercadería:
+                        </label>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: expenseForm.inventoryStatus === 'pending' ? '#f59e0b' : '#10b981'
+                        }}>
+                          {expenseForm.inventoryStatus === 'pending' ? '⏳ Mercadería Pendiente' : '✓ Ya Recibido'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <button
+                          type="button"
+                          style={{
+                            padding: '8px 10px',
+                            fontSize: '0.76rem',
+                            border: '1px solid',
+                            borderColor: expenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--border-subtle)',
+                            backgroundColor: expenseForm.inventoryStatus === 'pending' ? 'rgba(245, 158, 11, 0.18)' : 'var(--bg-card)',
+                            color: expenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--text-muted)',
+                            fontWeight: expenseForm.inventoryStatus === 'pending' ? 700 : 500,
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '3px',
+                            textAlign: 'center'
+                          }}
+                          onClick={() => setExpenseForm(prev => ({ ...prev, inventoryStatus: 'pending' }))}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <Clock size={13} />
+                            <span>⏳ Pendiente (Por recibir)</span>
+                          </div>
+                          <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Se agregará al inventario cuando le des OK</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          style={{
+                            padding: '8px 10px',
+                            fontSize: '0.76rem',
+                            border: '1px solid',
+                            borderColor: expenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--border-subtle)',
+                            backgroundColor: expenseForm.inventoryStatus === 'received' ? 'rgba(16, 185, 129, 0.18)' : 'var(--bg-card)',
+                            color: expenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--text-muted)',
+                            fontWeight: expenseForm.inventoryStatus === 'received' ? 700 : 500,
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '3px',
+                            textAlign: 'center'
+                          }}
+                          onClick={() => setExpenseForm(prev => ({ ...prev, inventoryStatus: 'received' }))}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <Check size={13} />
+                            <span>✓ Ya Recibido en Almacén</span>
+                          </div>
+                          <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Sumar al stock disponible de inmediato</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

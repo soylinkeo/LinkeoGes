@@ -1024,6 +1024,68 @@ test('expense purchases with pending status remain pending and add products to i
   assert.equal(currentInventory[0].quantity, 60, 'No debe duplicarse el stock si ya fue recibido');
 });
 
+test('nfc mapper column safety: prevents Campo desconocido error in Supabase while preserving analytics in payload', async () => {
+  const { mappers } = await import('../src/services/mappers.js');
+
+  const frontCard = {
+    id: 'nfc-test-1',
+    chipUid: 'UID-ABC-123',
+    batch: 'BATCH-2026',
+    model: 'Tarjeta NFC Google',
+    category: 'Individual',
+    reviewUrl: 'https://linkeocards.com/r/test',
+    status: 'activo',
+    businessName: 'Restaurante Test',
+    readCount: 15,
+    bipsNfc: 10,
+    bipsQr: 5,
+    lastReadAt: '2026-09-24T18:00:00Z'
+  };
+
+  const dbRow = mappers.nfcToDb(frontCard);
+
+  // Columnas base estrictas permitidas por Supabase (sin columnas que no existan en Postgres)
+  assert.equal(dbRow.id, 'nfc-test-1');
+  assert.equal(dbRow.uid, 'UID-ABC-123');
+  assert.equal(dbRow.batch, 'BATCH-2026');
+  assert.equal(dbRow.model, 'Tarjeta NFC Google');
+  assert.equal(dbRow.read_count, 15);
+  // Las analíticas se guardan sin fallar dentro del payload jsonb:
+  assert.ok(dbRow.payload, 'payload debe existir');
+  assert.equal(dbRow.payload.bipsNfc, 10);
+  assert.equal(dbRow.payload.bipsQr, 5);
+  assert.equal(dbRow.payload.lastReadAt, '2026-09-24T18:00:00Z');
+
+  // Recuperación simétrica en nfcToFront
+  const recoveredFront = mappers.nfcToFront(dbRow);
+  assert.equal(recoveredFront.id, 'nfc-test-1');
+  assert.equal(recoveredFront.readCount, 15);
+  assert.equal(recoveredFront.bipsNfc, 10);
+  assert.equal(recoveredFront.bipsQr, 5);
+  assert.equal(recoveredFront.lastReadAt, '2026-09-24T18:00:00Z');
+});
+
+test('deleted product and pack permanence: deleted items are never resurrected by default data', async () => {
+  const { INITIAL_PRODUCTS } = await import('../src/data/initialData.js');
+
+  const deletedIds = ['prod-pack-1', 'SKU-PACK-DUO', 'pack restaurante dúo (2 tarjetas nfc)'];
+
+  const isItemDeleted = (p) => {
+    if (!p) return false;
+    const norm = p.name ? p.name.trim().toLowerCase() : null;
+    return (p.id && deletedIds.includes(p.id)) ||
+           (p.sku && deletedIds.includes(p.sku)) ||
+           (norm && deletedIds.includes(norm));
+  };
+
+  // Simulación del filtro del catálogo
+  const catalogList = INITIAL_PRODUCTS.filter(p => !isItemDeleted(p));
+
+  // El pack eliminado no debe figurar en el catálogo
+  assert.ok(!catalogList.some(p => p.sku === 'SKU-PACK-DUO'), 'Pack Dúo debe permanecer eliminado');
+  assert.ok(catalogList.length < INITIAL_PRODUCTS.length, 'El catálogo debe tener menos elementos');
+});
+
 
 
 

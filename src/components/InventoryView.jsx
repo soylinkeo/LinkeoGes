@@ -80,6 +80,8 @@ export default function InventoryView({
   inventory = [],
   products = [],
   suppliers = [],
+  expenses = [],
+  onReceiveExpenseStock,
   onUpdateInventoryStock,
   onAddNewInventoryItem,
   onEditInventoryItem,
@@ -95,6 +97,11 @@ export default function InventoryView({
   // Subpestaña activa: 'catalog' (Catálogo & Packs) | 'stock' (Stock Físico & Insumos) | 'suppliers' (Proveedores)
   const [activeSubTab, setActiveSubTab] = useState(initialSubTab);
   const [showExplanation, setShowExplanation] = useState(true);
+
+  // Compras de mercadería en estado pendiente de ingreso a almacén
+  const pendingExpenses = useMemo(() => {
+    return (expenses || []).filter(e => e.inventoryStatus === 'pending');
+  }, [expenses]);
 
   // Filtros del Catálogo
   const [catalogCategory, setCatalogCategory] = useState('all');
@@ -1308,6 +1315,88 @@ export default function InventoryView({
       {/* ========================================================================= */}
       {activeSubTab === 'stock' && (
         <div className="stock-subtab">
+          {/* Banner de Compras con Mercadería Pendiente por Recibir */}
+          {pendingExpenses.length > 0 && (
+            <div 
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.45)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '16px 20px',
+                marginBottom: '20px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Clock size={22} color="#f59e0b" />
+                  <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: 0, color: 'var(--text-main)' }}>
+                    ⏳ Mercadería Pendiente por Recibir ({pendingExpenses.length} pedido{pendingExpenses.length > 1 ? 's' : ''})
+                  </h3>
+                </div>
+                <span style={{ fontSize: '0.76rem', color: '#f59e0b', fontWeight: 600 }}>
+                  Da OK cuando recibas el pedido para sumarlo al stock físico
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {pendingExpenses.map(exp => {
+                  const units = exp.quantity || exp.stockMovements?.[0]?.quantity || 1;
+                  return (
+                    <div 
+                      key={exp.id}
+                      style={{
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '10px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '12px'
+                      }}
+                    >
+                      <div>
+                        <strong style={{ fontSize: '0.88rem', color: 'var(--text-main)' }}>
+                          📦 {exp.description}
+                        </strong>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', gap: '12px', marginTop: '3px', flexWrap: 'wrap' }}>
+                          <span>🔢 Cantidad: <strong style={{ color: '#10b981' }}>+{units} unidades</strong></span>
+                          <span>💰 Desembolso: <strong>S/ {Number(exp.amount).toFixed(2)}</strong></span>
+                          <span>📅 {exp.date}</span>
+                          <span>Pagado por: {exp.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{
+                          backgroundColor: '#10b981',
+                          borderColor: '#10b981',
+                          fontSize: '0.78rem',
+                          padding: '6px 14px',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                        onClick={() => {
+                          if (onReceiveExpenseStock) {
+                            onReceiveExpenseStock(exp.id);
+                          }
+                        }}
+                      >
+                        <Check size={14} />
+                        <span>✓ Dar OK e Ingresar a Inventario</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Banner de Alerta Crítica si hay Stock Bajo */}
           {lowStockItems.length > 0 && (
             <div 
