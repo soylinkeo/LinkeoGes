@@ -1,5 +1,5 @@
 import { calculateFinance } from '../utils/financeUtils.js';
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   TrendingUp, 
   DollarSign, 
@@ -10,7 +10,8 @@ import {
   QrCode, 
   ExternalLink, 
   ShoppingBag, 
-  Trash2 
+  Trash2,
+  Edit3
 } from 'lucide-react';
 
 export default function DashboardView({
@@ -25,21 +26,67 @@ export default function DashboardView({
   onOpenCardDetails,
   onOpenNewSale,
   onOpenNewExpense,
-  onRequestDelete
+  onRequestDelete,
+  projectionsData,
+  onUpdateProjectionsData,
+  showToast
 }) {
+  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
+  const [manualRevenue, setManualRevenue] = useState('');
+  const [manualProfit, setManualProfit] = useState('');
+
   // Cálculos financieros
   const { totalSalesAmount, totalCost, totalGrossProfit, totalExpenses, netProfit } = calculateFinance(sales, expenses);
   
+  // Unidades vendidas e inventario físico total
   const totalUnitsSold = sales.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
-  const unitsTarget = targets.monthlyUnitsTarget ?? 75;
-  const unitsProgressPct = Math.min(100, Math.round((unitsTarget > 0 ? totalUnitsSold / unitsTarget : 0) * 100));
+  const totalInventoryStock = inventory.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0);
+  const inventoryCapacity = totalInventoryStock + totalUnitsSold;
+  const unitsProgressPct = inventoryCapacity > 0 ? Math.min(100, Math.round((totalUnitsSold / inventoryCapacity) * 100)) : 0;
 
-  const revenueTarget = targets.monthlyRevenueEstimate ?? 5100;
-  const revenueProgressPct = Math.min(100, Math.round((revenueTarget > 0 ? totalSalesAmount / revenueTarget : 0) * 100));
+  // Metas monetarias configurables manualmente (o calculadas desde proyecciones)
+  const revenueTarget = Number(projectionsData?.businessParams?.customRevenueTarget) || Number(targets.monthlyRevenueEstimate) || 5100;
+  const revenueProgressPct = Math.min(100, Math.round((revenueTarget > 0 ? (totalSalesAmount / revenueTarget) * 100 : 0)));
 
-  const profitTarget = targets.monthlyProfitTarget || 4000;
-  const profitProgressPct = Math.min(100, Math.max(0, Math.round((netProfit / profitTarget) * 100)));
-  const partnerShareTarget = targets.targetPerPartner || (profitTarget / 2);
+  const profitTarget = Number(projectionsData?.businessParams?.customProfitTarget) || Number(targets.monthlyProfitTarget) || 4000;
+  const profitProgressPct = Math.min(100, Math.max(0, Math.round((profitTarget > 0 ? (netProfit / profitTarget) * 100 : 0))));
+  const partnerShareTarget = profitTarget / 2;
+
+  const handleOpenTargetModal = () => {
+    setManualRevenue(revenueTarget.toString());
+    setManualProfit(profitTarget.toString());
+    setIsTargetModalOpen(true);
+  };
+
+  const handleSaveTargets = (e) => {
+    e.preventDefault();
+    const revNum = parseFloat(manualRevenue);
+    const profNum = parseFloat(manualProfit);
+
+    if (isNaN(revNum) || revNum < 0) {
+      if (showToast) showToast('Ingresa un valor válido para la meta de facturación', 'warning');
+      return;
+    }
+    if (isNaN(profNum) || profNum < 0) {
+      if (showToast) showToast('Ingresa un valor válido para la meta de utilidad', 'warning');
+      return;
+    }
+
+    if (onUpdateProjectionsData) {
+      onUpdateProjectionsData({
+        ...(projectionsData || {}),
+        businessParams: {
+          ...(projectionsData?.businessParams || {}),
+          customRevenueTarget: revNum,
+          customProfitTarget: profNum
+        }
+      });
+      if (showToast) {
+        showToast('✓ Metas financieras manuales actualizadas y sincronizadas en la nube', 'success');
+      }
+    }
+    setIsTargetModalOpen(false);
+  };
 
   // Alertas de inventario
   const lowStockItems = inventory.filter(i => i.quantity <= i.minThreshold);
@@ -75,7 +122,7 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* Sincronización con Proyecciones Financieras */}
+      {/* Sincronización con Proyecciones Financieras & Metas Manuales */}
       <div 
         style={{
           display: 'flex',
@@ -103,16 +150,28 @@ export default function DashboardView({
             🎯
           </div>
           <span style={{ fontSize: '0.86rem', color: 'var(--text-main)' }}>
-            <strong>Metas vinculadas a Proyecciones:</strong> Facturación: <strong>S/ {revenueTarget.toFixed(2)}</strong> · Volumen: <strong>{unitsTarget} uds</strong> · Utilidad Neta: <strong>S/ {profitTarget.toFixed(2)}</strong> (S/ {partnerShareTarget.toFixed(2)} por socio al 50/50).
+            <strong>Metas Comerciales:</strong> Facturación: <strong>S/ {revenueTarget.toFixed(2)}</strong> · Stock en Almacén: <strong>{totalUnitsSold} / {totalInventoryStock} uds</strong> · Utilidad Neta: <strong>S/ {profitTarget.toFixed(2)}</strong> (S/ {partnerShareTarget.toFixed(2)} por socio al 50/50).
           </span>
         </div>
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => setCurrentTab('projections')}
-          style={{ fontSize: '0.78rem', padding: '5px 12px' }}
-        >
-          Ajustar en Proyecciones →
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={handleOpenTargetModal}
+            style={{ fontSize: '0.78rem', padding: '5px 12px', gap: '5px' }}
+          >
+            <Edit3 size={13} />
+            <span>Editar Metas Manuales</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setCurrentTab('projections')}
+            style={{ fontSize: '0.78rem', padding: '5px 12px' }}
+          >
+            Ajustar en Proyecciones →
+          </button>
+        </div>
       </div>
 
       {/* Grid de KPIs Clave */}
@@ -126,8 +185,18 @@ export default function DashboardView({
             </div>
           </div>
           <div className="kpi-value">S/ {totalSalesAmount.toFixed(2)}</div>
-          <div className="kpi-subtext">
-            <span>Meta mensual: S/ {revenueTarget.toFixed(2)}</span>
+          <div className="kpi-subtext" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span>Meta mensual: S/ {revenueTarget.toFixed(2)}</span>
+              <button 
+                type="button"
+                onClick={handleOpenTargetModal}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--primary-400)', display: 'inline-flex' }}
+                title="Editar meta monetaria de facturación"
+              >
+                <Edit3 size={12} />
+              </button>
+            </span>
             <span style={{ fontWeight: 700, color: 'var(--primary-600)' }}>
               {revenueProgressPct}%
             </span>
@@ -145,9 +214,11 @@ export default function DashboardView({
               <Package size={18} />
             </div>
           </div>
-          <div className="kpi-value">{totalUnitsSold} <span style={{ fontSize: '1.05rem', color: 'var(--text-muted)' }}>/ {unitsTarget} uds</span></div>
-          <div className="kpi-subtext">
-            <span>{unitsTarget - totalUnitsSold} unidades para la meta</span>
+          <div className="kpi-value">
+            {totalUnitsSold} <span style={{ fontSize: '1.05rem', color: 'var(--text-muted)' }}>/ {totalInventoryStock} uds</span>
+          </div>
+          <div className="kpi-subtext" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{totalInventoryStock} unidades disponibles en almacén</span>
             <span style={{ fontWeight: 700, color: '#10b981' }}>
               {unitsProgressPct}%
             </span>
@@ -168,8 +239,18 @@ export default function DashboardView({
           <div className="kpi-value" style={{ color: netProfit >= 0 ? '#10b981' : '#f59e0b' }}>
             S/ {netProfit.toFixed(2)}
           </div>
-          <div className="kpi-subtext">
-            <span>Meta: S/ {profitTarget.toFixed(2)} (S/ {partnerShareTarget.toFixed(2)} c/u)</span>
+          <div className="kpi-subtext" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span>Meta: S/ {profitTarget.toFixed(2)} (S/ {partnerShareTarget.toFixed(2)} c/u)</span>
+              <button 
+                type="button"
+                onClick={handleOpenTargetModal}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#f59e0b', display: 'inline-flex' }}
+                title="Editar meta monetaria de utilidad neta"
+              >
+                <Edit3 size={12} />
+              </button>
+            </span>
             <span style={{ fontWeight: 700, color: '#f59e0b' }}>
               {profitProgressPct}%
             </span>
@@ -491,6 +572,86 @@ export default function DashboardView({
           </div>
         )}
       </div>
+
+      {/* Modal para configurar metas manuales */}
+      {isTargetModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsTargetModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <TrendingUp size={18} style={{ color: 'var(--primary-500)' }} />
+                <span>Configurar Metas Comerciales Manuales</span>
+              </h3>
+              <button className="close-btn" onClick={() => setIsTargetModalOpen(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveTargets}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: 600 }}>
+                  Meta Mensual de Facturación / Ventas (S/):
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-muted)' }}>
+                    S/
+                  </span>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="form-control"
+                    style={{ paddingLeft: '38px', fontSize: '1rem', fontWeight: 600 }}
+                    value={manualRevenue}
+                    onChange={(e) => setManualRevenue(e.target.value)}
+                    required
+                    placeholder="Ej: 5100.00"
+                  />
+                </div>
+                <small style={{ color: 'var(--text-muted)', fontSize: '0.74rem', marginTop: '4px', display: 'block' }}>
+                  Define el objetivo monetario contra el cual se calcula el progreso en la tarjeta "Ventas Totales".
+                </small>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '16px' }}>
+                <label className="form-label" style={{ fontWeight: 600 }}>
+                  Meta Mensual de Utilidad Neta Operativa (S/):
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-muted)' }}>
+                    S/
+                  </span>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="form-control"
+                    style={{ paddingLeft: '38px', fontSize: '1rem', fontWeight: 600 }}
+                    value={manualProfit}
+                    onChange={(e) => setManualProfit(e.target.value)}
+                    required
+                    placeholder="Ej: 4000.00"
+                  />
+                </div>
+                <div style={{ marginTop: '10px', padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(0, 102, 255, 0.08)', border: '1px solid rgba(0, 102, 255, 0.2)', fontSize: '0.78rem' }}>
+                  <span>🤝 <strong>Reparto Societario 50/50:</strong></span>
+                  <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', color: 'var(--text-main)' }}>
+                    <span>Luis Romero: <strong>S/ {(parseFloat(manualProfit || 0) / 2).toFixed(2)}</strong></span>
+                    <span>Kevin Servat: <strong>S/ {(parseFloat(manualProfit || 0) / 2).toFixed(2)}</strong></span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsTargetModalOpen(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Guardar Metas
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

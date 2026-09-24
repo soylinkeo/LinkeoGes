@@ -21,7 +21,7 @@ export default function DeleteConfirmModal({
 
   if (!isOpen || !item) return null;
 
-  const itemName = item.name || item.businessName || item.title || item.description || item.saleNumber || item.id;
+  const itemName = item.name || item.concept || item.businessName || item.title || item.description || item.saleNumber || item.id;
   const itemId = item.id || item.sku || item.saleNumber || '';
 
   const handleClose = () => {

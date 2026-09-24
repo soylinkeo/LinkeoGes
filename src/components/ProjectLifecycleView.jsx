@@ -15,7 +15,8 @@ export default function ProjectLifecycleView({
   onAddDeliverable,
   onEditDeliverable,
   onDeleteDeliverable,
-  currentUser
+  currentUser,
+  onSyncActualProgress
 }) {
   const [activePhaseKey, setActivePhaseKey] = useState('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -33,6 +34,10 @@ export default function ProjectLifecycleView({
     return acc + (p.deliverables ? p.deliverables.filter(d => d.completed).length : 0);
   }, 0);
   const overallProgress = totalDeliverables > 0 ? Math.round((completedDeliverables / totalDeliverables) * 100) : 0;
+
+  // Fase actual y siguiente hito dinámicos
+  const currentActivePhase = projectPhases.find(p => p.progress < 100) || projectPhases[projectPhases.length - 1];
+  const nextDeliverable = projectPhases.flatMap(p => p.deliverables || []).find(d => !d.completed);
 
   const handleOpenAdd = (phaseId) => {
     setSelectedPhaseId(phaseId);
@@ -101,6 +106,30 @@ export default function ProjectLifecycleView({
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {onSyncActualProgress && completedDeliverables < 17 && (
+            <button 
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onSyncActualProgress}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.8rem',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(0, 102, 255, 0.15)',
+                border: '1px solid var(--primary-500)',
+                color: '#38bdf8',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Sincronizar automáticamente los 17 entregables ya construidos y validados"
+            >
+              <Sparkles size={14} />
+              <span>Marcar Avance Real (74%)</span>
+            </button>
+          )}
           <span className="badge badge-purple" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
             Avance Global: {overallProgress}%
           </span>
@@ -130,8 +159,12 @@ export default function ProjectLifecycleView({
               <Clock size={18} />
             </div>
           </div>
-          <div className="kpi-value" style={{ fontSize: '1.25rem' }}>3. Implementación</div>
-          <div className="kpi-subtext">Producción inicial y despliegue del ERP</div>
+          <div className="kpi-value" style={{ fontSize: '1.2rem' }}>
+            {currentActivePhase ? currentActivePhase.name.replace(/^\d+\.\s*/, '') : 'En curso'}
+          </div>
+          <div className="kpi-subtext">
+            {currentActivePhase ? currentActivePhase.description : 'Producción y despliegue'}
+          </div>
         </div>
 
         <div className="kpi-card kpi-yellow">
@@ -141,8 +174,12 @@ export default function ProjectLifecycleView({
               <Sparkles size={18} />
             </div>
           </div>
-          <div className="kpi-value" style={{ fontSize: '1.1rem', color: '#f59e0b' }}>Supabase + Vercel Cloud</div>
-          <div className="kpi-subtext">Conexión con cuenta oficial Linkeo</div>
+          <div className="kpi-value" style={{ fontSize: '1.05rem', color: '#f59e0b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {nextDeliverable ? nextDeliverable.title : 'Todos los hitos completados'}
+          </div>
+          <div className="kpi-subtext">
+            {nextDeliverable ? `Asignado a: ${nextDeliverable.assignedTo === 'luis' ? 'Luis Romero' : nextDeliverable.assignedTo === 'kevin' ? 'Kevin Servat' : 'Ambos Co-CEOs'}` : '¡Meta alcanzada!'}
+          </div>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { localDate } from '../utils/dateUtils.js';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   Kanban, 
@@ -7,19 +7,33 @@ import {
   Phone, 
   MapPin, 
   CheckCircle2, 
+  XCircle,
   Sparkles, 
   Trash2,
   Edit3
 } from 'lucide-react';
+import DistrictCombobox from './DistrictCombobox.jsx';
+import { INITIAL_PRODUCTS } from '../data/initialData.js';
 
-const STAGES = [
-  { id: 'contactado', label: '1. Contactado', color: '#64748b' },
-  { id: 'negociacion', label: '2. Negociación / Demo', color: '#3b82f6' },
-  { id: 'esperando_info', label: '3. Esperando Place ID', color: '#f59e0b' },
+export const STAGES = [
+  { id: 'prospecto', label: '1. Prospecto', color: '#64748b' },
+  { id: 'visitado', label: '2. Visitado', color: '#3b82f6' },
+  { id: 'negociacion', label: '3. Negociación', color: '#f59e0b' },
   { id: 'configurando', label: '4. Configurando NFC', color: '#8b5cf6' },
   { id: 'entregado', label: '5. Entregado y Cobrado', color: '#10b981' },
-  { id: 'postventa', label: '6. Post-Venta (7 Días)', color: '#06b6d4' }
+  { id: 'postventa', label: '6. Post-Venta', color: '#06b6d4' }
 ];
+
+export const normalizeLeadStage = (stage) => {
+  if (!stage) return 'prospecto';
+  const s = String(stage).toLowerCase().trim();
+  if (s === 'contactado') return 'prospecto';
+  if (s === 'esperando_info') return 'configurando';
+  if (s === 'entregado_cobrado') return 'entregado';
+  if (s === 'post_venta' || s === 'post-venta') return 'postventa';
+  if (STAGES.some(st => st.id === s)) return s;
+  return 'prospecto';
+};
 
 export default function KanbanView({
   leads = [],
@@ -39,6 +53,22 @@ export default function KanbanView({
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [mobileStageFilter, setMobileStageFilter] = useState('all');
 
+  // Catálogo garantizado de productos oficiales y registrados
+  const catalogOptions = useMemo(() => {
+    const map = new Map();
+    INITIAL_PRODUCTS.forEach(p => {
+      if (p && p.name) map.set(p.name.trim().toLowerCase(), p);
+    });
+    if (Array.isArray(products)) {
+      products.forEach(p => {
+        if (p && p.name && p.name.trim()) {
+          map.set(p.name.trim().toLowerCase(), p);
+        }
+      });
+    }
+    return Array.from(map.values());
+  }, [products]);
+
   // Formulario editar lead
   const [editLeadForm, setEditLeadForm] = useState({
     id: '',
@@ -48,7 +78,8 @@ export default function KanbanView({
     address: '',
     contactName: '',
     phone: '',
-    stage: 'contactado',
+    stage: 'prospecto',
+    contacted: false,
     interestedProduct: '',
     estimatedValue: 100.00,
     assignedTo: 'kevin',
@@ -65,6 +96,7 @@ export default function KanbanView({
     address: '',
     contactName: '',
     phone: '',
+    contacted: false,
     interestedProduct: '',
     estimatedValue: 100.00,
     assignedTo: 'kevin',
@@ -77,10 +109,11 @@ export default function KanbanView({
     setNewLeadForm({
       businessName: '',
       rubro: 'Restaurante / Cafetería',
-      district: 'Miraflores',
+      district: districts[0] || 'Miraflores',
       address: '',
       contactName: '',
       phone: '',
+      contacted: false,
       interestedProduct: '',
       estimatedValue: 100.00,
       assignedTo: 'kevin',
@@ -106,7 +139,8 @@ export default function KanbanView({
       address: lead.address || '',
       contactName: lead.contactName || '',
       phone: lead.phone || '',
-      stage: lead.stage || 'contactado',
+      stage: normalizeLeadStage(lead.stage),
+      contacted: Boolean(lead.contacted),
       interestedProduct: lead.interestedProduct || '',
       estimatedValue: Number(lead.estimatedValue ?? 100),
       assignedTo: lead.assignedTo || 'kevin',
@@ -134,7 +168,8 @@ export default function KanbanView({
       address: editLeadForm.address.trim(),
       contactName: editLeadForm.contactName.trim(),
       phone: editLeadForm.phone.trim(),
-      stage: editLeadForm.stage,
+      stage: normalizeLeadStage(editLeadForm.stage),
+      contacted: Boolean(editLeadForm.contacted),
       interestedProduct: editLeadForm.interestedProduct,
       estimatedValue: Number(editLeadForm.estimatedValue) || 0,
       assignedTo: editLeadForm.assignedTo,
@@ -156,7 +191,7 @@ export default function KanbanView({
     onUpdateLeadStage(leadId, newStage);
     const stageObj = STAGES.find(s => s.id === newStage);
     if (showToast) {
-      showToast(`Fase actualizada: ${stageObj ? stageObj.label : newStage}`, 'info', 1800);
+      showToast(`Fase comercial: ${stageObj ? stageObj.label : newStage}`, 'info', 1800);
     }
     if (newStage === 'entregado') {
       confetti({
@@ -171,18 +206,19 @@ export default function KanbanView({
     e.preventDefault();
     const newLead = {
       id: `lead-${Date.now()}`,
-      businessName: newLeadForm.businessName,
+      businessName: newLeadForm.businessName.trim(),
       rubro: newLeadForm.rubro,
-      district: newLeadForm.district,
-      address: newLeadForm.address,
-      contactName: newLeadForm.contactName,
-      phone: newLeadForm.phone,
-      stage: 'contactado',
+      district: newLeadForm.district.trim(),
+      address: newLeadForm.address.trim(),
+      contactName: newLeadForm.contactName.trim(),
+      phone: newLeadForm.phone.trim(),
+      stage: 'prospecto',
+      contacted: Boolean(newLeadForm.contacted),
       interestedProduct: newLeadForm.interestedProduct,
       estimatedValue: Number(newLeadForm.estimatedValue) || 100,
       assignedTo: newLeadForm.assignedTo,
-      notes: newLeadForm.notes,
-      nextStepNote: newLeadForm.nextStepNote,
+      notes: newLeadForm.notes.trim(),
+      nextStepNote: newLeadForm.nextStepNote.trim(),
       nextStepDate: newLeadForm.nextStepDate
     };
 
@@ -203,7 +239,7 @@ export default function KanbanView({
     const name = selectedLead.businessName;
     if (onConvertLeadToSale(selectedLead) === false) return;
     if (showToast) {
-      showToast(`🎉 ¡Venta generada! Lead "${name}" convertido y chip NFC emitido`, 'success');
+      showToast(`🎉 ¡Venta generada! Lead "${name}" directo a Entregado y Cobrado`, 'success');
     }
     handleCloseConvertModal();
     confetti({
@@ -267,7 +303,7 @@ export default function KanbanView({
           Todas las Fases ({leads.length})
         </button>
         {STAGES.map(stage => {
-          const count = leads.filter(l => l.stage === stage.id).length;
+          const count = leads.filter(l => normalizeLeadStage(l.stage) === stage.id).length;
           return (
             <button 
               key={stage.id}
@@ -287,7 +323,7 @@ export default function KanbanView({
       {/* Tablero Kanban Full Width */}
       <div className="kanban-board">
         {(mobileStageFilter === 'all' ? STAGES : STAGES.filter(s => s.id === mobileStageFilter)).map(stage => {
-          const stageLeads = leads.filter(l => l.stage === stage.id);
+          const stageLeads = leads.filter(l => normalizeLeadStage(l.stage) === stage.id);
           const totalValue = stageLeads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
 
           return (
@@ -313,10 +349,50 @@ export default function KanbanView({
                     onClick={() => handleOpenEditLead(lead)}
                     title="Clic para ver o editar información del prospecto"
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span className="badge badge-blue" style={{ fontSize: '0.65rem', padding: '2px 5px' }}>
-                        {lead.rubro}
-                      </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span className="badge badge-blue" style={{ fontSize: '0.65rem', padding: '2px 5px' }}>
+                          {lead.rubro}
+                        </span>
+
+                        {/* Botón interactivo para marcar si fue contactado o no */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const nextContacted = !lead.contacted;
+                            const updated = { ...lead, contacted: nextContacted };
+                            if (onUpdateLead) onUpdateLead(updated);
+                            if (showToast) {
+                              showToast(
+                                nextContacted 
+                                  ? `✅ "${lead.businessName}" marcado como contactado` 
+                                  : `⏳ "${lead.businessName}" marcado como pendiente de contacto`, 
+                                'info', 
+                                1600
+                              );
+                            }
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            padding: '1px 6px',
+                            borderRadius: '10px',
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            border: lead.contacted ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.35)',
+                            backgroundColor: lead.contacted ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.1)',
+                            color: lead.contacted ? '#10b981' : '#f87171',
+                            cursor: 'pointer'
+                          }}
+                          title="Clic para alternar si se contactó o no"
+                        >
+                          {lead.contacted ? <CheckCircle2 size={10} color="#10b981" /> : <XCircle size={10} color="#f87171" />}
+                          <span>{lead.contacted ? 'Contactado' : 'Sin contactar'}</span>
+                        </button>
+                      </div>
+
                       <span style={{ fontWeight: 700, color: '#10b981', fontSize: '0.82rem' }}>
                         S/ {lead.estimatedValue}
                       </span>
@@ -332,10 +408,10 @@ export default function KanbanView({
 
                     <div style={{ marginTop: '6px', padding: '5px 7px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-input)', fontSize: '0.72rem' }}>
                       <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        📦 {lead.interestedProduct}
+                        📦 {lead.interestedProduct || 'Por definir'}
                       </div>
                       <div style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        👉 {lead.nextStepNote}
+                        👉 {lead.nextStepNote || 'Seguimiento comercial'}
                       </div>
                     </div>
 
@@ -399,7 +475,7 @@ export default function KanbanView({
                           border: '1px solid var(--border-subtle)',
                           maxWidth: '100px'
                         }}
-                        value={lead.stage}
+                        value={normalizeLeadStage(lead.stage)}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => handleStageChange(lead.id, e.target.value)}
                       >
@@ -409,19 +485,20 @@ export default function KanbanView({
                       </select>
                     </div>
 
-                    {/* Botón de Conversión si está en etapa avanzada */}
-                    {(lead.stage === 'configurando' || lead.stage === 'entregado') && (
+                    {/* Botón de Conversión directa si aún no ha culminado la venta */}
+                    {normalizeLeadStage(lead.stage) !== 'entregado' && normalizeLeadStage(lead.stage) !== 'postventa' && (
                       <button 
                         type="button"
                         className="btn btn-success btn-sm"
-                        style={{ width: '100%', marginTop: '8px', fontSize: '0.72rem', padding: '3px 6px' }}
+                        style={{ width: '100%', marginTop: '8px', fontSize: '0.72rem', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenConvert(lead);
                         }}
+                        title="Registrar venta directa (pasa a Entregado y Cobrado)"
                       >
                         <Sparkles size={12} />
-                        <span>Convertir en Venta</span>
+                        <span>Convertir en Venta Directa</span>
                       </button>
                     )}
                   </div>
@@ -454,6 +531,27 @@ export default function KanbanView({
                 />
               </div>
 
+              {/* Check de Contactado */}
+              <div className="form-group" style={{ backgroundColor: 'var(--bg-input)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', marginBottom: '14px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', margin: 0 }}>
+                  <input 
+                    type="checkbox"
+                    checked={newLeadForm.contacted}
+                    onChange={(e) => setNewLeadForm({ ...newLeadForm, contacted: e.target.checked })}
+                    style={{ width: '18px', height: '18px', accentColor: '#10b981', cursor: 'pointer' }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {newLeadForm.contacted ? <CheckCircle2 size={14} color="#10b981" /> : <XCircle size={14} color="#f87171" />}
+                      ¿Negocio ya contactado?
+                    </span>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      {newLeadForm.contacted ? 'Sí, ya se estableció contacto con el cliente' : 'No, prospecto en frío pendiente de contacto'}
+                    </span>
+                  </div>
+                </label>
+              </div>
+
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Rubro:</label>
@@ -474,18 +572,12 @@ export default function KanbanView({
 
                 <div className="form-group">
                   <label className="form-label">Distrito de Lima:</label>
-                  <input 
-                    type="text" 
-                    className="form-control"
-                    list="kanban-districts-list"
-                    placeholder="Miraflores, San Isidro, Surco..."
+                  <DistrictCombobox 
                     value={newLeadForm.district}
-                    onChange={(e) => setNewLeadForm({ ...newLeadForm, district: e.target.value })}
+                    onChange={(dist) => setNewLeadForm({ ...newLeadForm, district: dist })}
+                    districts={districts}
                     required
                   />
-                  <datalist id="kanban-districts-list">
-                    {districts.map(d => <option key={d} value={d} />)}
-                  </datalist>
                 </div>
               </div>
 
@@ -532,12 +624,21 @@ export default function KanbanView({
                     value={newLeadForm.interestedProduct}
                     onChange={(e) => {
                       const val = e.target.value;
-                      const est = products.find(p => p.name === val)?.price || 0;
-                      setNewLeadForm({ ...newLeadForm, interestedProduct: val, estimatedValue: est || newLeadForm.estimatedValue });
+                      const selectedProd = catalogOptions.find(p => p.name === val || p.id === val);
+                      const est = selectedProd ? Number(selectedProd.price) : 0;
+                      setNewLeadForm({ 
+                        ...newLeadForm, 
+                        interestedProduct: val, 
+                        estimatedValue: est > 0 ? est : newLeadForm.estimatedValue 
+                      });
                     }}
                   >
                     <option value="">Por definir</option>
-                    {products.map(product => <option key={product.id} value={product.name}>{product.name} — S/ {Number(product.price).toFixed(2)}</option>)}
+                    {catalogOptions.map(product => (
+                      <option key={product.id || product.name} value={product.name}>
+                        {product.name} — S/ {Number(product.price || 0).toFixed(2)}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -637,6 +738,27 @@ export default function KanbanView({
                 />
               </div>
 
+              {/* Check de Contactado */}
+              <div className="form-group" style={{ backgroundColor: 'var(--bg-input)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', marginBottom: '14px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', margin: 0 }}>
+                  <input 
+                    type="checkbox"
+                    checked={editLeadForm.contacted}
+                    onChange={(e) => setEditLeadForm({ ...editLeadForm, contacted: e.target.checked })}
+                    style={{ width: '18px', height: '18px', accentColor: '#10b981', cursor: 'pointer' }}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {editLeadForm.contacted ? <CheckCircle2 size={14} color="#10b981" /> : <XCircle size={14} color="#f87171" />}
+                      ¿Negocio ya contactado?
+                    </span>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      {editLeadForm.contacted ? 'Sí, ya se estableció contacto con el cliente' : 'No, prospecto en frío pendiente de contacto'}
+                    </span>
+                  </div>
+                </label>
+              </div>
+
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Rubro:</label>
@@ -657,13 +779,10 @@ export default function KanbanView({
 
                 <div className="form-group">
                   <label className="form-label">Distrito de Lima:</label>
-                  <input 
-                    type="text" 
-                    className="form-control"
-                    list="kanban-districts-list"
-                    placeholder="Miraflores, San Isidro, Surco..."
+                  <DistrictCombobox 
                     value={editLeadForm.district}
-                    onChange={(e) => setEditLeadForm({ ...editLeadForm, district: e.target.value })}
+                    onChange={(dist) => setEditLeadForm({ ...editLeadForm, district: dist })}
+                    districts={districts}
                     required
                   />
                 </div>
@@ -739,16 +858,20 @@ export default function KanbanView({
                     value={editLeadForm.interestedProduct}
                     onChange={(e) => {
                       const val = e.target.value;
-                      const prod = products.find(p => p.name === val);
+                      const prod = catalogOptions.find(p => p.name === val || p.id === val);
                       setEditLeadForm({ 
                         ...editLeadForm, 
                         interestedProduct: val, 
-                        estimatedValue: prod ? prod.price : editLeadForm.estimatedValue 
+                        estimatedValue: prod ? Number(prod.price) : editLeadForm.estimatedValue 
                       });
                     }}
                   >
                     <option value="">Por definir</option>
-                    {products.map(product => <option key={product.id} value={product.name}>{product.name} — S/ {Number(product.price).toFixed(2)}</option>)}
+                    {catalogOptions.map(product => (
+                      <option key={product.id || product.name} value={product.name}>
+                        {product.name} — S/ {Number(product.price || 0).toFixed(2)}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

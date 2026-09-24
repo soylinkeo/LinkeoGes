@@ -738,17 +738,20 @@ export default function InventoryView({
 
   // Filtrado de Productos del Catálogo
   const filteredProducts = products.filter(p => {
-    const matchCat = catalogCategory === 'all' || p.category === catalogCategory;
+    const isCategoryMatch = catalogCategory === 'all' || 
+      (catalogCategory === 'Pack' && (p.category === 'Pack' || p.category === 'Packs Promocionales' || p.type === 'pack' || (p.bundleItems && p.bundleItems.length > 0))) ||
+      (catalogCategory === 'Individual' && (p.category === 'Individual' || p.category === 'Modelos Individuales' || p.type === 'individual')) ||
+      (catalogCategory === 'Innovacion' && (p.category === 'Innovacion' || p.category === 'Innovación'));
     const matchText = !catalogSearch.trim() || 
       p.name.toLowerCase().includes(catalogSearch.toLowerCase()) ||
       p.sku.toLowerCase().includes(catalogSearch.toLowerCase()) ||
       (p.badge && p.badge.toLowerCase().includes(catalogSearch.toLowerCase()));
-    return matchCat && matchText;
+    return isCategoryMatch && matchText;
   });
 
-  const individualCount = products.filter(p => p.category === 'Individual').length;
-  const packsCount = products.filter(p => p.category === 'Pack').length;
-  const innovationsCount = products.filter(p => p.category === 'Innovacion').length;
+  const individualCount = products.filter(p => p.category === 'Individual' || p.category === 'Modelos Individuales' || p.type === 'individual').length;
+  const packsCount = products.filter(p => p.category === 'Pack' || p.category === 'Packs Promocionales' || p.type === 'pack' || (p.bundleItems && p.bundleItems.length > 0)).length;
+  const innovationsCount = products.filter(p => p.category === 'Innovacion' || p.category === 'Innovación').length;
 
   return (
     <div className="inventory-view">
@@ -1307,15 +1310,25 @@ export default function InventoryView({
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                              <button 
-                                className="btn btn-secondary btn-sm"
-                                style={{ padding: '3px 8px', fontSize: '0.72rem', gap: '4px' }}
-                                onClick={() => handlePublishInventoryToCatalog(item)}
-                                title="Publicar este insumo como producto oficial en el Catálogo Comercial"
-                              >
-                                <ShoppingBag size={12} />
-                                <span>Publicar en Catálogo</span>
-                              </button>
+                              {products.some(p => p.sku === item.sku || p.inventoryId === item.id || p.name?.toLowerCase() === item.name?.toLowerCase()) ? (
+                                <span 
+                                  className="badge badge-green" 
+                                  style={{ fontSize: '0.72rem', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                  title="Este insumo ya está activo y sincronizado en el Catálogo Comercial"
+                                >
+                                  <Check size={12} /> En Catálogo
+                                </span>
+                              ) : (
+                                <button 
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '3px 8px', fontSize: '0.72rem', gap: '4px' }}
+                                  onClick={() => handlePublishInventoryToCatalog(item)}
+                                  title="Publicar este insumo como producto oficial en el Catálogo Comercial"
+                                >
+                                  <ShoppingBag size={12} />
+                                  <span>Publicar en Catálogo</span>
+                                </button>
+                              )}
                               <button 
                                 className="btn-icon" 
                                 style={{ width: '26px', height: '26px', color: '#ef4444' }}

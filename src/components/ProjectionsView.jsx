@@ -26,8 +26,40 @@ import {
   EXCEL_PLAN_30_DAYS_TEMPLATE, 
   EXCEL_FIXED_COSTS_TEMPLATE, 
   EXCEL_PROJECTED_PRODUCTS_TEMPLATE, 
-  EXCEL_INITIAL_INVESTMENT_TEMPLATE
+  EXCEL_INITIAL_INVESTMENT_TEMPLATE,
+  DEFAULT_VARIABLE_COSTS_TEMPLATE
 } from '../data/initialData';
+
+// Constantes para el Plan de Acción 30 Días
+export const DEFAULT_PLAN_WEEK_TITLES = {
+  1: 'Semana 1: Oferta & Muestras',
+  2: 'Semana 2: Prospección Activa',
+  3: 'Semana 3: Demostraciones & Cierres',
+  4: 'Semana 4: Escala & Referidos',
+  5: 'Semana 5: Crecimiento',
+  6: 'Semana 6: Optimización',
+  7: 'Semana 7: Expansión',
+  8: 'Semana 8: Consolidación'
+};
+
+export const COMMON_CHANNELS = [
+  'WhatsApp',
+  'Presencial',
+  'Instagram / DM',
+  'Llamada',
+  'Terreno',
+  'Contenido',
+  'Gestión',
+  'Ventas',
+  'Cierre',
+  'Postventa'
+];
+
+export const COMMON_RESPONSIBLES = [
+  'Luis Romero',
+  'Kevin Servat',
+  'Luis Romero / Kevin Servat'
+];
 
 export default function ProjectionsView({
   projectionsData,
@@ -55,6 +87,9 @@ export default function ProjectionsView({
   const [isNewFixedCostModalOpen, setIsNewFixedCostModalOpen] = useState(false);
   const [isEditFixedCostModalOpen, setIsEditFixedCostModalOpen] = useState(false);
 
+  const [isNewVariableCostModalOpen, setIsNewVariableCostModalOpen] = useState(false);
+  const [isEditVariableCostModalOpen, setIsEditVariableCostModalOpen] = useState(false);
+
   const [isNewInvestmentModalOpen, setIsNewInvestmentModalOpen] = useState(false);
   const [isEditInvestmentModalOpen, setIsEditInvestmentModalOpen] = useState(false);
 
@@ -78,6 +113,11 @@ export default function ProjectionsView({
   const handleCloseNewFixedCostModal = () => {
     setNewFixedCostForm({ concept: '', amount: '', note: '' });
     setIsNewFixedCostModalOpen(false);
+  };
+
+  const handleCloseNewVariableCostModal = () => {
+    setNewVariableCostForm({ concept: '', type: 'unit_amount', amount: '', note: '' });
+    setIsNewVariableCostModalOpen(false);
   };
 
   const handleCloseNewInvestmentModal = () => {
@@ -107,6 +147,15 @@ export default function ProjectionsView({
   });
   const [editingFixedCost, setEditingFixedCost] = useState(null);
 
+  // Formulario para gasto variable
+  const [newVariableCostForm, setNewVariableCostForm] = useState({
+    concept: '',
+    type: 'unit_amount',
+    amount: '',
+    note: ''
+  });
+  const [editingVariableCost, setEditingVariableCost] = useState(null);
+
   // Formulario para ítem de inversión inicial
   const [newInvestmentForm, setNewInvestmentForm] = useState({
     concept: '',
@@ -134,6 +183,16 @@ export default function ProjectionsView({
     result: ''
   });
   const [editingPlanTask, setEditingPlanTask] = useState(null);
+  const [isInlinePlanEdit, setIsInlinePlanEdit] = useState(true);
+  const [isEditWeekTitlesModalOpen, setIsEditWeekTitlesModalOpen] = useState(false);
+
+  // Nombres personalizados de semanas o fases
+  const weekTitles = useMemo(() => {
+    return {
+      ...DEFAULT_PLAN_WEEK_TITLES,
+      ...(projectionsData?.planWeekTitles || {})
+    };
+  }, [projectionsData?.planWeekTitles]);
 
   // Parámetros desestructurados con fallback seguro a 0 (Escenario Libre)
   const businessParams = projectionsData?.businessParams || {
@@ -153,6 +212,22 @@ export default function ProjectionsView({
     defectReservePerUnit: 0.00
   };
 
+  // Lista dinámica de Gastos y Costos Variables
+  const variableCosts = useMemo(() => {
+    if (Array.isArray(projectionsData?.variableCosts)) {
+      return projectionsData.variableCosts;
+    }
+    // Fallback inicial migrado de variableUnitCosts
+    const vuc = projectionsData?.variableUnitCosts || {};
+    return [
+      { id: 'vc-packaging', concept: 'Empaque por Unidad', type: 'unit_amount', amount: Number(vuc.packagingPerUnit) || 0, note: 'Bolsa Kraft, estuche o caja protectora con sticker' },
+      { id: 'vc-labor', concept: 'Mano de Obra / Configuración NDEF', type: 'unit_amount', amount: Number(vuc.setupLaborPerUnit) || 0, note: 'Tiempo invertido en grabación y pruebas con smartphone' },
+      { id: 'vc-gateway', concept: 'Comisión de Cobro (% Venta)', type: 'percentage', amount: Number(vuc.paymentFeePercent) || 0, note: '0% si es Yape/Plin, ~4% si es POS tarjeta' },
+      { id: 'vc-delivery', concept: 'Delivery Asumido por Linkeo', type: 'unit_amount', amount: Number(vuc.deliveryPerUnit) || 0, note: 'S/ 0 si el cliente recoge o asume el envío' },
+      { id: 'vc-warranty', concept: 'Reserva por Defectos / Garantía', type: 'unit_amount', amount: Number(vuc.defectReservePerUnit) || 0, note: 'Fondo para reposición inmediata al cliente' }
+    ];
+  }, [projectionsData?.variableCosts, projectionsData?.variableUnitCosts]);
+
   const projectedProducts = projectionsData?.projectedProducts || [];
   const initialInvestment = projectionsData?.initialInvestment || [];
   const funnelRatios = projectionsData?.funnelRatios || {
@@ -169,15 +244,19 @@ export default function ProjectionsView({
     return fixedCosts.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   }, [fixedCosts]);
 
-  // Costo variable unitario adicional común
+  // Costo variable unitario fijo común (suma de todos los costos con type !== 'percentage')
   const commonVariablePerUnit = useMemo(() => {
-    return (
-      (Number(variableUnitCosts.packagingPerUnit) || 0) +
-      (Number(variableUnitCosts.setupLaborPerUnit) || 0) +
-      (Number(variableUnitCosts.deliveryPerUnit) || 0) +
-      (Number(variableUnitCosts.defectReservePerUnit) || 0)
-    );
-  }, [variableUnitCosts]);
+    return variableCosts
+      .filter(item => item.type !== 'percentage')
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  }, [variableCosts]);
+
+  // Porcentaje variable total sobre la venta (suma de todos los costos con type === 'percentage')
+  const totalVariablePercent = useMemo(() => {
+    return variableCosts
+      .filter(item => item.type === 'percentage')
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  }, [variableCosts]);
 
   // Productos activos en la proyección
   const activeProducts = useMemo(() => {
@@ -195,7 +274,7 @@ export default function ProjectionsView({
     return activeProducts.map(p => {
       const price = Number(p.price) || 0;
       const baseCost = Number(p.baseCost) || 0;
-      const paymentFee = price * ((Number(variableUnitCosts.paymentFeePercent) || 0) / 100);
+      const paymentFee = price * (totalVariablePercent / 100);
       const totalUnitVariableCost = baseCost + commonVariablePerUnit + paymentFee;
       const unitMargin = price - totalUnitVariableCost;
       const marginPct = price > 0 ? (unitMargin / price) * 100 : 0;
@@ -212,7 +291,7 @@ export default function ProjectionsView({
         normalizedMix
       };
     });
-  }, [activeProducts, commonVariablePerUnit, variableUnitCosts.paymentFeePercent, totalMixPercent]);
+  }, [activeProducts, commonVariablePerUnit, totalVariablePercent, totalMixPercent]);
 
   // Promedios ponderados según la mezcla de ventas
   const weightedAverages = useMemo(() => {
@@ -290,10 +369,21 @@ export default function ProjectionsView({
     };
   }, [unitsRequired, weightedAverages, totalFixedCosts, businessParams]);
 
-  // Embudo de ventas proporcional
+  // Unidades efectivas a simular en el embudo (permite variar libremente o usar la meta mensual)
+  const effectiveFunnelUnits = useMemo(() => {
+    if (projectionsData?.funnelRatios?.customUnits !== undefined && projectionsData.funnelRatios.customUnits !== '') {
+      return projectionsData.funnelRatios.customUnits;
+    }
+    if (simulationResults.units > 0) {
+      return simulationResults.units;
+    }
+    return 50; // Fallback interactivo por defecto para poder modelar y variar
+  }, [projectionsData?.funnelRatios?.customUnits, simulationResults.units]);
+
+  // Embudo de ventas proporcional y reactivo
   const funnelResults = useMemo(() => {
-    const units = simulationResults.units;
-    if (units === 0) {
+    const units = Number(effectiveFunnelUnits) || 0;
+    if (units <= 0) {
       return {
         contactsRequired: 0,
         responsesRequired: 0,
@@ -301,19 +391,30 @@ export default function ProjectionsView({
         buyersRequired: 0,
         units: 0,
         contactsPerDay: 0,
+        responsesPerDay: 0,
+        demosPerDay: 0,
+        buyersPerDay: 0,
         contactsPerPartnerPerDay: 0
       };
     }
-    const unitsPerCust = Number(funnelRatios.unitsPerCustomer) || 1.29;
-    const buyersRequired = Math.ceil(units / unitsPerCust);
-    const demosRequired = Math.ceil(buyersRequired / (funnelRatios.demoToCustomer || 0.40));
-    const responsesRequired = Math.ceil(demosRequired / (funnelRatios.responseToDemo || 0.70));
-    const contactsRequired = Math.ceil(responsesRequired / (funnelRatios.contactToResponse || 0.35));
+    const unitsPerCust = Math.max(0.1, Number(funnelRatios.unitsPerCustomer) || 1.29);
+    const c2r = Math.max(0.01, Number(funnelRatios.contactToResponse) || 0.35);
+    const r2d = Math.max(0.01, Number(funnelRatios.responseToDemo) || 0.70);
+    const d2c = Math.max(0.01, Number(funnelRatios.demoToCustomer) || 0.40);
 
-    const salesDays = simulationResults.salesDays || 24;
-    const contactsPerDay = salesDays > 0 ? Number((contactsRequired / salesDays).toFixed(1)) : 0;
-    const partners = Number(businessParams.partnersCount) || 2;
-    const contactsPerPartnerPerDay = salesDays > 0 ? Number((contactsRequired / salesDays / partners).toFixed(1)) : 0;
+    const buyersRequired = Math.ceil(units / unitsPerCust);
+    const demosRequired = Math.ceil(buyersRequired / d2c);
+    const responsesRequired = Math.ceil(demosRequired / r2d);
+    const contactsRequired = Math.ceil(responsesRequired / c2r);
+
+    const salesDays = Math.max(1, Number(businessParams.salesDaysPerMonth) || 24);
+    const contactsPerDay = Number((contactsRequired / salesDays).toFixed(1));
+    const responsesPerDay = Number((responsesRequired / salesDays).toFixed(1));
+    const demosPerDay = Number((demosRequired / salesDays).toFixed(1));
+    const buyersPerDay = Number((buyersRequired / salesDays).toFixed(1));
+
+    const partners = Math.max(1, Number(businessParams.partnersCount) || 2);
+    const contactsPerPartnerPerDay = Number((contactsRequired / salesDays / partners).toFixed(1));
 
     return {
       contactsRequired,
@@ -322,13 +423,16 @@ export default function ProjectionsView({
       buyersRequired,
       units,
       contactsPerDay,
+      responsesPerDay,
+      demosPerDay,
+      buyersPerDay,
       contactsPerPartnerPerDay
     };
-  }, [simulationResults.units, simulationResults.salesDays, funnelRatios, businessParams.partnersCount]);
+  }, [effectiveFunnelUnits, funnelRatios, businessParams.salesDaysPerMonth, businessParams.partnersCount]);
 
   // Total de inversión inicial
   const totalInitialInvestment = useMemo(() => {
-    return initialInvestment.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+    return initialInvestment.reduce((acc, item) => acc + (Number(item.total) || (Number(item.quantity || 1) * Number(item.unitCost || 0))), 0);
   }, [initialInvestment]);
 
   // Tareas completadas del Plan de 30 días
@@ -679,6 +783,145 @@ export default function ProjectionsView({
     handleCloseNewFixedCostModal();
   };
 
+  // --- Handlers para Gastos y Costos Variables ---
+  const updateVariableCostsList = (updatedList, auditEntry = null) => {
+    const pkg = updatedList.find(c => c.id === 'vc-packaging' || c.concept.toLowerCase().includes('empaque'))?.amount || 0;
+    const lbr = updatedList.find(c => c.id === 'vc-labor' || c.concept.toLowerCase().includes('mano'))?.amount || 0;
+    const dlv = updatedList.find(c => c.id === 'vc-delivery' || c.concept.toLowerCase().includes('delivery'))?.amount || 0;
+    const wrn = updatedList.find(c => c.id === 'vc-warranty' || c.concept.toLowerCase().includes('garant'))?.amount || 0;
+    const feePct = updatedList.filter(c => c.type === 'percentage').reduce((s, c) => s + (Number(c.amount) || 0), 0);
+
+    onUpdateProjectionsData({
+      ...projectionsData,
+      variableCosts: updatedList,
+      variableUnitCosts: {
+        packagingPerUnit: Number(pkg) || 0,
+        setupLaborPerUnit: Number(lbr) || 0,
+        paymentFeePercent: Number(feePct) || 0,
+        deliveryPerUnit: Number(dlv) || 0,
+        defectReservePerUnit: Number(wrn) || 0
+      }
+    });
+
+    if (logAudit && auditEntry) {
+      logAudit(auditEntry);
+    }
+  };
+
+  const handleAddVariableCost = (e) => {
+    e.preventDefault();
+    if (!newVariableCostForm.concept.trim()) return;
+
+    const numAmount = Math.max(0, Number(newVariableCostForm.amount) || 0);
+    const newCost = {
+      id: `vc-${Date.now()}`,
+      concept: newVariableCostForm.concept.trim(),
+      type: newVariableCostForm.type === 'percentage' ? 'percentage' : 'unit_amount',
+      amount: numAmount,
+      note: newVariableCostForm.note.trim() || (newVariableCostForm.type === 'percentage' ? 'Comisión porcentual por venta' : 'Costo variable por unidad vendida')
+    };
+
+    updateVariableCostsList([...variableCosts, newCost], {
+      actionType: 'Creación',
+      entityType: 'Gasto Variable',
+      entityId: newCost.id,
+      entityName: newCost.concept,
+      reason: `Nuevo costo variable: ${newCost.type === 'percentage' ? `${numAmount}% sobre venta` : `S/ ${numAmount.toFixed(2)} por unidad`}.`
+    });
+
+    if (showToast) {
+      showToast(`✅ Gasto variable "${newCost.concept}" registrado`, 'success');
+    }
+    handleCloseNewVariableCostModal();
+  };
+
+  const handleOpenEditVariableCost = (vc) => {
+    setEditingVariableCost({ ...vc, type: vc.type || 'unit_amount' });
+    setIsEditVariableCostModalOpen(true);
+  };
+
+  const handleSaveEditVariableCost = (e) => {
+    e.preventDefault();
+    if (!editingVariableCost) return;
+
+    const numAmount = Math.max(0, Number(editingVariableCost.amount) || 0);
+    const updated = variableCosts.map(vc => {
+      if (vc.id === editingVariableCost.id) {
+        return {
+          ...vc,
+          concept: editingVariableCost.concept.trim(),
+          type: editingVariableCost.type === 'percentage' ? 'percentage' : 'unit_amount',
+          amount: numAmount,
+          note: (editingVariableCost.note || '').trim()
+        };
+      }
+      return vc;
+    });
+
+    updateVariableCostsList(updated, {
+      actionType: 'Modificación',
+      entityType: 'Gasto Variable',
+      entityId: editingVariableCost.id,
+      entityName: editingVariableCost.concept,
+      reason: `Gasto variable modificado a ${editingVariableCost.type === 'percentage' ? `${numAmount}%` : `S/ ${numAmount.toFixed(2)}`}.`
+    });
+
+    if (showToast) {
+      showToast(`✓ Gasto variable "${editingVariableCost.concept}" actualizado`, 'success');
+    }
+    setIsEditVariableCostModalOpen(false);
+    setEditingVariableCost(null);
+  };
+
+  const handleUpdateVariableCostAmount = (id, newAmount) => {
+    const numAmount = Math.max(0, Number(newAmount) || 0);
+    const target = variableCosts.find(vc => vc.id === id);
+    const updated = variableCosts.map(vc => {
+      if (vc.id === id) {
+        return { ...vc, amount: numAmount };
+      }
+      return vc;
+    });
+    updateVariableCostsList(updated, target ? {
+      actionType: 'Modificación',
+      entityType: 'Gasto Variable',
+      entityId: target.id,
+      entityName: target.concept,
+      reason: `Monto ajustado a ${target.type === 'percentage' ? `${numAmount}%` : `S/ ${numAmount.toFixed(2)}`}.`
+    } : null);
+  };
+
+  const handleDeleteVariableCost = (vc) => {
+    if (onRequestDelete) {
+      onRequestDelete(vc, 'Gasto Variable');
+    } else {
+      const updated = variableCosts.filter(item => item.id !== vc.id);
+      updateVariableCostsList(updated, {
+        actionType: 'Eliminación',
+        entityType: 'Gasto Variable',
+        entityId: vc.id,
+        entityName: vc.concept,
+        reason: 'Gasto variable eliminado de las proyecciones.'
+      });
+      if (showToast) {
+        showToast(`🗑️ Gasto variable "${vc.concept}" eliminado`, 'info');
+      }
+    }
+  };
+
+  const handleLoadSuggestedVariableCosts = () => {
+    updateVariableCostsList(DEFAULT_VARIABLE_COSTS_TEMPLATE, {
+      actionType: 'Creación',
+      entityType: 'Gasto Variable',
+      entityId: 'SYS-VAR-SUGGESTED',
+      entityName: 'Plantilla de Costos Variables Linkeo',
+      reason: 'Carga de plantilla sugerida de costos variables operativos.'
+    });
+    if (showToast) {
+      showToast('✓ Costos variables sugeridos de Linkeo cargados', 'success');
+    }
+  };
+
   // Handlers para Inversión Inicial
   const handleOpenEditInvestment = (item) => {
     setEditingInvestmentItem({ ...item });
@@ -813,10 +1056,65 @@ export default function ProjectionsView({
     setIsEditFunnelModalOpen(false);
   };
 
+  const handleUpdateRatio = (ratioKey, value) => {
+    const updated = {
+      ...funnelRatios,
+      [ratioKey]: value
+    };
+    onUpdateProjectionsData({
+      ...projectionsData,
+      funnelRatios: updated
+    });
+  };
+
+  const handleUpdateFunnelUnits = (value) => {
+    onUpdateProjectionsData({
+      ...projectionsData,
+      funnelRatios: {
+        ...funnelRatios,
+        customUnits: value === '' ? '' : Math.max(0, Number(value))
+      }
+    });
+  };
+
+  const handleUpdateInvestmentConcept = (id, newConcept) => {
+    const updated = initialInvestment.map(item => {
+      if (item.id === id) {
+        return { ...item, concept: newConcept };
+      }
+      return item;
+    });
+    onUpdateProjectionsData({ ...projectionsData, initialInvestment: updated });
+  };
+
+  const handleUpdateInvestmentQuantity = (id, newQty) => {
+    const updated = initialInvestment.map(item => {
+      if (item.id === id) {
+        const qty = newQty === '' ? '' : Math.max(0, Number(newQty));
+        const unit = Number(item.unitCost) || 0;
+        return { ...item, quantity: qty, total: (Number(qty) || 0) * unit };
+      }
+      return item;
+    });
+    onUpdateProjectionsData({ ...projectionsData, initialInvestment: updated });
+  };
+
+  const handleUpdateInvestmentUnitCost = (id, newCost) => {
+    const updated = initialInvestment.map(item => {
+      if (item.id === id) {
+        const unit = newCost === '' ? '' : Math.max(0, Number(newCost));
+        const qty = Number(item.quantity) || 1;
+        return { ...item, unitCost: unit, total: qty * (Number(unit) || 0) };
+      }
+      return item;
+    });
+    onUpdateProjectionsData({ ...projectionsData, initialInvestment: updated });
+  };
+
   // Handlers de Plan 30 Días
   const handleOpenAddPlan = () => {
-    const nextDay = plan30Days.length > 0 ? Math.max(...plan30Days.map(t => t.day || 0)) + 1 : 1;
-    const computedWeek = Math.min(4, Math.ceil(nextDay / 7)) || 1;
+    const nextDay = plan30Days.length > 0 ? Math.max(...plan30Days.map(t => Number(t.day) || 0)) + 1 : 1;
+    const computedWeek = Math.min(8, Math.max(1, Math.ceil(nextDay / 7))) || 1;
     setPlanTaskForm({
       day: nextDay,
       week: computedWeek,
@@ -833,15 +1131,18 @@ export default function ProjectionsView({
     e.preventDefault();
     if (!planTaskForm.action.trim()) return;
 
+    const dayNum = Number(planTaskForm.day) || 1;
+    const weekNum = Number(planTaskForm.week) || Math.min(8, Math.ceil(dayNum / 7)) || 1;
+
     const newTask = {
-      day: Number(planTaskForm.day) || 1,
-      week: Number(planTaskForm.week) || 1,
+      day: dayNum,
+      week: weekNum,
       action: planTaskForm.action.trim(),
       target: planTaskForm.target.trim() || 'Ejecución clave',
-      channel: planTaskForm.channel,
-      responsible: planTaskForm.responsible,
+      channel: (planTaskForm.channel || '').trim() || 'WhatsApp / Presencial',
+      responsible: planTaskForm.responsible || 'Luis Romero / Kevin Servat',
       completed: false,
-      result: planTaskForm.result.trim() || ''
+      result: (planTaskForm.result || '').trim()
     };
 
     if (onAddPlanTask) {
@@ -860,11 +1161,20 @@ export default function ProjectionsView({
       });
     }
 
+    if (showToast) {
+      showToast(`✓ Tarea Día ${newTask.day} agregada`, 'success');
+    }
+
     setIsAddPlanModalOpen(false);
   };
 
   const handleOpenEditPlan = (task) => {
-    setEditingPlanTask({ ...task });
+    setEditingPlanTask({ 
+      ...task, 
+      _originalDay: task.day,
+      channel: task.channel || 'WhatsApp / Presencial',
+      responsible: task.responsible || 'Luis Romero / Kevin Servat'
+    });
     setIsEditPlanModalOpen(true);
   };
 
@@ -872,24 +1182,109 @@ export default function ProjectionsView({
     e.preventDefault();
     if (!editingPlanTask) return;
 
+    const updatedTask = {
+      ...editingPlanTask,
+      day: Number(editingPlanTask.day) || 1,
+      week: Number(editingPlanTask.week) || 1,
+      action: editingPlanTask.action.trim(),
+      target: editingPlanTask.target.trim() || 'Ejecución clave',
+      channel: (editingPlanTask.channel || '').trim() || 'WhatsApp / Presencial',
+      responsible: editingPlanTask.responsible || 'Luis Romero / Kevin Servat',
+      result: (editingPlanTask.result || '').trim(),
+      completed: Boolean(editingPlanTask.completed)
+    };
+
     if (onEditPlanTask) {
-      onEditPlanTask(editingPlanTask);
+      onEditPlanTask(updatedTask);
     } else if (setPlan30Days) {
-      setPlan30Days(plan30Days.map(t => t.day === editingPlanTask.day ? editingPlanTask : t));
+      setPlan30Days(plan30Days.map(t => {
+        const match = updatedTask._originalDay !== undefined ? t.day === updatedTask._originalDay : t.day === updatedTask.day;
+        if (match) {
+          const { _originalDay, ...clean } = updatedTask;
+          return clean;
+        }
+        return t;
+      }));
     }
 
     if (logAudit) {
       logAudit({
         actionType: 'Modificación',
         entityType: 'Plan 30 Días',
-        entityId: `dia-${editingPlanTask.day}`,
-        entityName: `Día ${editingPlanTask.day}: ${editingPlanTask.action}`,
+        entityId: `dia-${updatedTask.day}`,
+        entityName: `Día ${updatedTask.day}: ${updatedTask.action}`,
         reason: `Modificación de meta, canal, responsable o aprendizajes.`
       });
     }
 
+    if (showToast) {
+      showToast(`✓ Tarea Día ${updatedTask.day} actualizada`, 'success');
+    }
+
     setIsEditPlanModalOpen(false);
     setEditingPlanTask(null);
+  };
+
+  // Handler para agregar una fila rápida directamente a la tabla
+  const handleAddQuickRow = () => {
+    const nextDay = plan30Days.length > 0 ? Math.max(...plan30Days.map(t => Number(t.day) || 0)) + 1 : 1;
+    const computedWeek = planFilterWeek !== 'all' 
+      ? Number(planFilterWeek) 
+      : Math.min(8, Math.max(1, Math.ceil(nextDay / 7))) || 1;
+
+    const newTask = {
+      day: nextDay,
+      week: computedWeek,
+      action: 'Nueva acción comercial',
+      target: '1 meta medible',
+      channel: 'WhatsApp / Presencial',
+      responsible: 'Luis Romero / Kevin Servat',
+      completed: false,
+      result: ''
+    };
+
+    if (onAddPlanTask) {
+      onAddPlanTask(newTask);
+    } else if (setPlan30Days) {
+      setPlan30Days([...plan30Days, newTask]);
+    }
+
+    if (showToast) {
+      showToast(`✓ Fila rápida agregada para el Día ${nextDay}`, 'success');
+    }
+  };
+
+  // Handler para actualizar campos directamente en la tabla (Inline spreadsheet)
+  const handleUpdatePlanTaskField = (day, field, value) => {
+    const updated = plan30Days.map(task => {
+      if (task.day === day) {
+        return {
+          ...task,
+          [field]: field === 'day' || field === 'week' ? (value === '' ? '' : Number(value)) : value
+        };
+      }
+      return task;
+    });
+    if (setPlan30Days) {
+      setPlan30Days(updated);
+    }
+  };
+
+  // Handler para guardar nombres personalizados de semanas
+  const handleSaveWeekTitles = (newTitles) => {
+    onUpdateProjectionsData({
+      ...projectionsData,
+      planWeekTitles: newTitles
+    });
+    if (logAudit) {
+      logAudit({
+        actionType: 'Modificación',
+        entityType: 'Plan 30 Días',
+        entityId: 'PLAN-WEEKS',
+        entityName: 'Nombres de Semanas',
+        reason: 'Personalización de nombres y fases del Plan de 30 Días.'
+      });
+    }
   };
 
   // Funciones para Limpiar o Cargar Plantillas con Auditoría
@@ -904,6 +1299,7 @@ export default function ProjectionsView({
           customProfitTarget: 0
         },
         fixedCosts: [],
+        variableCosts: [],
         variableUnitCosts: {
           packagingPerUnit: 0.00,
           setupLaborPerUnit: 0.00,
@@ -944,6 +1340,7 @@ export default function ProjectionsView({
           customProfitTarget: 4000
         },
         fixedCosts: EXCEL_FIXED_COSTS_TEMPLATE,
+        variableCosts: DEFAULT_VARIABLE_COSTS_TEMPLATE,
         variableUnitCosts: {
           packagingPerUnit: 2.00,
           setupLaborPerUnit: 0.00,
@@ -1544,7 +1941,7 @@ export default function ProjectionsView({
                         <td>
                           <span style={{ color: 'var(--text-muted)' }}>S/ {prod.totalUnitVariableCost.toFixed(2)}</span>
                           <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
-                            (Base: {prod.baseCost} + Emp: {variableUnitCosts.packagingPerUnit})
+                            (Base: {prod.baseCost.toFixed(2)} + Var: {(prod.totalUnitVariableCost - prod.baseCost).toFixed(2)})
                           </div>
                         </td>
                         <td>
@@ -1646,14 +2043,37 @@ export default function ProjectionsView({
                   onClick={() => setIsNewFixedCostModalOpen(true)}
                 >
                   <Plus size={14} />
-                  <span>+ Agregar Gasto Fijo</span>
+                  <span>Agregar Gasto Fijo</span>
                 </button>
               </div>
             </div>
 
             {fixedCosts.length === 0 ? (
-              <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                No hay gastos fijos registrados. Haz clic en <strong>+ Agregar Gasto Fijo</strong> para modelar el punto de equilibrio.
+              <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                <p style={{ margin: '0 0 14px 0' }}>
+                  No hay gastos fijos registrados. Agrega tus gastos recurrentes mensuales para modelar el punto de equilibrio.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                  <button 
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setIsNewFixedCostModalOpen(true)}
+                  >
+                    <Plus size={14} />
+                    <span>Agregar Gasto Fijo</span>
+                  </button>
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      onUpdateProjectionsData({
+                        ...projectionsData,
+                        fixedCosts: EXCEL_FIXED_COSTS_TEMPLATE
+                      });
+                    }}
+                  >
+                    <FileSpreadsheet size={14} />
+                    <span>Cargar Fijos Excel</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="table-responsive">
@@ -1718,120 +2138,137 @@ export default function ProjectionsView({
             )}
           </div>
 
-          {/* Columna 2: Costos Variables Unitarios Adicionales */}
+          {/* Columna 2: Gastos y Costos Variables (Dinámico con CRUD Completo) */}
           <div className="card" style={{ padding: '20px' }}>
-            <div style={{ marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Boxes size={18} color="#10b981" />
-                <span>Costos Variables Unitarios (Por Tarjeta / Display)</span>
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
-                Costos proporcionales a cada unidad comercializada (empaques, delivery, reservas).
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Empaque */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Empaque por Unidad</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Bolsa Kraft, estuche o caja protectora con sticker</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>S/</span>
-                  <input 
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    className="form-control"
-                    style={{ width: '80px', padding: '4px 8px', textAlign: 'center', fontWeight: 700 }}
-                    value={variableUnitCosts.packagingPerUnit}
-                    onChange={(e) => handleUpdateVariableCost('packagingPerUnit', e.target.value)}
-                  />
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Boxes size={18} color="#10b981" />
+                  <span>Gastos y Costos Variables</span>
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
+                  Costos proporcionales a cada unidad comercializada o porcentaje por venta (empaque, cobro, delivery).
+                </p>
               </div>
 
-              {/* Mano de Obra / Configuración */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Mano de Obra / Configuración NDEF</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Tiempo invertido en grabación y pruebas con smartphone</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>S/</span>
-                  <input 
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    className="form-control"
-                    style={{ width: '80px', padding: '4px 8px', textAlign: 'center', fontWeight: 700 }}
-                    value={variableUnitCosts.setupLaborPerUnit}
-                    onChange={(e) => handleUpdateVariableCost('setupLaborPerUnit', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Comisión de Cobro */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Comisión de Cobro (% Venta)</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>0% si es Yape/Plin, ~4% si es POS tarjeta</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <input 
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="10"
-                    className="form-control"
-                    style={{ width: '80px', padding: '4px 8px', textAlign: 'center', fontWeight: 700 }}
-                    value={variableUnitCosts.paymentFeePercent}
-                    onChange={(e) => handleUpdateVariableCost('paymentFeePercent', e.target.value)}
-                  />
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>%</span>
-                </div>
-              </div>
-
-              {/* Delivery Asumido */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Delivery Asumido por Linkeo</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>S/ 0 si el cliente recoge o asume el envío</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>S/</span>
-                  <input 
-                    type="number"
-                    step="1"
-                    min="0"
-                    className="form-control"
-                    style={{ width: '80px', padding: '4px 8px', textAlign: 'center', fontWeight: 700 }}
-                    value={variableUnitCosts.deliveryPerUnit}
-                    onChange={(e) => handleUpdateVariableCost('deliveryPerUnit', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Reserva por Defectos */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Reserva por Defectos / Garantía</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Fondo para reposición inmediata al cliente</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>S/</span>
-                  <input 
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    className="form-control"
-                    style={{ width: '80px', padding: '4px 8px', textAlign: 'center', fontWeight: 700 }}
-                    value={variableUnitCosts.defectReservePerUnit}
-                    onChange={(e) => handleUpdateVariableCost('defectReservePerUnit', e.target.value)}
-                  />
-                </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {variableCosts.length === 0 && (
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleLoadSuggestedVariableCosts}
+                    title="Cargar los 5 costos variables sugeridos de Linkeo"
+                  >
+                    <FileSpreadsheet size={14} />
+                    <span>Cargar Variables Sugeridos</span>
+                  </button>
+                )}
+                <button 
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setIsNewVariableCostModalOpen(true)}
+                  style={{ background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#059669' }}
+                >
+                  <Plus size={14} />
+                  <span>Agregar Gasto Variable</span>
+                </button>
               </div>
             </div>
+
+            {variableCosts.length === 0 ? (
+              <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                <p style={{ margin: '0 0 14px 0' }}>
+                  No hay gastos o costos variables registrados. Agrega costos unitarios o comisiones de cobro para afinar el margen.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                  <button 
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setIsNewVariableCostModalOpen(true)}
+                    style={{ background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#059669' }}
+                  >
+                    <Plus size={14} />
+                    <span>Agregar Gasto Variable</span>
+                  </button>
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleLoadSuggestedVariableCosts}
+                  >
+                    <FileSpreadsheet size={14} />
+                    <span>Cargar Sugeridos</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="data-table" style={{ fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr>
+                      <th>Concepto / Tipo</th>
+                      <th style={{ width: '130px' }}>Monto / Tasa</th>
+                      <th>Nota / Detalle</th>
+                      <th style={{ width: '60px', textAlign: 'center' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {variableCosts.map(vc => (
+                      <tr key={vc.id}>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{vc.concept}</div>
+                          <span className={`badge ${vc.type === 'percentage' ? 'badge-purple' : 'badge-green'}`} style={{ fontSize: '0.68rem', marginTop: '2px', display: 'inline-block' }}>
+                            {vc.type === 'percentage' ? '% sobre Venta' : 'S/ por Unidad'}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            {vc.type !== 'percentage' && <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>S/</span>}
+                            <input 
+                              type="number"
+                              min="0"
+                              step={vc.type === 'percentage' ? '0.1' : '0.5'}
+                              className="form-control"
+                              style={{ width: '85px', padding: '4px 6px', fontWeight: 700, textAlign: 'center' }}
+                              value={vc.amount}
+                              onChange={(e) => handleUpdateVariableCostAmount(vc.id, e.target.value)}
+                            />
+                            {vc.type === 'percentage' && <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>%</span>}
+                          </div>
+                        </td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{vc.note}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <button 
+                              className="btn-icon" 
+                              onClick={() => handleOpenEditVariableCost(vc)}
+                              title="Editar detalle del gasto variable"
+                            >
+                              <Edit3 size={12} />
+                            </button>
+                            <button 
+                              className="btn-icon" 
+                              style={{ color: '#ef4444' }}
+                              onClick={() => handleDeleteVariableCost(vc)}
+                              title="Eliminar gasto variable (con auditoría)"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr style={{ background: 'var(--bg-input)', fontWeight: 800 }}>
+                      <td>TOTALES VARIABLES:</td>
+                      <td style={{ color: '#10b981', fontSize: '0.95rem' }}>
+                        <div>S/ {commonVariablePerUnit.toFixed(2)} <span style={{ fontSize: '0.7rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>/ unid</span></div>
+                        {totalVariablePercent > 0 && (
+                          <div style={{ fontSize: '0.78rem', color: '#8b5cf6' }}>+ {totalVariablePercent.toFixed(1)}% venta</div>
+                        )}
+                      </td>
+                      <td colSpan="2" style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        Se descuenta por cada tarjeta vendida
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1839,21 +2276,24 @@ export default function ProjectionsView({
       {/* ========================================================================= */}
       {/* SUB-PESTAÑA 4: EMBUDO COMERCIAL & INVERSIÓN INICIAL (EDITABLE & AUDITADO) */}
       {/* ========================================================================= */}
+      {/* ========================================================================= */}
+      {/* SUB-PESTAÑA 4: EMBUDO COMERCIAL & INVERSIÓN INICIAL (EDITABLE & AUDITADO) */}
+      {/* ========================================================================= */}
       {activeSubTab === 'funnel' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' }}>
-          {/* Bloque 1: Embudo Comercial para Alcanzar la Meta */}
+          {/* Bloque 1: Embudo Comercial para Alcanzar la Meta (100% Interactivo y Editable) */}
           <div className="card" style={{ padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
                 <span className="badge badge-purple" style={{ marginBottom: '6px', display: 'inline-block' }}>
                   Pipeline de Conversión Requerido
                 </span>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Filter size={18} color="#8b5cf6" />
-                  <span>Embudo de Ventas (Para {simulationResults.units} Unidades)</span>
+                  <span>Embudo de Ventas (Para {effectiveFunnelUnits} Unidades)</span>
                 </h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '4px 0 0 0' }}>
-                  Cantidad de contactos y cierres necesarios para cumplir el objetivo del mes en {simulationResults.salesDays} días hábiles.
+                  Ajusta las unidades y los porcentajes de conversión para modelar el ritmo comercial en tiempo real.
                 </p>
               </div>
 
@@ -1861,14 +2301,54 @@ export default function ProjectionsView({
                 className="btn btn-secondary btn-sm"
                 onClick={handleOpenEditFunnel}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                title="Editar porcentajes y ratios de conversión del embudo"
+                title="Editar ratios en ventana modal"
               >
                 <Settings size={14} />
                 <span>Ajustar Ratios</span>
               </button>
             </div>
 
-            {/* Embudo Visual */}
+            {/* Barra de Control de Unidades a Simular */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between', 
+              padding: '10px 14px', 
+              background: 'var(--bg-input)', 
+              borderRadius: 'var(--radius-md)', 
+              marginBottom: '14px',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Target size={16} color="#8b5cf6" />
+                <span style={{ fontWeight: 800, fontSize: '0.86rem' }}>Meta de Unidades a Simular:</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="5000"
+                  className="form-control"
+                  style={{ width: '80px', padding: '4px 8px', textAlign: 'center', fontWeight: 900, fontSize: '0.95rem', color: '#8b5cf6' }}
+                  value={effectiveFunnelUnits}
+                  onChange={(e) => handleUpdateFunnelUnits(e.target.value)}
+                />
+                <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>uds</span>
+                {simulationResults.units > 0 && effectiveFunnelUnits !== simulationResults.units && (
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.72rem', padding: '3px 8px' }}
+                    onClick={() => handleUpdateFunnelUnits(simulationResults.units)}
+                    title={`Restablecer a meta calculada (${simulationResults.units} uds)`}
+                  >
+                    Usar meta ({simulationResults.units})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Embudo Visual Interactivo con Inputs Editables al Vuelo */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {/* Etapa 1: Prospectos Contactados */}
               <div style={{ 
@@ -1881,20 +2361,20 @@ export default function ProjectionsView({
                 alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>1. Prospectos a Contactar</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>1. Prospectos a Contactar</div>
                   <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>DM Instagram, WhatsApp y visitas en terreno</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#3b82f6' }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#3b82f6' }}>
                     {funnelResults.contactsRequired}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
                     ~{funnelResults.contactsPerDay} por día
                   </div>
                 </div>
               </div>
 
-              {/* Etapa 2: Respuestas */}
+              {/* Etapa 2: Respuestas Obtenidas */}
               <div style={{ 
                 background: 'rgba(139, 92, 246, 0.12)', 
                 borderLeft: '4px solid #8b5cf6', 
@@ -1905,17 +2385,34 @@ export default function ProjectionsView({
                 alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>
-                    2. Respuestas Obtenidas (~{Math.round((funnelRatios.contactToResponse || 0.35) * 100)}%)
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>2. Respuestas Obtenidas:</span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <input 
+                        type="number"
+                        min="1"
+                        max="100"
+                        className="form-control"
+                        style={{ width: '56px', padding: '2px 4px', textAlign: 'center', fontWeight: 800, fontSize: '0.85rem' }}
+                        value={funnelRatios.contactToResponse !== undefined && funnelRatios.contactToResponse !== '' ? Math.round(Number(funnelRatios.contactToResponse) * 100) : ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          handleUpdateRatio('contactToResponse', val === '' ? '' : (Number(val) / 100));
+                        }}
+                      />
+                      <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>%</span>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Interesados que contestan en menos de 10 min</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Interesados que contestan en menos de 10 min
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#8b5cf6' }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#8b5cf6' }}>
                     {funnelResults.responsesRequired}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
-                    {(funnelResults.responsesRequired / (simulationResults.salesDays || 24)).toFixed(1)} por día
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                    ~{funnelResults.responsesPerDay} por día
                   </div>
                 </div>
               </div>
@@ -1931,17 +2428,34 @@ export default function ProjectionsView({
                 alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>
-                    3. Demostraciones Presentadas (~{Math.round((funnelRatios.responseToDemo || 0.70) * 100)}%)
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>3. Demostraciones Presentadas:</span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <input 
+                        type="number"
+                        min="1"
+                        max="100"
+                        className="form-control"
+                        style={{ width: '56px', padding: '2px 4px', textAlign: 'center', fontWeight: 800, fontSize: '0.85rem' }}
+                        value={funnelRatios.responseToDemo !== undefined && funnelRatios.responseToDemo !== '' ? Math.round(Number(funnelRatios.responseToDemo) * 100) : ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          handleUpdateRatio('responseToDemo', val === '' ? '' : (Number(val) / 100));
+                        }}
+                      />
+                      <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>%</span>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Video explicativo o muestra presencial</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Video explicativo o muestra presencial
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#f59e0b' }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#f59e0b' }}>
                     {funnelResults.demosRequired}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
-                    {(funnelResults.demosRequired / (simulationResults.salesDays || 24)).toFixed(1)} por día
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                    ~{funnelResults.demosPerDay} por día
                   </div>
                 </div>
               </div>
@@ -1957,30 +2471,98 @@ export default function ProjectionsView({
                 alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '0.9rem' }}>
-                    4. Negocios Compradores / Clientes (~{Math.round((funnelRatios.demoToCustomer || 0.40) * 100)}%)
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>4. Negocios Compradores:</span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <input 
+                        type="number"
+                        min="1"
+                        max="100"
+                        className="form-control"
+                        style={{ width: '56px', padding: '2px 4px', textAlign: 'center', fontWeight: 800, fontSize: '0.85rem' }}
+                        value={funnelRatios.demoToCustomer !== undefined && funnelRatios.demoToCustomer !== '' ? Math.round(Number(funnelRatios.demoToCustomer) * 100) : ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          handleUpdateRatio('demoToCustomer', val === '' ? '' : (Number(val) / 100));
+                        }}
+                      />
+                      <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>%</span>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                    Cierres efectivos (~{funnelRatios.unitsPerCustomer || 1.29} uds/cliente)
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span>Cierres efectivos a</span>
+                    <input 
+                      type="number"
+                      step="0.05"
+                      min="0.1"
+                      max="10"
+                      className="form-control"
+                      style={{ width: '54px', padding: '1px 4px', textAlign: 'center', fontWeight: 700, fontSize: '0.76rem' }}
+                      value={funnelRatios.unitsPerCustomer !== undefined ? funnelRatios.unitsPerCustomer : 1.29}
+                      onChange={(e) => handleUpdateRatio('unitsPerCustomer', e.target.value === '' ? '' : Number(e.target.value))}
+                    />
+                    <span>uds / cliente</span>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#10b981' }}>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#10b981' }}>
                     {funnelResults.buyersRequired}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
-                    {(funnelResults.buyersRequired / (simulationResults.salesDays || 24)).toFixed(1)} clientes/día
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                    ~{funnelResults.buyersPerDay} clientes/día
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Asignación Diaria por Socio */}
-            <div style={{ marginTop: '16px', padding: '14px', background: 'var(--bg-card-hover)', borderRadius: 'var(--radius-md)', fontSize: '0.85rem' }}>
-              <strong>🎯 Cuota Diaria Recomendada por Co-CEO:</strong>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', color: 'var(--text-muted)' }}>
-                <span>• Luis Romero: <strong>{funnelResults.contactsPerPartnerPerDay} contactos/día</strong></span>
-                <span>• Kevin Servat: <strong>{funnelResults.contactsPerPartnerPerDay} contactos/día</strong></span>
+            {/* Parámetros Operativos (Días hábiles y Socios) */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 4px 0 4px', fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>Días de venta al mes:</span>
+                <input 
+                  type="number"
+                  min="1"
+                  max="31"
+                  className="form-control"
+                  style={{ width: '55px', padding: '2px 4px', textAlign: 'center', fontWeight: 700 }}
+                  value={businessParams.salesDaysPerMonth || 24}
+                  onChange={(e) => handleUpdateParam('salesDaysPerMonth', e.target.value)}
+                />
+                <span>días</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>Socios Co-CEOs:</span>
+                <input 
+                  type="number"
+                  min="1"
+                  max="10"
+                  className="form-control"
+                  style={{ width: '45px', padding: '2px 4px', textAlign: 'center', fontWeight: 700 }}
+                  value={businessParams.partnersCount || 2}
+                  onChange={(e) => handleUpdateParam('partnersCount', e.target.value)}
+                />
+                <span>(50/50)</span>
+              </div>
+            </div>
+
+            {/* Asignación Diaria por Socio Destacada */}
+            <div style={{ marginTop: '14px', padding: '14px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.22)', borderRadius: 'var(--radius-md)' }}>
+              <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>
+                🎯 Cuota Diaria Recomendada por Co-CEO (Para {effectiveFunnelUnits} unidades):
+              </strong>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
+                <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>👨‍💼 Luis Romero:</div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 900, color: 'var(--primary-600)' }}>
+                    {funnelResults.contactsPerPartnerPerDay} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>contactos/día</span>
+                  </div>
+                </div>
+                <div style={{ padding: '8px 12px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>🚀 Kevin Servat:</div>
+                  <div style={{ fontSize: '1.15rem', fontWeight: 900, color: '#8b5cf6' }}>
+                    {funnelResults.contactsPerPartnerPerDay} <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--text-muted)' }}>contactos/día</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2030,14 +2612,37 @@ export default function ProjectionsView({
                   onClick={() => setIsNewInvestmentModalOpen(true)}
                 >
                   <Plus size={14} />
-                  <span>+ Agregar Ítem</span>
+                  <span>Agregar Ítem</span>
                 </button>
               </div>
             </div>
 
             {initialInvestment.length === 0 ? (
-              <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                No hay ítems de inversión registrados. Agrega tus compras iniciales para calcular el aporte equitativo 50/50.
+              <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                <p style={{ margin: '0 0 14px 0' }}>
+                  No hay ítems de inversión registrados. Agrega tus compras iniciales para calcular el aporte equitativo 50/50.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                  <button 
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setIsNewInvestmentModalOpen(true)}
+                  >
+                    <Plus size={14} />
+                    <span>Agregar Ítem</span>
+                  </button>
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      onUpdateProjectionsData({
+                        ...projectionsData,
+                        initialInvestment: EXCEL_INITIAL_INVESTMENT_TEMPLATE
+                      });
+                    }}
+                  >
+                    <FileSpreadsheet size={14} />
+                    <span>Cargar del Excel</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="table-responsive">
@@ -2045,20 +2650,51 @@ export default function ProjectionsView({
                   <thead>
                     <tr>
                       <th>Concepto</th>
-                      <th>Cant.</th>
-                      <th>Costo Unit.</th>
-                      <th style={{ textAlign: 'right' }}>Total (S/)</th>
+                      <th style={{ width: '75px' }}>Cant.</th>
+                      <th style={{ width: '105px' }}>Costo Unit.</th>
+                      <th style={{ textAlign: 'right', width: '105px' }}>Total (S/)</th>
                       <th style={{ width: '60px', textAlign: 'center' }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {initialInvestment.map(item => (
                       <tr key={item.id}>
-                        <td style={{ fontWeight: 600 }}>{item.concept}</td>
-                        <td>{item.quantity}</td>
-                        <td>S/ {Number(item.unitCost).toFixed(2)}</td>
+                        <td>
+                          <input 
+                            type="text"
+                            className="form-control"
+                            style={{ padding: '3px 6px', fontWeight: 600, fontSize: '0.82rem', minWidth: '130px' }}
+                            value={item.concept}
+                            onChange={(e) => handleUpdateInvestmentConcept(item.id, e.target.value)}
+                            placeholder="Concepto..."
+                          />
+                        </td>
+                        <td>
+                          <input 
+                            type="number"
+                            min="1"
+                            className="form-control"
+                            style={{ width: '60px', padding: '3px 4px', textAlign: 'center', fontWeight: 700 }}
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateInvestmentQuantity(item.id, e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>S/</span>
+                            <input 
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              className="form-control"
+                              style={{ width: '70px', padding: '3px 4px', textAlign: 'center', fontWeight: 700 }}
+                              value={item.unitCost}
+                              onChange={(e) => handleUpdateInvestmentUnitCost(item.id, e.target.value)}
+                            />
+                          </div>
+                        </td>
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                          S/ {Number(item.total).toFixed(2)}
+                          S/ {(Number(item.quantity || 1) * Number(item.unitCost || 0)).toFixed(2)}
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -2126,11 +2762,30 @@ export default function ProjectionsView({
                 onChange={(e) => setPlanFilterWeek(e.target.value)}
               >
                 <option value="all">Todas las Semanas</option>
-                <option value="1">Semana 1: Oferta & Muestras</option>
-                <option value="2">Semana 2: Prospección Activa</option>
-                <option value="3">Semana 3: Demostraciones & Cierres</option>
-                <option value="4">Semana 4: Escala & Referidos</option>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(w => (
+                  <option key={w} value={w}>
+                    {weekTitles[w] || `Semana ${w}`}
+                  </option>
+                ))}
               </select>
+
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setIsEditWeekTitlesModalOpen(true)}
+                title="Personalizar nombres de las semanas"
+              >
+                <Settings size={14} />
+                <span>Nombres Semanas</span>
+              </button>
+
+              <button
+                className={`btn btn-sm ${isInlinePlanEdit ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setIsInlinePlanEdit(!isInlinePlanEdit)}
+                title={isInlinePlanEdit ? 'Cambiar a vista compacta' : 'Activar modo edición directa en tabla'}
+              >
+                <Sliders size={14} />
+                <span>{isInlinePlanEdit ? '⚡ Modo Tabla Editable' : '👁️ Vista Compacta'}</span>
+              </button>
 
               {plan30Days.length === 0 && (
                 <button 
@@ -2151,6 +2806,13 @@ export default function ProjectionsView({
               </button>
             </div>
           </div>
+
+          {/* Datalist para autocompletado de canales en la tabla */}
+          <datalist id="plan-channels-list">
+            {COMMON_CHANNELS.map(ch => (
+              <option key={ch} value={ch} />
+            ))}
+          </datalist>
 
           {/* Barra de Progreso del Plan */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
@@ -2186,19 +2848,19 @@ export default function ProjectionsView({
             </div>
           ) : (
             <div className="table-responsive">
-              <table className="data-table">
+              <table className="data-table" style={{ fontSize: '0.82rem' }}>
                 <thead>
                   <tr>
-                    <th style={{ width: '40px' }}>OK</th>
-                    <th>Día</th>
-                    <th>Semana</th>
-                    <th>Acción Principal</th>
-                    <th>Meta Medible</th>
-                    <th>Canal</th>
-                    <th>Responsable</th>
-                    <th>Estado</th>
-                    <th>Resultado / Aprendizaje</th>
-                    <th style={{ textAlign: 'center' }}>Acciones</th>
+                    <th style={{ width: '38px', textAlign: 'center' }}>OK</th>
+                    <th style={{ width: '65px' }}>Día</th>
+                    <th style={{ width: '80px' }}>Semana</th>
+                    <th style={{ minWidth: '220px' }}>Acción Principal</th>
+                    <th style={{ width: '130px' }}>Meta Medible</th>
+                    <th style={{ width: '120px' }}>Canal</th>
+                    <th style={{ width: '145px' }}>Responsable</th>
+                    <th style={{ width: '100px', textAlign: 'center' }}>Estado</th>
+                    <th style={{ minWidth: '160px' }}>Resultado / Aprendizaje</th>
+                    <th style={{ width: '65px', textAlign: 'center' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2206,11 +2868,11 @@ export default function ProjectionsView({
                     <tr 
                       key={task.day}
                       style={{
-                        opacity: task.completed ? 0.75 : 1,
-                        backgroundColor: task.completed ? 'rgba(16, 185, 129, 0.03)' : 'transparent'
+                        opacity: task.completed ? 0.78 : 1,
+                        backgroundColor: task.completed ? 'rgba(16, 185, 129, 0.04)' : 'transparent'
                       }}
                     >
-                      <td>
+                      <td style={{ textAlign: 'center' }}>
                         <input 
                           type="checkbox" 
                           checked={task.completed}
@@ -2218,31 +2880,127 @@ export default function ProjectionsView({
                           style={{ cursor: 'pointer', width: '16px', height: '16px' }}
                         />
                       </td>
-                      <td><strong>Día {task.day}</strong></td>
-                      <td>Semana {task.week}</td>
-                      <td style={{ fontWeight: 600 }}>
-                        <span style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
-                          {task.action}
-                        </span>
-                      </td>
-                      <td><span className="badge badge-blue">{task.target}</span></td>
-                      <td>{task.channel}</td>
-                      <td>{task.responsible}</td>
-                      <td>
-                        <span className={`badge ${task.completed ? 'badge-green' : 'badge-yellow'}`}>
-                          {task.completed ? 'Completado' : 'Pendiente'}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                        {task.result || '—'}
-                      </td>
+
+                      {isInlinePlanEdit ? (
+                        <>
+                          <td>
+                            <input 
+                              type="number"
+                              min="1"
+                              max="60"
+                              className="form-control"
+                              style={{ width: '54px', padding: '2px 4px', textAlign: 'center', fontWeight: 800 }}
+                              value={task.day}
+                              onChange={(e) => handleUpdatePlanTaskField(task.day, 'day', e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <select 
+                              className="form-control"
+                              style={{ width: '75px', padding: '2px 4px', fontSize: '0.78rem', fontWeight: 700 }}
+                              value={task.week}
+                              onChange={(e) => handleUpdatePlanTaskField(task.day, 'week', e.target.value)}
+                            >
+                              {[1, 2, 3, 4, 5, 6, 7, 8].map(w => (
+                                <option key={w} value={w}>Sem {w}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input 
+                              type="text"
+                              className="form-control"
+                              style={{ width: '100%', padding: '3px 6px', fontWeight: 600, fontSize: '0.82rem' }}
+                              value={task.action}
+                              onChange={(e) => handleUpdatePlanTaskField(task.day, 'action', e.target.value)}
+                              placeholder="Acción principal..."
+                            />
+                          </td>
+                          <td>
+                            <input 
+                              type="text"
+                              className="form-control"
+                              style={{ width: '100%', padding: '3px 6px', fontSize: '0.8rem' }}
+                              value={task.target}
+                              onChange={(e) => handleUpdatePlanTaskField(task.day, 'target', e.target.value)}
+                              placeholder="Meta..."
+                            />
+                          </td>
+                          <td>
+                            <input 
+                              type="text"
+                              className="form-control"
+                              style={{ width: '100%', padding: '3px 6px', fontSize: '0.8rem' }}
+                              value={task.channel}
+                              list="plan-channels-list"
+                              onChange={(e) => handleUpdatePlanTaskField(task.day, 'channel', e.target.value)}
+                              placeholder="Canal..."
+                            />
+                          </td>
+                          <td>
+                            <select 
+                              className="form-control"
+                              style={{ width: '100%', padding: '3px 6px', fontSize: '0.78rem' }}
+                              value={task.responsible}
+                              onChange={(e) => handleUpdatePlanTaskField(task.day, 'responsible', e.target.value)}
+                            >
+                              <option value="Luis Romero">👨‍💼 Luis Romero</option>
+                              <option value="Kevin Servat">🚀 Kevin Servat</option>
+                              <option value="Luis Romero / Kevin Servat">🤝 Ambos (50/50)</option>
+                            </select>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              className={`badge ${task.completed ? 'badge-green' : 'badge-yellow'}`}
+                              style={{ cursor: 'pointer', border: 'none', padding: '4px 8px' }}
+                              onClick={() => onTogglePlanTask && onTogglePlanTask(task.day)}
+                              title="Clic para cambiar estado"
+                            >
+                              {task.completed ? '✓ Completado' : '⏳ Pendiente'}
+                            </button>
+                          </td>
+                          <td>
+                            <input 
+                              type="text"
+                              className="form-control"
+                              style={{ width: '100%', padding: '3px 6px', fontSize: '0.78rem' }}
+                              placeholder="Anotar resultado o aprendizaje..."
+                              value={task.result || ''}
+                              onChange={(e) => handleUpdatePlanTaskField(task.day, 'result', e.target.value)}
+                            />
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td><strong>Día {task.day}</strong></td>
+                          <td>Semana {task.week}</td>
+                          <td style={{ fontWeight: 600 }}>
+                            <span style={{ textDecoration: task.completed ? 'line-through' : 'none' }}>
+                              {task.action}
+                            </span>
+                          </td>
+                          <td><span className="badge badge-blue">{task.target}</span></td>
+                          <td>{task.channel}</td>
+                          <td>{task.responsible}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={`badge ${task.completed ? 'badge-green' : 'badge-yellow'}`}>
+                              {task.completed ? 'Completado' : 'Pendiente'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            {task.result || '—'}
+                          </td>
+                        </>
+                      )}
+
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                           <button 
                             className="btn-icon" 
                             style={{ width: '26px', height: '26px' }}
                             onClick={() => handleOpenEditPlan(task)}
-                            title="Editar tarea del plan"
+                            title="Editar en ventana detallada"
                           >
                             <Edit3 size={12} />
                           </button>
@@ -2260,6 +3018,21 @@ export default function ProjectionsView({
                   ))}
                 </tbody>
               </table>
+
+              {/* Botón inferior de agregar fila rápida */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleAddQuickRow}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={14} />
+                  <span>+ Agregar Fila Rápida al Plan</span>
+                </button>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
+                  * En modo tabla editable puedes modificar cualquier celda y los datos se actualizan en tiempo real.
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -2652,6 +3425,171 @@ export default function ProjectionsView({
       )}
 
       {/* ========================================================================= */}
+      {/* MODAL: AGREGAR GASTO VARIABLE                                             */}
+      {/* ========================================================================= */}
+      {isNewVariableCostModalOpen && (
+        <div className="modal-overlay" onClick={handleCloseNewVariableCostModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Boxes size={18} color="#10b981" />
+                <span>Agregar Gasto Variable</span>
+              </h3>
+              <button className="close-btn" onClick={handleCloseNewVariableCostModal}>✕</button>
+            </div>
+
+            <form onSubmit={handleAddVariableCost}>
+              <div className="form-group">
+                <label className="form-label">Concepto:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="Ej: Empaque Kraft, Comisión POS Niubiz, Delivery..."
+                  value={newVariableCostForm.concept}
+                  onChange={(e) => setNewVariableCostForm({ ...newVariableCostForm, concept: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Tipo de Costo Variable:</label>
+                <select 
+                  className="form-control"
+                  value={newVariableCostForm.type}
+                  onChange={(e) => setNewVariableCostForm({ ...newVariableCostForm, type: e.target.value })}
+                >
+                  <option value="unit_amount">Monto Fijo por Unidad (S/ por tarjeta o display)</option>
+                  <option value="percentage">Porcentaje sobre Precio de Venta (% de comisión)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  {newVariableCostForm.type === 'percentage' ? 'Porcentaje sobre la Venta (%):' : 'Monto Unitario (S/):'}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
+                    {newVariableCostForm.type === 'percentage' ? '%' : 'S/'}
+                  </span>
+                  <input 
+                    type="number" 
+                    step={newVariableCostForm.type === 'percentage' ? '0.1' : '0.5'}
+                    min="0"
+                    className="form-control"
+                    placeholder={newVariableCostForm.type === 'percentage' ? 'Ej: 4.0' : 'Ej: 2.50'}
+                    value={newVariableCostForm.amount}
+                    onChange={(e) => setNewVariableCostForm({ ...newVariableCostForm, amount: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Nota / Detalle:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="Ej: Aplica por cada unidad física entregada"
+                  value={newVariableCostForm.note}
+                  onChange={(e) => setNewVariableCostForm({ ...newVariableCostForm, note: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseNewVariableCostModal}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#059669' }}>
+                  Guardar Gasto Variable
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EDITAR GASTO VARIABLE                                              */}
+      {/* ========================================================================= */}
+      {isEditVariableCostModalOpen && editingVariableCost && (
+        <div className="modal-overlay" onClick={() => setIsEditVariableCostModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Boxes size={18} color="#10b981" />
+                <span>Editar Gasto Variable</span>
+              </h3>
+              <button className="close-btn" onClick={() => setIsEditVariableCostModalOpen(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveEditVariableCost}>
+              <div className="form-group">
+                <label className="form-label">Concepto:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={editingVariableCost.concept}
+                  onChange={(e) => setEditingVariableCost({ ...editingVariableCost, concept: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Tipo de Costo Variable:</label>
+                <select 
+                  className="form-control"
+                  value={editingVariableCost.type || 'unit_amount'}
+                  onChange={(e) => setEditingVariableCost({ ...editingVariableCost, type: e.target.value })}
+                >
+                  <option value="unit_amount">Monto Fijo por Unidad (S/ por tarjeta o display)</option>
+                  <option value="percentage">Porcentaje sobre Precio de Venta (% de comisión)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  {editingVariableCost.type === 'percentage' ? 'Porcentaje sobre la Venta (%):' : 'Monto Unitario (S/):'}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
+                    {editingVariableCost.type === 'percentage' ? '%' : 'S/'}
+                  </span>
+                  <input 
+                    type="number" 
+                    step={editingVariableCost.type === 'percentage' ? '0.1' : '0.5'}
+                    min="0"
+                    className="form-control"
+                    value={editingVariableCost.amount}
+                    onChange={(e) => setEditingVariableCost({ ...editingVariableCost, amount: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Nota / Detalle:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  value={editingVariableCost.note || ''}
+                  onChange={(e) => setEditingVariableCost({ ...editingVariableCost, note: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsEditVariableCostModalOpen(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#059669' }}>
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL: AGREGAR ÍTEM DE INVERSIÓN INICIAL                                  */}
       {/* ========================================================================= */}
       {isNewInvestmentModalOpen && (
@@ -2888,9 +3826,12 @@ export default function ProjectionsView({
       {/* ========================================================================= */}
       {isAddPlanModalOpen && (
         <div className="modal-overlay" onClick={() => setIsAddPlanModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div className="modal-header">
-              <h3 className="modal-title">Agregar Nueva Tarea al Plan 30 Días</h3>
+              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar size={18} color="var(--primary-600)" />
+                <span>Agregar Nueva Tarea al Plan 30 Días</span>
+              </h3>
               <button className="close-btn" onClick={() => setIsAddPlanModalOpen(false)}>✕</button>
             </div>
 
@@ -2904,22 +3845,32 @@ export default function ProjectionsView({
                     max="60"
                     className="form-control"
                     value={planTaskForm.day}
-                    onChange={(e) => setPlanTaskForm({ ...planTaskForm, day: e.target.value })}
+                    onChange={(e) => {
+                      const newDay = e.target.value;
+                      const num = Number(newDay);
+                      const autoW = num > 0 ? Math.min(8, Math.max(1, Math.ceil(num / 7))) : 1;
+                      setPlanTaskForm({ 
+                        ...planTaskForm, 
+                        day: newDay,
+                        week: autoW
+                      });
+                    }}
                     required
                   />
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Semana (1 - 4):</label>
+                  <label className="form-label">Semana (1 - 8):</label>
                   <select 
                     className="form-control"
                     value={planTaskForm.week}
-                    onChange={(e) => setPlanTaskForm({ ...planTaskForm, week: e.target.value })}
+                    onChange={(e) => setPlanTaskForm({ ...planTaskForm, week: Number(e.target.value) || 1 })}
                   >
-                    <option value="1">Semana 1: Oferta & Muestras</option>
-                    <option value="2">Semana 2: Prospección Activa</option>
-                    <option value="3">Semana 3: Demostraciones & Cierres</option>
-                    <option value="4">Semana 4: Escala & Referidos</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(w => (
+                      <option key={w} value={w}>
+                        {weekTitles[w] || `Semana ${w}`}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -2946,6 +3897,18 @@ export default function ProjectionsView({
                     value={planTaskForm.target}
                     onChange={(e) => setPlanTaskForm({ ...planTaskForm, target: e.target.value })}
                   />
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
+                    {['3 demos', '15 contactos', '5 visitas', '2 ventas', '1 caso real'].map(sug => (
+                      <button
+                        key={sug}
+                        type="button"
+                        style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer', color: 'var(--text-muted)' }}
+                        onClick={() => setPlanTaskForm({ ...planTaskForm, target: sug })}
+                      >
+                        + {sug}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="form-group">
@@ -2957,20 +3920,51 @@ export default function ProjectionsView({
                     value={planTaskForm.channel}
                     onChange={(e) => setPlanTaskForm({ ...planTaskForm, channel: e.target.value })}
                   />
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
+                    {COMMON_CHANNELS.slice(0, 5).map(chan => (
+                      <button
+                        key={chan}
+                        type="button"
+                        style={{ fontSize: '0.7rem', padding: '2px 6px', background: planTaskForm.channel.includes(chan) ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer', color: 'var(--text-main)' }}
+                        onClick={() => setPlanTaskForm({ ...planTaskForm, channel: chan })}
+                      >
+                        {chan}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               <div className="form-group">
                 <label className="form-label">Responsable:</label>
-                <select 
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                  {COMMON_RESPONSIBLES.map(resp => (
+                    <button
+                      key={resp}
+                      type="button"
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        borderRadius: '6px',
+                        border: planTaskForm.responsible === resp ? '1px solid var(--primary-500)' : '1px solid var(--border-color)',
+                        background: planTaskForm.responsible === resp ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-input)',
+                        color: planTaskForm.responsible === resp ? 'var(--primary-600)' : 'var(--text-muted)',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => setPlanTaskForm({ ...planTaskForm, responsible: resp })}
+                    >
+                      {resp === 'Luis Romero' ? '👨‍💼 Luis Romero' : resp === 'Kevin Servat' ? '🚀 Kevin Servat' : '🤝 Ambos (50/50)'}
+                    </button>
+                  ))}
+                </div>
+                <input 
+                  type="text" 
                   className="form-control"
+                  placeholder="O escribe un responsable personalizado..."
                   value={planTaskForm.responsible}
                   onChange={(e) => setPlanTaskForm({ ...planTaskForm, responsible: e.target.value })}
-                >
-                  <option value="Luis Romero">Luis Romero (Co-CEO)</option>
-                  <option value="Kevin Servat">Kevin Servat (Co-CEO)</option>
-                  <option value="Luis Romero / Kevin Servat">Luis Romero / Kevin Servat</option>
-                </select>
+                />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
@@ -2991,13 +3985,46 @@ export default function ProjectionsView({
       {/* ========================================================================= */}
       {isEditPlanModalOpen && editingPlanTask && (
         <div className="modal-overlay" onClick={() => setIsEditPlanModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div className="modal-header">
-              <h3 className="modal-title">Editar Tarea del Plan 30 Días</h3>
+              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit3 size={18} color="var(--primary-600)" />
+                <span>Editar Tarea del Plan (Día {editingPlanTask.day})</span>
+              </h3>
               <button className="close-btn" onClick={() => setIsEditPlanModalOpen(false)}>✕</button>
             </div>
 
             <form onSubmit={handleSaveEditPlan}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Día (1 - 60):</label>
+                  <input 
+                    type="number"
+                    min="1"
+                    max="60"
+                    className="form-control"
+                    value={editingPlanTask.day}
+                    onChange={(e) => setEditingPlanTask({ ...editingPlanTask, day: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Semana (1 - 8):</label>
+                  <select 
+                    className="form-control"
+                    value={editingPlanTask.week}
+                    onChange={(e) => setEditingPlanTask({ ...editingPlanTask, week: Number(e.target.value) || 1 })}
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(w => (
+                      <option key={w} value={w}>
+                        {weekTitles[w] || `Semana ${w}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Acción Principal:</label>
                 <input 
@@ -3018,6 +4045,18 @@ export default function ProjectionsView({
                     value={editingPlanTask.target}
                     onChange={(e) => setEditingPlanTask({ ...editingPlanTask, target: e.target.value })}
                   />
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
+                    {['3 demos', '15 contactos', '5 visitas', '2 ventas', '1 caso real'].map(sug => (
+                      <button
+                        key={sug}
+                        type="button"
+                        style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer', color: 'var(--text-muted)' }}
+                        onClick={() => setEditingPlanTask({ ...editingPlanTask, target: sug })}
+                      >
+                        + {sug}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="form-group">
@@ -3028,26 +4067,77 @@ export default function ProjectionsView({
                     value={editingPlanTask.channel || ''}
                     onChange={(e) => setEditingPlanTask({ ...editingPlanTask, channel: e.target.value })}
                   />
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
+                    {COMMON_CHANNELS.slice(0, 5).map(chan => (
+                      <button
+                        key={chan}
+                        type="button"
+                        style={{ fontSize: '0.7rem', padding: '2px 6px', background: (editingPlanTask.channel || '').includes(chan) ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer', color: 'var(--text-main)' }}
+                        onClick={() => setEditingPlanTask({ ...editingPlanTask, channel: chan })}
+                      >
+                        {chan}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               <div className="form-group">
                 <label className="form-label">Responsable:</label>
-                <select 
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                  {COMMON_RESPONSIBLES.map(resp => (
+                    <button
+                      key={resp}
+                      type="button"
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        borderRadius: '6px',
+                        border: editingPlanTask.responsible === resp ? '1px solid var(--primary-500)' : '1px solid var(--border-color)',
+                        background: editingPlanTask.responsible === resp ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-input)',
+                        color: editingPlanTask.responsible === resp ? 'var(--primary-600)' : 'var(--text-muted)',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => setEditingPlanTask({ ...editingPlanTask, responsible: resp })}
+                    >
+                      {resp === 'Luis Romero' ? '👨‍💼 Luis Romero' : resp === 'Kevin Servat' ? '🚀 Kevin Servat' : '🤝 Ambos (50/50)'}
+                    </button>
+                  ))}
+                </div>
+                <input 
+                  type="text" 
                   className="form-control"
-                  value={editingPlanTask.responsible}
+                  value={editingPlanTask.responsible || ''}
                   onChange={(e) => setEditingPlanTask({ ...editingPlanTask, responsible: e.target.value })}
-                >
-                  <option value="Luis Romero">Luis Romero (Co-CEO)</option>
-                  <option value="Kevin Servat">Kevin Servat (Co-CEO)</option>
-                  <option value="Luis Romero / Kevin Servat">Luis Romero / Kevin Servat</option>
-                </select>
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Estado de la Tarea:</label>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${!editingPlanTask.completed ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setEditingPlanTask({ ...editingPlanTask, completed: false })}
+                  >
+                    ⏳ Pendiente
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${editingPlanTask.completed ? 'btn-success' : 'btn-secondary'}`}
+                    style={editingPlanTask.completed ? { background: '#10b981', color: '#fff', borderColor: '#10b981' } : {}}
+                    onClick={() => setEditingPlanTask({ ...editingPlanTask, completed: true })}
+                  >
+                    ✅ Completado
+                  </button>
+                </div>
               </div>
 
               <div className="form-group">
                 <label className="form-label">Resultado / Aprendizaje Obtenido:</label>
                 <textarea 
-                  className="form-control"
+                  className="form-control" 
                   rows="2"
                   value={editingPlanTask.result || ''}
                   onChange={(e) => setEditingPlanTask({ ...editingPlanTask, result: e.target.value })}
@@ -3064,6 +4154,56 @@ export default function ProjectionsView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: PERSONALIZAR NOMBRES DE SEMANAS                                    */}
+      {/* ========================================================================= */}
+      {isEditWeekTitlesModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsEditWeekTitlesModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Settings size={18} color="var(--primary-600)" />
+                <span>Personalizar Nombres de Semanas y Fases</span>
+              </h3>
+              <button className="close-btn" onClick={() => setIsEditWeekTitlesModalOpen(false)}>✕</button>
+            </div>
+
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 14px 0' }}>
+              Define los nombres de cada fase o semana del plan de validación comercial según tu estrategia.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {[1, 2, 3, 4, 5, 6].map(w => (
+                <div key={w} className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.78rem', fontWeight: 700 }}>
+                    Semana {w}:
+                  </label>
+                  <input 
+                    type="text" 
+                    className="form-control"
+                    value={weekTitles[w] || ''}
+                    onChange={(e) => {
+                      const updatedTitles = {
+                        ...weekTitles,
+                        [w]: e.target.value
+                      };
+                      handleSaveWeekTitles(updatedTitles);
+                    }}
+                    placeholder={`Nombre para Semana ${w}...`}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button type="button" className="btn btn-primary" onClick={() => setIsEditWeekTitlesModalOpen(false)}>
+                Listo
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -101,42 +101,59 @@ export const INITIAL_INVENTORY = [
 export const INITIAL_PRODUCTS = [
   {
     id: 'prod-ind-1',
+    inventoryId: 'inv-2',
     name: 'Tarjeta Google NFC Cuadrado ESP',
     sku: 'SKU-LNK-6781',
-    category: 'Modelos Individuales',
+    category: 'Individual',
     type: 'individual',
     price: 60.00,
-    cost: 13.00,
-    margin: 47.00,
-    marginPct: 78.33,
+    cost: 60.00,
+    margin: 0.00,
+    marginPct: 0.00,
     badge: 'Popular',
     description: 'Tarjeta inteligente con chip NTAG215 para reseñas de Google en español. Diseñada para mostrador y barras de restaurantes.',
     bundleItems: []
   },
   {
     id: 'prod-ind-2',
+    inventoryId: 'inv-3',
     name: 'Tarjeta Google NFC Formato L ESP',
     sku: 'SKU-LNK-9972',
-    category: 'Modelos Individuales',
+    category: 'Individual',
     type: 'individual',
     price: 80.00,
-    cost: 13.00,
-    margin: 67.00,
-    marginPct: 83.75,
+    cost: 80.00,
+    margin: 0.00,
+    marginPct: 0.00,
     badge: 'Premium',
     description: 'Display vertical en ángulo L de alto impacto visual para caja y recepción con reseña directa de Google Maps.',
+    bundleItems: []
+  },
+  {
+    id: 'prod-ind-3',
+    inventoryId: 'inv-1',
+    name: 'Tarjeta Google NFC Cuadrado ING',
+    sku: 'SKU-LNK-1367',
+    category: 'Individual',
+    type: 'individual',
+    price: 60.00,
+    cost: 60.00,
+    margin: 0.00,
+    marginPct: 0.00,
+    badge: 'Inglés',
+    description: 'Tarjeta inteligente con chip NTAG215 para reseñas de Google versión en inglés para hoteles y turismo.',
     bundleItems: []
   },
   {
     id: 'prod-pack-1',
     name: 'Pack Restaurante Dúo (2 Tarjetas NFC)',
     sku: 'SKU-PACK-DUO',
-    category: 'Packs Promocionales',
+    category: 'Pack',
     type: 'pack',
     price: 100.00,
-    cost: 26.00,
-    margin: 74.00,
-    marginPct: 74.00,
+    cost: 120.00,
+    margin: 0.00,
+    marginPct: 0.00,
     badge: 'Ahorro S/ 20',
     description: 'Promoción especial para locales con dos puntos de contacto (Caja + Barra). Incluye 2 tarjetas inteligentes configuradas.',
     bundleItems: [
@@ -147,12 +164,12 @@ export const INITIAL_PRODUCTS = [
     id: 'prod-pack-2',
     name: 'Combo Corporativo Trío (3 Tarjetas + Display)',
     sku: 'SKU-PACK-TRIO',
-    category: 'Packs Promocionales',
+    category: 'Pack',
     type: 'pack',
     price: 160.00,
-    cost: 49.00,
-    margin: 111.00,
-    marginPct: 69.38,
+    cost: 150.00,
+    margin: 10.00,
+    marginPct: 6.25,
     badge: 'Más Vendido',
     description: 'Combo empresarial: 2 Tarjetas Cuadradas + 1 Tarjeta Formato L + 1 Base acrílica para locales gastronómicos o retail.',
     bundleItems: [
@@ -255,10 +272,10 @@ export const INITIAL_AUDIT_LOGS = [];
 export const INITIAL_DISTRICTS = [
   'Miraflores',
   'San Isidro',
-  'Barranco',
-  'Surco',
+  'Santiago de Surco',
   'San Borja',
-  'Magdalena',
+  'Barranco',
+  'Magdalena del Mar',
   'Jesús María',
   'Lince',
   'San Miguel',
@@ -266,7 +283,43 @@ export const INITIAL_DISTRICTS = [
   'La Molina',
   'Surquillo',
   'Lima Cercado',
-  'La Victoria'
+  'La Victoria',
+  'Ate',
+  'Breña',
+  'Chorrillos',
+  'San Juan de Lurigancho',
+  'San Juan de Miraflores',
+  'San Martín de Porres',
+  'Los Olivos',
+  'Independencia',
+  'Comas',
+  'Carabayllo',
+  'Puente Piedra',
+  'Villa El Salvador',
+  'Villa María del Triunfo',
+  'Lurín',
+  'Pachacámac',
+  'Cieneguilla',
+  'El Agustino',
+  'Rímac',
+  'Santa Anita',
+  'San Luis',
+  'Chaclacayo',
+  'Lurigancho-Chosica',
+  'Ancón',
+  'Santa Rosa',
+  'Punta Hermosa',
+  'Punta Negra',
+  'San Bartolo',
+  'Santa María del Mar',
+  'Pucusana',
+  'Callao',
+  'Bellavista',
+  'La Perla',
+  'La Punta',
+  'Carmen de la Legua',
+  'Ventanilla',
+  'Mi Perú'
 ];
 
 export const INITIAL_PROJECT_PHASES = [
@@ -276,14 +329,14 @@ export const INITIAL_PROJECT_PHASES = [
     key: 'inicio',
     name: '1. Inicio & Definición de Negocio (Kickoff)',
     description: 'Establecimiento del modelo de negocio de tarjetas NFC para Google Reviews, reglas societarias y propuesta de valor.',
-    progress: 0,
-    status: 'pendiente',
+    progress: 100,
+    status: 'completado',
     leader: 'both',
     deliverables: [
-      { id: 'del-1-1', title: 'Definición de propuesta de valor: Tarjetas y displays inteligentes para reseñas Google 5 estrellas', completed: false, assignedTo: 'luis' },
-      { id: 'del-1-2', title: 'Acuerdo societario 50/50: Desembolsos compartidos equitativamente y distribución neta igualitaria', completed: false, assignedTo: 'both' },
-      { id: 'del-1-3', title: 'Identidad de marca y dominio linkeocards.com activo', completed: false, assignedTo: 'kevin' },
-      { id: 'del-1-4', title: 'Acuerdo societario y liderazgo compartido: Luis Romero & Kevin Servat (Co-Fundadores & Co-CEOs al 50/50)', completed: false, assignedTo: 'both' }
+      { id: 'del-1-1', title: 'Definición de propuesta de valor: Tarjetas y displays inteligentes para reseñas Google 5 estrellas', completed: true, assignedTo: 'luis' },
+      { id: 'del-1-2', title: 'Acuerdo societario 50/50: Desembolsos compartidos equitativamente y distribución neta igualitaria', completed: true, assignedTo: 'both' },
+      { id: 'del-1-3', title: 'Identidad de marca y dominio linkeocards.com activo', completed: true, assignedTo: 'kevin' },
+      { id: 'del-1-4', title: 'Acuerdo societario y liderazgo compartido: Luis Romero & Kevin Servat (Co-Fundadores & Co-CEOs al 50/50)', completed: true, assignedTo: 'both' }
     ]
   },
   {
@@ -292,15 +345,15 @@ export const INITIAL_PROJECT_PHASES = [
     key: 'planificacion',
     name: '2. Planificación Operativa & Financiera',
     description: 'Estructuración de costos, metas mensuales (S/ 5,100 / 75 uds), cadena de suministros y protocolos de agenda.',
-    progress: 0,
-    status: 'pendiente',
+    progress: 100,
+    status: 'completado',
     leader: 'both',
     deliverables: [
-      { id: 'del-2-1', title: 'Estructura oficial de precios: Displays S/ 60, Horizontal S/ 80, Vertical S/ 40 y Packs promocionales', completed: false, assignedTo: 'luis' },
-      { id: 'del-2-2', title: 'Meta financiera: 75 unidades mensuales para alcanzar S/ 4,000 de utilidad neta libre', completed: false, assignedTo: 'both' },
-      { id: 'del-2-3', title: 'Homologación de proveedores de chips NTAG215 (AliExpress) y acrílicos en Lima', completed: false, assignedTo: 'kevin' },
-      { id: 'del-2-4', title: 'Protocolo de coordinación y cobertura operativa 50/50 entre Co-CEOs', completed: false, assignedTo: 'both' },
-      { id: 'del-2-5', title: 'Checklist maestro de 30 días para ejecución comercial sistemática', completed: false, assignedTo: 'luis' }
+      { id: 'del-2-1', title: 'Estructura oficial de precios: Displays S/ 60, Horizontal S/ 80, Vertical S/ 40 y Packs promocionales', completed: true, assignedTo: 'luis' },
+      { id: 'del-2-2', title: 'Meta financiera: 75 unidades mensuales para alcanzar S/ 4,000 de utilidad neta libre', completed: true, assignedTo: 'both' },
+      { id: 'del-2-3', title: 'Homologación de proveedores de chips NTAG215 (AliExpress) y acrílicos en Lima', completed: true, assignedTo: 'kevin' },
+      { id: 'del-2-4', title: 'Protocolo de coordinación y cobertura operativa 50/50 entre Co-CEOs', completed: true, assignedTo: 'both' },
+      { id: 'del-2-5', title: 'Checklist maestro de 30 días para ejecución comercial sistemática', completed: true, assignedTo: 'luis' }
     ]
   },
   {
@@ -309,13 +362,13 @@ export const INITIAL_PROJECT_PHASES = [
     key: 'implementacion',
     name: '3. Implementación Comercial & Técnica',
     description: 'Producción inicial, pruebas de lectura NFC en Android/iOS, pipeline B2B y despliegue del software LinkeoGes.',
-    progress: 0,
-    status: 'pendiente',
+    progress: 60,
+    status: 'en_proceso',
     leader: 'kevin',
     deliverables: [
-      { id: 'del-3-1', title: 'Validación técnica de payloads NDEF para enlace directo de reseñas Google', completed: false, assignedTo: 'kevin' },
-      { id: 'del-3-2', title: 'Adquisición de primer lote de prueba (15 tarjetas NTAG215 vírgenes)', completed: false, assignedTo: 'kevin' },
-      { id: 'del-3-3', title: 'Construcción y despliegue del ERP/CRM LinkeoGes para control integral', completed: false, assignedTo: 'luis' },
+      { id: 'del-3-1', title: 'Validación técnica de payloads NDEF para enlace directo de reseñas Google', completed: true, assignedTo: 'kevin' },
+      { id: 'del-3-2', title: 'Adquisición de primer lote de prueba (15 tarjetas NTAG215 vírgenes)', completed: true, assignedTo: 'kevin' },
+      { id: 'del-3-3', title: 'Construcción y despliegue del ERP/CRM LinkeoGes para control integral', completed: true, assignedTo: 'luis' },
       { id: 'del-3-4', title: 'Rutas presenciales de prospección en distritos clave (Miraflores, San Isidro, Barranco)', completed: false, assignedTo: 'both' },
       { id: 'del-3-5', title: 'Kit de empaque premium con sobres y stickers corporativos Linkeo', completed: false, assignedTo: 'kevin' }
     ]
@@ -326,14 +379,14 @@ export const INITIAL_PROJECT_PHASES = [
     key: 'monitoreo',
     name: '4. Monitoreo, Control & Auditoría',
     description: 'Conciliación periódica de cuentas 50/50, seguimiento de stock crítico, registro de auditoría y feedback de clientes.',
-    progress: 0,
-    status: 'pendiente',
+    progress: 100,
+    status: 'completado',
     leader: 'both',
     deliverables: [
-      { id: 'del-4-1', title: 'Algoritmo de balance y liquidación automática 50/50 en tiempo real', completed: false, assignedTo: 'luis' },
-      { id: 'del-4-2', title: 'Sistema de alertas por quiebre de stock (< 20 unidades) considerando 18 días de envío', completed: false, assignedTo: 'kevin' },
-      { id: 'del-4-3', title: 'Bitácora universal de auditoría con registro de bajas, ediciones y creadores', completed: false, assignedTo: 'both' },
-      { id: 'del-4-4', title: 'Métricas de conversión y velocidad de ciclo de ventas en Kanban', completed: false, assignedTo: 'luis' }
+      { id: 'del-4-1', title: 'Algoritmo de balance y liquidación automática 50/50 en tiempo real', completed: true, assignedTo: 'luis' },
+      { id: 'del-4-2', title: 'Sistema de alertas por quiebre de stock (< 20 unidades) considerando 18 días de envío', completed: true, assignedTo: 'kevin' },
+      { id: 'del-4-3', title: 'Bitácora universal de auditoría con registro de bajas, ediciones y creadores', completed: true, assignedTo: 'both' },
+      { id: 'del-4-4', title: 'Métricas de conversión y velocidad de ciclo de ventas en Kanban', completed: true, assignedTo: 'luis' }
     ]
   },
   {
@@ -342,12 +395,12 @@ export const INITIAL_PROJECT_PHASES = [
     key: 'finalizacion',
     name: '5. Cierre de Fase & Escalamiento a Nuevas Líneas',
     description: 'Consolidación del modelo en Lima, cierre contable mensual y apertura de innovaciones (menús QR, vCard, Supabase).',
-    progress: 0,
-    status: 'pendiente',
+    progress: 20,
+    status: 'en_proceso',
     leader: 'both',
     deliverables: [
       { id: 'del-5-1', title: 'Evaluación del primer mes de operación y distribución de utilidades', completed: false, assignedTo: 'both' },
-      { id: 'del-5-2', title: 'Migración a base de datos persistente en nube (Supabase + Vercel con cuenta oficial Linkeo)', completed: false, assignedTo: 'both' },
+      { id: 'del-5-2', title: 'Migración a base de datos persistente en nube (Supabase + Vercel con cuenta oficial Linkeo)', completed: true, assignedTo: 'both' },
       { id: 'del-5-3', title: 'Desarrollo de línea de Menús Digitales QR para restaurantes y cafeterías', completed: false, assignedTo: 'kevin' },
       { id: 'del-5-4', title: 'Desarrollo de línea de Tarjetas Personales Ejecutivas vCard NFC', completed: false, assignedTo: 'luis' },
       { id: 'del-5-5', title: 'Expansión de ventas a distritos de Lima Norte y provincias', completed: false, assignedTo: 'both' }
@@ -401,6 +454,14 @@ export const EXCEL_INITIAL_INVESTMENT_TEMPLATE = [
   { id: 'inv-8', concept: 'Fondo de imprevistos', quantity: 1, unitCost: 100.00, total: 100.00 }
 ];
 
+export const DEFAULT_VARIABLE_COSTS_TEMPLATE = [
+  { id: 'vc-packaging', concept: 'Empaque por Unidad', type: 'unit_amount', amount: 0, note: 'Bolsa Kraft, estuche o caja protectora con sticker' },
+  { id: 'vc-labor', concept: 'Mano de Obra / Configuración NDEF', type: 'unit_amount', amount: 0, note: 'Tiempo invertido en grabación y pruebas con smartphone' },
+  { id: 'vc-gateway', concept: 'Comisión de Cobro (% Venta)', type: 'percentage', amount: 0, note: '0% si es Yape/Plin, ~4% si es POS tarjeta' },
+  { id: 'vc-delivery', concept: 'Delivery Asumido por Linkeo', type: 'unit_amount', amount: 0, note: 'S/ 0 si el cliente recoge o asume el envío' },
+  { id: 'vc-warranty', concept: 'Reserva por Defectos / Garantía', type: 'unit_amount', amount: 0, note: 'Fondo para reposición inmediata al cliente' }
+];
+
 // Configuración base de Proyecciones: Escenario Libre con valores limpios para registro manual
 export const INITIAL_PROJECTIONS_DATA = {
   // Parámetros generales del negocio (Escenario Libre)
@@ -414,6 +475,9 @@ export const INITIAL_PROJECTIONS_DATA = {
 
   // Gastos Fijos Mensuales (inicia vacío)
   fixedCosts: [],
+
+  // Gastos y Costos Variables (inicia vacío para escenario libre)
+  variableCosts: [],
 
   // Costos Variables Unitarios Adicionales (inicia en 0)
   variableUnitCosts: {

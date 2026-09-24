@@ -20,6 +20,7 @@ import DeleteConfirmModal from './components/DeleteConfirmModal';
 import LoginModal from './components/LoginModal';
 import UserProfileModal from './components/UserProfileModal';
 import MasterDataModal from './components/MasterDataModal';
+import DistrictCombobox from './components/DistrictCombobox.jsx';
 const ProjectLifecycleView = lazy(() => import('./components/ProjectLifecycleView'));
 import ToastNotification from './components/ToastNotification';
 import { isSupabaseConfigured, supabase } from './services/supabase';
@@ -110,8 +111,93 @@ export default function App() {
   const setPlan30Days = value => cloud.set('plan30Days', value);
   const calendarEvents = cloud.data.calendarEvents;
   const setCalendarEvents = value => cloud.set('calendarEvents', value);
-  const products = cloud.data.products;
+  const rawProducts = cloud.data.products;
   const setProducts = value => cloud.set('products', value);
+
+  // Catálogo comercial consolidado: unifica nube, productos oficiales y stock físico de inventario
+  const products = useMemo(() => {
+    const list = Array.isArray(rawProducts) ? [...rawProducts].filter(p => p && p.name && p.name.trim()) : [];
+    const seenSkus = new Set(list.map(p => p.sku).filter(Boolean));
+    const seenNames = new Set(list.map(p => p.name?.trim().toLowerCase()).filter(Boolean));
+    const seenInvIds = new Set(list.map(p => p.inventoryId).filter(Boolean));
+
+    // 1. Garantizar que todos los productos oficiales base de Linkeo siempre estén en el catálogo
+    if (Array.isArray(INITIAL_PRODUCTS)) {
+      INITIAL_PRODUCTS.forEach(ip => {
+        const norm = ip.name?.trim().toLowerCase();
+        if (!seenNames.has(norm) && (!ip.sku || !seenSkus.has(ip.sku))) {
+          list.push({ ...ip });
+          if (ip.sku) seenSkus.add(ip.sku);
+          if (ip.name) seenNames.add(norm);
+          if (ip.inventoryId) seenInvIds.add(ip.inventoryId);
+        }
+      });
+    }
+
+    // 2. Traer e incorporar automáticamente todo el inventario físico al Catálogo comercial
+    inventory.forEach(item => {
+      const normName = item.name?.trim().toLowerCase();
+      const existing = list.find(p => 
+        (item.sku && p.sku === item.sku) || 
+        (item.id && p.inventoryId === item.id) ||
+        (normName && p.name?.trim().toLowerCase() === normName)
+      );
+
+      if (!existing) {
+        const cost = Number(item.unitCost) || 13.00;
+        let price = 60.00;
+        if (item.sku === 'SKU-LNK-9972' || normName.includes('formato l') || normName.includes(' l esp')) {
+          price = 80.00;
+        } else if (item.sku === 'SKU-LNK-1367' || item.sku === 'SKU-LNK-6781') {
+          price = 60.00;
+        } else if (cost > 0) {
+          price = Number((cost * 2.5).toFixed(2));
+        }
+
+        const margin = Math.max(0, price - cost);
+        const marginPct = price > 0 ? Number(((margin / price) * 100).toFixed(1)) : 0;
+
+        list.push({
+          id: `prod-inv-${item.id}`,
+          inventoryId: item.id,
+          name: item.name,
+          sku: item.sku || `SKU-${item.id}`,
+          category: item.category?.toUpperCase().includes('CHIP') ? 'Individual' : (item.category || 'Individual'),
+          type: 'individual',
+          price: Number(price.toFixed(2)),
+          cost: Number(cost.toFixed(2)),
+          margin: Number(margin.toFixed(2)),
+          marginPct,
+          stock: Number(item.quantity) || 0,
+          badge: item.sku === 'SKU-LNK-9972' ? 'Premium' : 'Popular',
+          description: item.notes || `Producto oficial configurado con chip NFC para Google Reviews.`,
+          bundleItems: []
+        });
+
+        if (item.sku) seenSkus.add(item.sku);
+        if (item.id) seenInvIds.add(item.id);
+        if (normName) seenNames.add(normName);
+      } else {
+        existing.stock = Number(item.quantity) || 0;
+        if (!existing.inventoryId) existing.inventoryId = item.id;
+        if (item.unitCost && (!existing.cost || existing.cost === 13)) {
+          existing.cost = Number(item.unitCost);
+          existing.margin = Math.max(0, Number((existing.price - existing.cost).toFixed(2)));
+          existing.marginPct = existing.price > 0 ? Number(((existing.margin / existing.price) * 100).toFixed(1)) : 0;
+        }
+      }
+    });
+
+    return list;
+  }, [rawProducts, inventory]);
+
+  // Sembrar catálogo en la nube automáticamente cuando la sesión esté lista si aún no existían filas
+  useEffect(() => {
+    if (cloud.status === 'ready' && rawProducts.length === 0 && products.length > 0) {
+      cloud.set('products', products);
+    }
+  }, [cloud.status, rawProducts.length, products]);
+
   const auditLogs = cloud.data.auditLogs;
   const setAuditLogs = value => cloud.set('auditLogs', value);
   const projectionsData = cloud.data.projectionsData;
@@ -135,7 +221,7 @@ export default function App() {
     contactPerson: '',
     phone: '',
     district: districts[0] || 'Miraflores',
-    productId: products[0]?.id || '',
+    productId: '',
     quantity: 1,
     paymentMethod: 'Yape',
     soldBy: currentUser?.id || 'luis',
@@ -355,14 +441,29 @@ export default function App() {
     showToast('✓ Datos de demostración cargados exitosamente.', 'success');
   };
 
+  // Helper para abrir modal de Nueva Venta con el primer producto activo preseleccionado
+  const handleOpenNewSaleModal = () => {
+    const firstProd = products[0];
+    setNewSaleForm(prev => ({
+      ...prev,
+      productId: prev.productId && products.some(p => p.id === prev.productId) ? prev.productId : (firstProd?.id || ''),
+      quantity: 1,
+      isCustomPricing: false,
+      customUnitPrice: '',
+      customUnitCost: ''
+    }));
+    setIsNewSaleModalOpen(true);
+  };
+
   // Helper para cerrar y limpiar modal de Nueva Venta
   const handleCloseNewSaleModal = () => {
+    const firstProd = products[0];
     setNewSaleForm({
       clientName: '',
       contactPerson: '',
       phone: '',
       district: districts[0] || 'Miraflores',
-      productId: products[0]?.id || '',
+      productId: firstProd?.id || '',
       quantity: 1,
       paymentMethod: 'Yape',
       soldBy: currentUser?.id || 'luis',
@@ -399,12 +500,48 @@ export default function App() {
   const handleAddNewSale = e => {
     e.preventDefault();
     try {
-      const product = products.find(p => p.id === newSaleForm.productId) || products[0];
-      const result = createSale({ form: newSaleForm, product, inventory, userId: currentUser.id });
+      const selectedId = newSaleForm.productId || products[0]?.id;
+      const product = products.find(p => p.id === selectedId) || products[0];
+      if (!product) throw new Error('Selecciona un producto del catálogo.');
+      const result = createSale({ form: { ...newSaleForm, productId: product.id }, product, inventory, userId: currentUser.id });
       setInventory(result.inventory);
       setSales(prev => [result.sale, ...prev]);
       setNfcCards(prev => [...result.cards, ...prev]);
-      logAudit({ actionType: 'Creación', entityType: 'Venta', entityId: result.sale.id, entityName: result.sale.clientName, reason: 'Venta y stock registrados conjuntamente.' });
+
+      // Al registrar una venta, va directamente a "Entregado y Cobrado" (etapa 5) sin pasar por flujos anteriores
+      const clientNorm = (result.sale.clientName || '').trim().toLowerCase();
+      const existingLeadIndex = leads.findIndex(l => (l.businessName || '').trim().toLowerCase() === clientNorm);
+
+      if (existingLeadIndex !== -1) {
+        setLeads(prev => prev.map((l, idx) => idx === existingLeadIndex ? {
+          ...l,
+          stage: 'entregado',
+          contacted: true,
+          estimatedValue: Number(result.sale.totalAmount) || l.estimatedValue,
+          notes: `${l.notes ? l.notes + ' | ' : ''}Venta confirmada: S/ ${Number(result.sale.totalAmount).toFixed(2)}`
+        } : l));
+      } else {
+        const directSaleLead = {
+          id: `lead-sale-${result.sale.id || Date.now()}`,
+          businessName: result.sale.clientName,
+          rubro: 'Tienda / Retail',
+          district: result.sale.district || districts[0] || 'Miraflores',
+          address: '',
+          contactName: result.sale.contactPerson || result.sale.clientName,
+          phone: result.sale.phone || '',
+          stage: 'entregado',
+          contacted: true,
+          interestedProduct: product.name,
+          estimatedValue: Number(result.sale.totalAmount) || Number(product.price) || 0,
+          assignedTo: result.sale.soldBy || currentUser?.id || 'luis',
+          notes: `Venta directa registrada (#${result.sale.id || 'VTA'}). Entregado y cobrado.`,
+          nextStepNote: 'Post-venta y fidelización',
+          nextStepDate: localDate()
+        };
+        setLeads(prev => [directSaleLead, ...prev]);
+      }
+
+      logAudit({ actionType: 'Creación', entityType: 'Venta', entityId: result.sale.id, entityName: result.sale.clientName, reason: 'Venta y stock registrados conjuntamente. Prospecto directo a Entregado y Cobrado.' });
       cloud.engine.afterSaved(() => { handleCloseNewSaleModal(); pushToast('Venta confirmada en la nube'); });
     } catch (error) { showToast(error.message, 'error'); }
   };
@@ -547,10 +684,10 @@ export default function App() {
         paymentMethod: 'Transferencia', googlePlaceId: lead.placeId || '' };
       const result = createSale({ form, product, inventory, userId: currentUser.id });
       setInventory(result.inventory);
-      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, stage: 'entregado' } : l));
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, stage: 'entregado', contacted: true } : l));
       setSales(prev => [{ ...result.sale, leadId: lead.id }, ...prev]);
       setNfcCards(prev => [...result.cards, ...prev]);
-      logAudit({ actionType: 'Creación', entityType: 'Venta', entityId: result.sale.id, entityName: lead.businessName, reason: 'Venta convertida desde prospecto.' });
+      logAudit({ actionType: 'Creación', entityType: 'Venta', entityId: result.sale.id, entityName: lead.businessName, reason: 'Venta convertida desde prospecto directamente a Entregado y Cobrado.' });
       return true;
     } catch (error) { showToast(error.message, 'error'); return false; }
   };
@@ -603,13 +740,22 @@ export default function App() {
     });
   };
   const handleEditPlanTask = updatedTask => {
-    setPlan30Days(prev => prev.map(t => t.day === updatedTask.day ? updatedTask : t));
+    setPlan30Days(prev => prev.map(t => {
+      const match = updatedTask._originalDay !== undefined 
+        ? t.day === updatedTask._originalDay 
+        : t.day === updatedTask.day;
+      if (match) {
+        const { _originalDay, ...cleanTask } = updatedTask;
+        return cleanTask;
+      }
+      return t;
+    }));
     logAudit({
       actionType: 'Modificación',
       entityType: 'Plan 30 Días',
       entityId: `dia-${updatedTask.day}`,
       entityName: `Día ${updatedTask.day}: ${updatedTask.action}`,
-      reason: `Modificación de meta, canal o responsable de tarea del plan.`
+      reason: `Modificación de parámetros o contenido de tarea del plan.`
     });
   };
 
@@ -639,6 +785,20 @@ export default function App() {
       entityName: `Hito de Fase: ${phaseId}`,
       reason: 'Cambio de estado en entregable de fase ERP.'
     });
+  };
+
+  const handleSyncActualProgress = () => {
+    setProjectPhases(INITIAL_PROJECT_PHASES);
+    logAudit({
+      actionType: 'Modificación',
+      entityType: 'Entregable',
+      entityId: 'sync-all-phases',
+      entityName: 'Gestión de Proyecto (5 Fases)',
+      reason: 'Sincronización masiva de hitos con el avance real auditado del proyecto (74%).'
+    });
+    if (showToast) {
+      showToast('✓ Avance del proyecto sincronizado al 74% (17 hitos completados)', 'success', 2500);
+    }
   };
   const handleAddDeliverable = (phaseId, newDel) => {
     setProjectPhases(prev => prev.map(phase => {
@@ -735,7 +895,10 @@ export default function App() {
       id: inventoryId, sku: newProd.sku, name: newProd.name, category: newProd.category,
       quantity: Number(newProd.stock ?? 0), minThreshold: 5, unitCost: Number(newProd.cost), leadTimeDays: 7
     }]);
-    setProducts(prev => [...prev, { ...newProd, inventoryId: newProd.bundleItems?.length ? undefined : inventoryId }]);
+    setProducts(prev => {
+      const baseList = (prev && prev.length > 0) ? prev : products;
+      return [...baseList, { ...newProd, inventoryId: newProd.bundleItems?.length ? undefined : inventoryId }];
+    });
     logAudit({
       actionType: 'Creación',
       entityType: 'Producto',
@@ -745,7 +908,10 @@ export default function App() {
     });
   };
   const handleEditProduct = updatedProd => {
-    setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p));
+    setProducts(prev => {
+      const baseList = (prev && prev.length > 0) ? prev : products;
+      return baseList.map(p => p.id === updatedProd.id ? updatedProd : p);
+    });
     logAudit({
       actionType: 'Modificación',
       entityType: 'Producto',
@@ -837,6 +1003,11 @@ export default function App() {
       setProjectionsData(prev => ({
         ...prev,
         fixedCosts: (prev.fixedCosts || []).filter(fc => fc.id !== item.id)
+      }));
+    } else if (entityType === 'Gasto Variable' || entityType === 'Costo Variable') {
+      setProjectionsData(prev => ({
+        ...prev,
+        variableCosts: (prev.variableCosts || []).filter(vc => vc.id !== item.id)
       }));
     } else if (entityType === 'Mix Producto') {
       setProjectionsData(prev => ({
@@ -974,6 +1145,11 @@ export default function App() {
           ...prev,
           fixedCosts: [...(prev.fixedCosts || []), auditLog.snapshot]
         }));
+      } else if (auditLog.entityType === 'Gasto Variable' || auditLog.entityType === 'Costo Variable') {
+        setProjectionsData(prev => ({
+          ...prev,
+          variableCosts: [...(prev.variableCosts || []), auditLog.snapshot]
+        }));
       } else if (auditLog.entityType === 'Mix Producto') {
         setProjectionsData(prev => ({
           ...prev,
@@ -1016,6 +1192,11 @@ export default function App() {
           ...prev,
           fixedCosts: (prev.fixedCosts || []).filter(fc => fc.id !== id)
         }));
+      } else if (auditLog.entityType === 'Gasto Variable' || auditLog.entityType === 'Costo Variable') {
+        setProjectionsData(prev => ({
+          ...prev,
+          variableCosts: (prev.variableCosts || []).filter(vc => vc.id !== id)
+        }));
       } else if (auditLog.entityType === 'Mix Producto') {
         setProjectionsData(prev => ({
           ...prev,
@@ -1042,6 +1223,11 @@ export default function App() {
           setProjectionsData(prev => ({
             ...prev,
             fixedCosts: (prev.fixedCosts || []).map(fc => fc.id === id ? auditLog.snapshot : fc)
+          }));
+        } else if (auditLog.entityType === 'Gasto Variable' || auditLog.entityType === 'Costo Variable') {
+          setProjectionsData(prev => ({
+            ...prev,
+            variableCosts: (prev.variableCosts || []).map(vc => vc.id === id ? auditLog.snapshot : vc)
           }));
         } else if (auditLog.entityType === 'Mix Producto') {
           setProjectionsData(prev => ({
@@ -1166,7 +1352,7 @@ export default function App() {
       <MasterDataModal isOpen={isMasterDataModalOpen} onClose={() => setIsMasterDataModalOpen(false)} districts={districts} onAddDistrict={handleAddDistrict} onDeleteDistrict={handleDeleteDistrict} />
 
       {/* Sidebar de Navegación Lateral */}
-      <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} nfcCardsCount={nfcCards.length} leadsCount={leads.filter(l => l.stage !== 'entregado' && l.stage !== 'postventa').length} inventoryAlertsCount={inventory.filter(i => i.quantity <= i.minThreshold).length} auditLogsCount={auditLogs.length} productsCount={products.length} partnerBalance={partnerBalance} expenses={expenses} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} mobileOpen={mobileMenuOpen} onCloseMobileMenu={() => setMobileMenuOpen(false)} onOpenMasterData={() => setIsMasterDataModalOpen(true)} partnersState={partnersState} currentUser={currentUser} onOpenProfile={() => setIsProfileModalOpen(true)} isCloudReady={isSupabaseConfigured} onOpenNewSale={() => setIsNewSaleModalOpen(true)} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onExportExcel={handleExportExcel} />
+      <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} nfcCardsCount={nfcCards.length} leadsCount={leads.filter(l => l.stage !== 'entregado' && l.stage !== 'postventa').length} inventoryAlertsCount={inventory.filter(i => i.quantity <= i.minThreshold).length} auditLogsCount={auditLogs.length} productsCount={products.length} partnerBalance={partnerBalance} expenses={expenses} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} mobileOpen={mobileMenuOpen} onCloseMobileMenu={() => setMobileMenuOpen(false)} onOpenMasterData={() => setIsMasterDataModalOpen(true)} partnersState={partnersState} currentUser={currentUser} onOpenProfile={() => setIsProfileModalOpen(true)} isCloudReady={isSupabaseConfigured} onOpenNewSale={handleOpenNewSaleModal} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onExportExcel={handleExportExcel} />
 
       {/* Contenido Principal */}
       <div className="main-content">
@@ -1178,7 +1364,7 @@ export default function App() {
             status
           }
         }));
-      }} onOpenNewSale={() => setIsNewSaleModalOpen(true)} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onOpenNewNfc={() => setCurrentTab('nfc-traceability')} onExportExcel={handleExportExcel} toggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)} currentUser={currentUser} onOpenProfile={() => setIsProfileModalOpen(true)} onOpenMasterData={() => setIsMasterDataModalOpen(true)} onResetToZero={handleResetToZero} onLoadDemoData={handleLoadDemoData} isCloudReady={isSupabaseConfigured} onSyncCloud={() => loadCloudData(true)} isSyncing={isSyncing} />
+      }} onOpenNewSale={handleOpenNewSaleModal} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onOpenNewNfc={() => setCurrentTab('nfc-traceability')} onExportExcel={handleExportExcel} toggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)} currentUser={currentUser} onOpenProfile={() => setIsProfileModalOpen(true)} onOpenMasterData={() => setIsMasterDataModalOpen(true)} onResetToZero={handleResetToZero} onLoadDemoData={handleLoadDemoData} isCloudReady={isSupabaseConfigured} onSyncCloud={() => loadCloudData(true)} isSyncing={isSyncing} />
 
         <main className="content-body" inert={cloud.status === "loading" || cloud.status === "error" ? true : undefined}>
 <Suspense fallback={<p>Cargando módulo…</p>}>
@@ -1186,10 +1372,10 @@ export default function App() {
           {currentTab === 'dashboard' && <DashboardView sales={sales} expenses={expenses} nfcCards={nfcCards} inventory={inventory} leads={leads} targets={dynamicTargets} partnerBalance={partnerBalance} setCurrentTab={setCurrentTab} onOpenCardDetails={card => {
           setSelectedCardModal(card);
           setCurrentTab('nfc-traceability');
-        }} onOpenNewSale={() => setIsNewSaleModalOpen(true)} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onRequestDelete={handleRequestDelete} />}
+        }} onOpenNewSale={handleOpenNewSaleModal} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onRequestDelete={handleRequestDelete} projectionsData={projectionsData} onUpdateProjectionsData={setProjectionsData} showToast={showToast} />}
 
           {/* MÓDULO 2: Gestión de Proyecto (5 Fases ERP) */}
-          {currentTab === 'lifecycle' && <ProjectLifecycleView projectPhases={projectPhases} onToggleDeliverable={handleToggleDeliverable} onAddDeliverable={handleAddDeliverable} onEditDeliverable={handleEditDeliverable} onDeleteDeliverable={(phaseId, del) => handleRequestDelete(del, 'Entregable')} currentUser={currentUser} />}
+          {currentTab === 'lifecycle' && <ProjectLifecycleView projectPhases={projectPhases} onToggleDeliverable={handleToggleDeliverable} onAddDeliverable={handleAddDeliverable} onEditDeliverable={handleEditDeliverable} onDeleteDeliverable={(phaseId, del) => handleRequestDelete(del, 'Entregable')} currentUser={currentUser} onSyncActualProgress={handleSyncActualProgress} />}
 
           {/* MÓDULO 3: Trazabilidad Chips NFC */}
           {currentTab === 'nfc-traceability' && <NfcTraceabilityView nfcCards={nfcCards} products={products} inventory={inventory} onUpdateCard={handleUpdateCard} onAddNewCard={handleAddNewCard} selectedCardModal={selectedCardModal} setSelectedCardModal={setSelectedCardModal} onRequestDelete={handleRequestDelete} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
@@ -1204,7 +1390,7 @@ export default function App() {
           {(currentTab === 'inventory' || currentTab === 'products') && <InventoryView inventory={inventory} products={products} suppliers={suppliers} onUpdateInventoryStock={handleUpdateInventoryStock} onAddNewInventoryItem={handleAddNewInventoryItem} onAddNewProduct={handleAddNewProduct} onAddNewSupplier={handleAddNewSupplier} onEditSupplier={handleEditSupplier} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onRequestDelete={handleRequestDelete} initialSubTab={currentTab === 'products' ? 'catalog' : 'catalog'} showToast={showToast} />}
 
           {/* MÓDULO 7: Finanzas & Balances 50/50 */}
-          {currentTab === 'finances' && <FinanceView sales={sales} expenses={expenses} products={products} inventory={inventory} onAddNewExpense={handleAddNewExpense} onEditExpense={handleEditExpense} onAddNewSale={() => setIsNewSaleModalOpen(true)} onExportExcel={handleExportExcel} partnerBalance={partnerBalance} onSettlePartnerDebt={handleSettlePartnerDebt} targets={dynamicTargets} onRequestDelete={handleRequestDelete} onAddNewProduct={handleAddNewProduct} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
+          {currentTab === 'finances' && <FinanceView sales={sales} expenses={expenses} products={products} inventory={inventory} onAddNewExpense={handleAddNewExpense} onEditExpense={handleEditExpense} onAddNewSale={handleOpenNewSaleModal} onExportExcel={handleExportExcel} partnerBalance={partnerBalance} onSettlePartnerDebt={handleSettlePartnerDebt} targets={dynamicTargets} onRequestDelete={handleRequestDelete} onAddNewProduct={handleAddNewProduct} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
 
           {/* MÓDULO 8: Proyecciones, Costos & Metas (Escenario Libre & Plan 30 Días) */}
           {currentTab === 'projections' && <ProjectionsView projectionsData={projectionsData} onUpdateProjectionsData={setProjectionsData} products={products} inventory={inventory} plan30Days={plan30Days} setPlan30Days={setPlan30Days} onTogglePlanTask={handleTogglePlanTask} onAddPlanTask={handleAddPlanTask} onEditPlanTask={handleEditPlanTask} onRequestDelete={handleRequestDelete} logAudit={logAudit} currentUser={currentUser} setCurrentTab={setCurrentTab} showToast={showToast} />}
@@ -1216,7 +1402,7 @@ export default function App() {
         <MobileBottomNav 
           currentTab={currentTab}
           setCurrentTab={setCurrentTab}
-          onOpenNewSale={() => setIsNewSaleModalOpen(true)}
+          onOpenNewSale={handleOpenNewSaleModal}
           onOpenNewExpense={() => setIsNewExpenseModalOpen(true)}
           toggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
           nfcCardsCount={nfcCards.length}
@@ -1244,13 +1430,20 @@ export default function App() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Producto o Pack:</label>
-                  <select className="form-control" value={newSaleForm.productId} onChange={e => setNewSaleForm({
-                ...newSaleForm,
-                productId: e.target.value
-              })} required>
-                    {products.length === 0 ? <option value="">(Sin productos — Agrega en Catálogo)</option> : products.map(p => <option key={p.id} value={p.id}>
-                          {p.name} — S/ {p.price.toFixed(2)}
-                        </option>)}
+                  <select 
+                    className="form-control" 
+                    value={newSaleForm.productId || (products[0] ? products[0].id : (INITIAL_PRODUCTS[0]?.id || ''))} 
+                    onChange={e => setNewSaleForm({
+                      ...newSaleForm,
+                      productId: e.target.value
+                    })} 
+                    required
+                  >
+                    {(products.length > 0 ? products : INITIAL_PRODUCTS).map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — S/ {Number(p.price || 0).toFixed(2)} {p.stock > 0 ? `(${p.stock} en stock)` : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1265,7 +1458,8 @@ export default function App() {
 
               {/* Panel de Precios de Almacén y Opción de Modificar Costo / Precio */}
               {(() => {
-            const currentProd = products.find(p => p.id === newSaleForm.productId) || products[0];
+            const selectedProdId = newSaleForm.productId || products[0]?.id;
+            const currentProd = products.find(p => p.id === selectedProdId) || products[0];
             const defaultPrice = currentProd ? Number(currentProd.price || 0) : 0;
             const defaultCost = currentProd ? Number(currentProd.cost || 0) : 0;
             const currentUnitPrice = newSaleForm.isCustomPricing && newSaleForm.customUnitPrice !== '' ? Number(newSaleForm.customUnitPrice) : defaultPrice;
@@ -1385,12 +1579,12 @@ export default function App() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Distrito de Lima (Maestro Central):</label>
-                  <select className="form-control" value={newSaleForm.district} onChange={e => setNewSaleForm({
-                ...newSaleForm,
-                district: e.target.value
-              })}>
-                    {districts.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
+                  <DistrictCombobox 
+                    value={newSaleForm.district}
+                    onChange={dist => setNewSaleForm({ ...newSaleForm, district: dist })}
+                    districts={districts}
+                    required
+                  />
                 </div>
 
                 <div className="form-group">
