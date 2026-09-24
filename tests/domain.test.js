@@ -6,6 +6,7 @@ import { computeDynamicTargets } from '../src/utils/projectionsUtils.js';
 import { localDate, getAccountingMonth, accountingMonths } from '../src/utils/dateUtils.js';
 import { createSale, getStockMovements, applyStockMovements } from '../src/utils/operations.js';
 import { INITIAL_PRODUCTS, INITIAL_INVENTORY } from '../src/data/initialData.js';
+import { formatGoogleMapsUrl } from '../src/utils/mapsUtils.js';
 
 test('cloud round trips preserve all fields in every entity', () => {
   for (const entity of ['sale','expense','lead','nfc','inventory','supplier','event','product','auditLog']) {
@@ -303,9 +304,29 @@ test('lead captures and preserves optional email/gmail address', () => {
 });
 
 test('lead captures, formats and preserves google maps url with check verification', () => {
-  const rawMapsUrl = 'maps.app.goo.gl/example123';
-  const formattedUrl = /^https?:\/\//i.test(rawMapsUrl) ? rawMapsUrl : `https://${rawMapsUrl}`;
-  assert.equal(formattedUrl, 'https://maps.app.goo.gl/example123');
+  // 1. Enlace corto de Maps sin protocolo -> añade https://
+  const shortUrl = formatGoogleMapsUrl('maps.app.goo.gl/example123');
+  assert.equal(shortUrl, 'https://maps.app.goo.gl/example123');
+
+  // 2. Enlace completo con protocolo -> se preserva
+  const fullUrl = formatGoogleMapsUrl('https://maps.app.goo.gl/example123');
+  assert.equal(fullUrl, 'https://maps.app.goo.gl/example123');
+
+  // 3. Dirección física escrita directamente -> convierte a búsqueda en Google Maps (evita error NXDOMAIN)
+  const addressUrl = formatGoogleMapsUrl('Av. Caminos del Inca 2974, Lima 15039');
+  assert.equal(addressUrl, 'https://www.google.com/maps/search/?api=1&query=Av.%20Caminos%20del%20Inca%202974%2C%20Lima%2015039');
+
+  // 4. Dirección física que tenía https:// prefijado por error previo -> limpia y convierte a búsqueda
+  const corruptedUrl = formatGoogleMapsUrl('https://Av. Caminos del Inca 2974, Lima 15039');
+  assert.equal(corruptedUrl, 'https://www.google.com/maps/search/?api=1&query=Av.%20Caminos%20del%20Inca%202974%2C%20Lima%2015039');
+
+  // 5. Campo vacío con datos de negocio -> genera búsqueda automática con el contexto
+  const fallbackUrl = formatGoogleMapsUrl('', {
+    businessName: 'Glowe Studio',
+    address: 'Av. Caminos del Inca 2904',
+    district: 'Santiago de Surco'
+  });
+  assert.equal(fallbackUrl, 'https://www.google.com/maps/search/?api=1&query=Glowe%20Studio%20Av.%20Caminos%20del%20Inca%202904%20Santiago%20de%20Surco%20Lima%2C%20Per%C3%BA');
 
   const leadWithMaps = {
     id: 'lead-maps-1',
@@ -314,15 +335,15 @@ test('lead captures, formats and preserves google maps url with check verificati
     phone: '933668238',
     district: 'Santiago de Surco',
     address: 'Av. Caminos del Inca 2904',
-    googleMapsUrl: formattedUrl,
+    googleMapsUrl: addressUrl,
     stage: 'visitado',
     estimatedValue: 60
   };
 
   const dbRow = mappers.leadToDb(leadWithMaps);
-  assert.equal(dbRow.google_maps_url, 'https://maps.app.goo.gl/example123');
+  assert.equal(dbRow.google_maps_url, addressUrl);
   const frontObj = mappers.leadToFront(dbRow);
-  assert.equal(frontObj.googleMapsUrl, 'https://maps.app.goo.gl/example123');
+  assert.equal(frontObj.googleMapsUrl, addressUrl);
 });
 
 test('phone input is strictly limited to 9 numeric digits and formats international WhatsApp link', () => {

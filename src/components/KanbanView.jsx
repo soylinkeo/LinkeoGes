@@ -40,7 +40,8 @@ export const normalizeLeadStage = (stage) => {
 };
 
 import { buildLeadWhatsAppMessage } from '../utils/leadMessages.js';
-export { buildLeadWhatsAppMessage };
+import { formatGoogleMapsUrl } from '../utils/mapsUtils.js';
+export { buildLeadWhatsAppMessage, formatGoogleMapsUrl };
 
 export default function KanbanView({
   leads = [],
@@ -148,7 +149,12 @@ export default function KanbanView({
 
   const handleOpenEditLead = (lead) => {
     setEditingLead(lead);
-    const hasMapsUrl = Boolean(lead.googleMapsUrl && lead.googleMapsUrl.trim());
+    const sanitizedMaps = lead.googleMapsUrl ? formatGoogleMapsUrl(lead.googleMapsUrl, {
+      businessName: lead.businessName,
+      address: lead.address,
+      district: lead.district
+    }) : '';
+    const hasMapsUrl = Boolean(sanitizedMaps && sanitizedMaps.trim());
     const rawPhone = String(lead.phone || '').replace(/\D/g, '');
     const normalizedPhone = rawPhone.length === 11 && rawPhone.startsWith('51') ? rawPhone.slice(2) : rawPhone.slice(0, 9);
     setEditLeadForm({
@@ -157,7 +163,7 @@ export default function KanbanView({
       rubro: lead.rubro || 'Restaurante / Cafetería',
       district: lead.district || (districts[0] || 'Miraflores'),
       address: lead.address || '',
-      googleMapsUrl: lead.googleMapsUrl || '',
+      googleMapsUrl: sanitizedMaps,
       isMapsVerified: hasMapsUrl,
       contactName: lead.contactName || '',
       phone: normalizedPhone,
@@ -185,26 +191,18 @@ export default function KanbanView({
     const form = isNew ? newLeadForm : editLeadForm;
     const setForm = isNew ? setNewLeadForm : setEditLeadForm;
 
-    let rawUrl = (form.googleMapsUrl || '').trim();
+    const rawUrl = (form.googleMapsUrl || '').trim();
+    const fallbackContext = {
+      businessName: form.businessName,
+      address: form.address,
+      district: form.district
+    };
 
-    if (!rawUrl) {
-      // Si está en blanco, generar consulta con nombre, dirección y distrito
-      const queryParts = [form.businessName, form.address, form.district, 'Lima, Perú'].filter(Boolean);
-      const query = queryParts.join(' ');
-      if (!query.trim()) {
-        if (showToast) showToast('Ingresa un enlace o el nombre del negocio para buscarlo.', 'warning');
-        return;
-      }
-      const searchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
-      setForm(prev => ({ ...prev, googleMapsUrl: searchUrl, isMapsVerified: true }));
-      window.open(searchUrl, '_blank', 'noopener,noreferrer');
-      if (showToast) showToast('🔍 Abriendo búsqueda en Google Maps al momento...', 'info');
+    const formattedUrl = formatGoogleMapsUrl(rawUrl, fallbackContext);
+
+    if (!formattedUrl) {
+      if (showToast) showToast('Ingresa un enlace, una dirección física o el nombre del negocio para buscarlo.', 'warning');
       return;
-    }
-
-    let formattedUrl = rawUrl;
-    if (!/^https?:\/\//i.test(formattedUrl)) {
-      formattedUrl = `https://${formattedUrl}`;
     }
 
     setForm(prev => ({
@@ -216,7 +214,7 @@ export default function KanbanView({
     // Buscar y abrir al momento en nueva pestaña
     window.open(formattedUrl, '_blank', 'noopener,noreferrer');
     if (showToast) {
-      showToast('🗺️ Enlace de Google Maps verificado y abierto al momento', 'success');
+      showToast('Enlace de Google Maps verificado y abierto al momento', 'success');
     }
   };
 
@@ -226,16 +224,18 @@ export default function KanbanView({
     const form = isNew ? newLeadForm : editLeadForm;
     const setForm = isNew ? setNewLeadForm : setEditLeadForm;
 
-    const queryParts = [form.businessName, form.address, form.district, 'Lima, Perú'].filter(Boolean);
-    const query = queryParts.join(' ');
-    const searchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query || 'Lima Perú')}`;
+    const fallbackContext = {
+      businessName: form.businessName,
+      address: form.address,
+      district: form.district
+    };
 
+    const searchUrl = formatGoogleMapsUrl(form.googleMapsUrl || '', fallbackContext) || 'https://www.google.com/maps/search/?api=1&query=Lima%20Per%C3%BA';
+
+    setForm(prev => ({ ...prev, googleMapsUrl: searchUrl, isMapsVerified: true }));
     window.open(searchUrl, '_blank', 'noopener,noreferrer');
-    if (!form.googleMapsUrl) {
-      setForm(prev => ({ ...prev, googleMapsUrl: searchUrl, isMapsVerified: true }));
-    }
     if (showToast) {
-      showToast('🔍 Buscando negocio en Google Maps al momento...', 'info');
+      showToast('Buscando negocio en Google Maps al momento...', 'info');
     }
   };
 
@@ -243,13 +243,21 @@ export default function KanbanView({
     e.preventDefault();
     if (!editingLead) return;
 
+    const sanitizedMapsUrl = editLeadForm.googleMapsUrl?.trim()
+      ? formatGoogleMapsUrl(editLeadForm.googleMapsUrl.trim(), {
+          businessName: editLeadForm.businessName,
+          address: editLeadForm.address,
+          district: editLeadForm.district
+        })
+      : '';
+
     const updatedLead = {
       ...editingLead,
       businessName: editLeadForm.businessName.trim(),
       rubro: editLeadForm.rubro,
       district: editLeadForm.district.trim(),
       address: editLeadForm.address.trim(),
-      googleMapsUrl: editLeadForm.googleMapsUrl.trim(),
+      googleMapsUrl: sanitizedMapsUrl,
       contactName: editLeadForm.contactName.trim(),
       phone: editLeadForm.phone.replace(/\D/g, '').slice(0, 9),
       email: editLeadForm.email.trim(),
@@ -313,13 +321,21 @@ export default function KanbanView({
 
   const handleSaveNewLead = (e) => {
     e.preventDefault();
+    const sanitizedMapsUrl = newLeadForm.googleMapsUrl?.trim()
+      ? formatGoogleMapsUrl(newLeadForm.googleMapsUrl.trim(), {
+          businessName: newLeadForm.businessName,
+          address: newLeadForm.address,
+          district: newLeadForm.district
+        })
+      : '';
+
     const newLead = {
       id: `lead-${Date.now()}`,
       businessName: newLeadForm.businessName.trim(),
       rubro: newLeadForm.rubro,
       district: newLeadForm.district.trim(),
       address: newLeadForm.address.trim(),
-      googleMapsUrl: newLeadForm.googleMapsUrl.trim(),
+      googleMapsUrl: sanitizedMapsUrl,
       contactName: newLeadForm.contactName.trim(),
       phone: newLeadForm.phone.replace(/\D/g, '').slice(0, 9),
       email: newLeadForm.email.trim(),
@@ -526,7 +542,7 @@ export default function KanbanView({
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
                       {lead.googleMapsUrl ? (
                         <a 
-                          href={lead.googleMapsUrl.startsWith('http') ? lead.googleMapsUrl : `https://${lead.googleMapsUrl}`}
+                          href={formatGoogleMapsUrl(lead.googleMapsUrl, { businessName: lead.businessName, address: lead.address, district: lead.district })}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -576,7 +592,7 @@ export default function KanbanView({
                       {/* Google Maps Directo */}
                       {lead.googleMapsUrl && (
                         <a 
-                          href={lead.googleMapsUrl.startsWith('http') ? lead.googleMapsUrl : `https://${lead.googleMapsUrl}`}
+                          href={formatGoogleMapsUrl(lead.googleMapsUrl, { businessName: lead.businessName, address: lead.address, district: lead.district })}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-icon"
@@ -861,9 +877,9 @@ export default function KanbanView({
 
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <input 
-                    type="url" 
+                    type="text" 
                     className="form-control"
-                    placeholder="https://maps.app.goo.gl/... o https://goo.gl/maps/..."
+                    placeholder="Enlace (maps.app.goo.gl) o escribe la dirección física"
                     value={newLeadForm.googleMapsUrl}
                     onChange={(e) => setNewLeadForm({ 
                       ...newLeadForm, 
@@ -887,7 +903,7 @@ export default function KanbanView({
                       backgroundColor: newLeadForm.isMapsVerified ? '#10b981' : undefined
                     }}
                     onClick={() => handleCheckMapsUrl('new')}
-                    title="Dar check para validar el enlace y buscarlo en Google Maps al momento"
+                    title="Dar check para validar el enlace o dirección y abrirlo en Google Maps"
                   >
                     <Check size={14} strokeWidth={3} />
                     <span>{newLeadForm.isMapsVerified ? 'Verificado ✓' : 'Dar Check'}</span>
@@ -897,7 +913,7 @@ export default function KanbanView({
                 {newLeadForm.googleMapsUrl && (
                   <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.73rem', flexWrap: 'wrap', gap: '4px' }}>
                     <a 
-                      href={newLeadForm.googleMapsUrl.startsWith('http') ? newLeadForm.googleMapsUrl : `https://${newLeadForm.googleMapsUrl}`}
+                      href={formatGoogleMapsUrl(newLeadForm.googleMapsUrl, { businessName: newLeadForm.businessName, address: newLeadForm.address, district: newLeadForm.district })}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
@@ -1197,9 +1213,9 @@ export default function KanbanView({
 
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <input 
-                    type="url" 
+                    type="text" 
                     className="form-control"
-                    placeholder="https://maps.app.goo.gl/... o https://goo.gl/maps/..."
+                    placeholder="Enlace (maps.app.goo.gl) o escribe la dirección física"
                     value={editLeadForm.googleMapsUrl}
                     onChange={(e) => setEditLeadForm({ 
                       ...editLeadForm, 
@@ -1223,7 +1239,7 @@ export default function KanbanView({
                       backgroundColor: editLeadForm.isMapsVerified ? '#10b981' : undefined
                     }}
                     onClick={() => handleCheckMapsUrl('edit')}
-                    title="Dar check para validar el enlace y buscarlo en Google Maps al momento"
+                    title="Dar check para validar el enlace o dirección y abrirlo en Google Maps"
                   >
                     <Check size={14} strokeWidth={3} />
                     <span>{editLeadForm.isMapsVerified ? 'Verificado ✓' : 'Dar Check'}</span>
@@ -1233,7 +1249,7 @@ export default function KanbanView({
                 {editLeadForm.googleMapsUrl && (
                   <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.73rem', flexWrap: 'wrap', gap: '4px' }}>
                     <a 
-                      href={editLeadForm.googleMapsUrl.startsWith('http') ? editLeadForm.googleMapsUrl : `https://${editLeadForm.googleMapsUrl}`}
+                      href={formatGoogleMapsUrl(editLeadForm.googleMapsUrl, { businessName: editLeadForm.businessName, address: editLeadForm.address, district: editLeadForm.district })}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
