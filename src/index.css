@@ -1009,15 +1009,12 @@ button, input, select, textarea {
 }
 
 .kanban-board {
-  display: flex;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
   width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 12px;
   align-items: flex-start;
-  scroll-behavior: smooth;
-  scrollbar-width: thin;
+  padding-bottom: 12px;
 }
 
 .kanban-board::-webkit-scrollbar {
@@ -1041,10 +1038,8 @@ button, input, select, textarea {
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
-  width: 295px;
-  min-width: 295px;
-  max-width: 320px;
-  flex-shrink: 0;
+  min-width: 0;
+  width: 100%;
   box-shadow: var(--shadow-sm);
   transition: all var(--transition-fast);
 }
@@ -1064,11 +1059,11 @@ button, input, select, textarea {
 }
 
 .kanban-col-title {
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1086,13 +1081,13 @@ button, input, select, textarea {
 }
 
 .kanban-col-body {
-  padding: 10px 8px;
+  padding: 8px 7px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 8px;
   overflow-y: auto;
-  max-height: 520px; /* Al superar ~3 tarjetas, la columna hace scroll interno en su contenedor sin bajar la hoja */
-  min-height: 140px;
+  max-height: calc(100vh - 340px);
+  min-height: 120px;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
 }
@@ -1115,11 +1110,12 @@ button, input, select, textarea {
   background-color: var(--bg-card-solid);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 10px 11px;
+  padding: 8px 9px;
   cursor: pointer;
   transition: all var(--transition-fast);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.14);
   min-width: 0;
+  overflow: hidden;
 }
 
 .kanban-card:hover {
@@ -1130,8 +1126,8 @@ button, input, select, textarea {
 
 .kanban-card-title {
   font-weight: 700;
-  font-size: 0.86rem;
-  margin-bottom: 4px;
+  font-size: 0.8rem;
+  margin-bottom: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1345,12 +1341,12 @@ button, input, select, textarea {
 
   .kanban-board {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 12px;
   }
 
   .kanban-column {
     height: auto;
-    min-height: 250px;
+    min-height: 200px;
   }
 
   .form-row {
