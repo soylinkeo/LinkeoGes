@@ -213,6 +213,10 @@ export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
     weightedMargin += margin * mix;
   });
 
+  const hasBottomUpUnits = projectedProducts.some(p => Number(p.targetUnits) > 0);
+  const unitsProj = hasBottomUpUnits ? calculateUnitsProjection(projectionsData) : null;
+  const bottomUpGrossRevenue = unitsProj ? unitsProj.grossRevenue : 0;
+
   let requiredUnits = 0;
   if (weightedMargin > 0) {
     const raw = (totalFixedCosts + targetProfit) / weightedMargin;
@@ -220,18 +224,20 @@ export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
     requiredUnits = Math.ceil(normalized);
   }
 
-  const grossRevenue = customRevenueTarget > 0 ? customRevenueTarget : (requiredUnits * weightedPrice);
+  const grossRevenue = customRevenueTarget > 0 
+    ? customRevenueTarget 
+    : (bottomUpGrossRevenue > 0 ? bottomUpGrossRevenue : (requiredUnits * weightedPrice));
 
   return {
-    monthlyProfitTarget: targetProfit,
-    monthlyUnitsTarget: requiredUnits,
+    monthlyProfitTarget: (hasBottomUpUnits && customProfitTarget <= 0 && unitsProj?.netProfit !== undefined) ? unitsProj.netProfit : targetProfit,
+    monthlyUnitsTarget: (hasBottomUpUnits && unitsProj?.totalUnits > 0) ? unitsProj.totalUnits : requiredUnits,
     isFeasible: weightedMargin > 0,
     warning: weightedMargin <= 0 ? "La mezcla de productos no genera margen positivo: la meta no es alcanzable." : "",
-    targetPerPartner,
-    cleanProfitPerPartner,
+    targetPerPartner: (hasBottomUpUnits && customProfitTarget <= 0 && unitsProj?.profitPerPartner !== undefined) ? unitsProj.profitPerPartner : targetPerPartner,
+    cleanProfitPerPartner: (hasBottomUpUnits && customProfitTarget <= 0 && unitsProj?.profitPerPartner !== undefined) ? unitsProj.profitPerPartner : cleanProfitPerPartner,
     reinvestmentPercent,
-    reinvestmentAmount,
-    distributableProfit,
+    reinvestmentAmount: (hasBottomUpUnits && customProfitTarget <= 0 && unitsProj?.reinvestmentAmount !== undefined) ? unitsProj.reinvestmentAmount : reinvestmentAmount,
+    distributableProfit: (hasBottomUpUnits && customProfitTarget <= 0 && unitsProj?.distributableProfit !== undefined) ? unitsProj.distributableProfit : distributableProfit,
     monthlyRevenueEstimate: grossRevenue,
     totalFixedCosts,
     weightedPrice,

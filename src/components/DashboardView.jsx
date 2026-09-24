@@ -1,5 +1,6 @@
 import { calculateFinance } from '../utils/financeUtils.js';
-import { calculatePartnerCashAccounts } from '../utils/projectionsUtils.js';
+import { calculatePartnerCashAccounts, calculateUnitsProjection } from '../utils/projectionsUtils.js';
+import { getAccountingMonth, localDate, ACCOUNTING_MONTHS } from '../utils/dateUtils.js';
 import React, { useState, useMemo } from 'react';
 import { 
   TrendingUp, 
@@ -34,12 +35,39 @@ export default function DashboardView({
   onUpdateProjectionsData,
   showToast
 }) {
-  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
-  const [manualRevenue, setManualRevenue] = useState('');
-  const [manualProfit, setManualProfit] = useState('');
-
-  // Cálculos financieros
+  // Cálculos financieros globales
   const { totalSalesAmount, totalCost, totalGrossProfit, totalExpenses, netProfit } = calculateFinance(sales, expenses);
+
+  // Período contable actual para ventas del mes
+  const currentAccountingMonth = getAccountingMonth(localDate());
+  const currentMonthLabel = ACCOUNTING_MONTHS[currentAccountingMonth] || currentAccountingMonth;
+
+  // Filtrado de ventas que pertenecen al mes actual
+  const monthlySales = useMemo(() => {
+    return sales.filter(s => {
+      if (!s.date) return true; // Ventas sin fecha o registradas en vivo se asocian al período corriente
+      return getAccountingMonth(s.date) === currentAccountingMonth;
+    });
+  }, [sales, currentAccountingMonth]);
+
+  const monthlySalesAmount = useMemo(() => {
+    return monthlySales.reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0);
+  }, [monthlySales]);
+
+  // Sincronización automática con la Venta Mensual Bruta calculada desde el mix de Proyecciones
+  const unitsProjection = useMemo(() => {
+    return calculateUnitsProjection(projectionsData || {});
+  }, [projectionsData]);
+
+  const revenueTarget = Number(
+    unitsProjection.grossRevenue > 0
+      ? unitsProjection.grossRevenue
+      : (targets?.monthlyRevenueEstimate || 2100.00)
+  );
+
+  const revenueProgressPct = revenueTarget > 0
+    ? Math.min(100, Math.round((monthlySalesAmount / revenueTarget) * 100))
+    : 0;
   
   // Unidades vendidas e inventario físico total
   const totalUnitsSold = sales.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
@@ -198,25 +226,42 @@ export default function DashboardView({
 
       {/* Grid de KPIs Clave */}
       <div className="metrics-grid">
-        {/* KPI 1: Facturación / Ventas */}
+        {/* KPI 1: Facturación / Ventas Mensuales */}
         <div className="kpi-card">
           <div className="kpi-header">
-            <span className="kpi-label">Ventas Totales</span>
+            <div>
+              <span className="kpi-label">Ventas Mensuales</span>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '2px' }}>
+                {currentMonthLabel}
+              </div>
+            </div>
             <div className="kpi-icon-wrapper">
               <TrendingUp size={18} />
             </div>
           </div>
-          <div className="kpi-value">S/ {totalSalesAmount.toFixed(2)}</div>
+          <div className="kpi-value">S/ {monthlySalesAmount.toFixed(2)}</div>
           <div className="kpi-subtext" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
               <span>Meta mensual: S/ {revenueTarget.toFixed(2)}</span>
               <button 
                 type="button"
-                onClick={handleOpenTargetModal}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--primary-400)', display: 'inline-flex' }}
-                title="Editar meta monetaria de facturación"
+                onClick={() => setCurrentTab('projections')}
+                style={{ 
+                  background: 'rgba(59, 130, 246, 0.12)', 
+                  border: '1px solid rgba(59, 130, 246, 0.25)', 
+                  cursor: 'pointer', 
+                  padding: '2px 7px', 
+                  borderRadius: '4px',
+                  color: 'var(--primary-400)', 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  gap: '3px'
+                }}
+                title="Sincronizada automáticamente con la Venta Mensual Bruta de Proyecciones. Clic para ajustar mix y productos."
               >
-                <Edit3 size={12} />
+                <span>Proyecciones ↗</span>
               </button>
             </span>
             <span style={{ fontWeight: 700, color: 'var(--primary-600)' }}>
@@ -226,6 +271,11 @@ export default function DashboardView({
           <div className="progress-bar-container">
             <div className="progress-bar-fill" style={{ width: `${revenueProgressPct}%` }}></div>
           </div>
+          {totalSalesAmount !== monthlySalesAmount && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+              Total histórico acumulado: <strong>S/ {totalSalesAmount.toFixed(2)}</strong>
+            </div>
+          )}
         </div>
 
         {/* KPI 2: Unidades Vendidas */}

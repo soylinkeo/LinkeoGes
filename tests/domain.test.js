@@ -836,6 +836,65 @@ test('google place id extraction, redirected review url and bidirectional distri
   assert.equal(cards[0].district, 'San Isidro', 'El cambio de distrito en Kanban debe actualizar la tarjeta NFC');
 });
 
+test('monthly sales KPI and target automatically synchronize with Projections gross revenue (Venta Mensual Bruta)', async () => {
+  const { computeDynamicTargets, calculateUnitsProjection } = await import('../src/utils/projectionsUtils.js');
+  const { getAccountingMonth, localDate } = await import('../src/utils/dateUtils.js');
+
+  const projectionsScenario = {
+    projectedProducts: [
+      { id: 'proj-cuadrado-esp', name: 'Tarjeta Cuadrado', price: 60.00, baseCost: 12.93, targetUnits: 15, included: true },
+      { id: 'proj-formato-l-esp', name: 'Tarjeta Formato L', price: 80.00, baseCost: 12.93, targetUnits: 15, included: true }
+    ],
+    fixedCosts: [{ id: 'fc-1', amount: 50.00 }],
+    businessParams: {
+      salesDaysPerMonth: 30,
+      partnersCount: 2,
+      reinvestmentPercent: 20
+    }
+  };
+
+  // 1. Proyecciones calcula Venta Mensual Bruta = S/ 2,100.00
+  const proj = calculateUnitsProjection(projectionsScenario);
+  assert.equal(proj.grossRevenue, 2100.00, 'Venta Mensual Bruta debe ser exactamente S/ 2,100.00');
+  assert.equal(proj.replacementFund, 387.90, 'Fondo de reposición debe ser S/ 387.90');
+
+  // 2. computeDynamicTargets adopta reactivamente la Venta Mensual Bruta como monthlyRevenueEstimate
+  const targets = computeDynamicTargets(projectionsScenario);
+  assert.equal(targets.monthlyRevenueEstimate, 2100.00, 'La meta mensual de facturación debe sincronizarse con S/ 2,100.00');
+  assert.equal(targets.monthlyUnitsTarget, 30, 'La meta mensual de unidades debe ser 30');
+  assert.equal(targets.monthlyProfitTarget, 1662.10, 'La utilidad neta objetivo debe ser 1662.10');
+
+  // 3. Si se ajusta el mix (ej. 20 cuadradas y 20 formato L), la meta mensual se actualiza automáticamente
+  const updatedScenario = {
+    ...projectionsScenario,
+    projectedProducts: [
+      { id: 'proj-cuadrado-esp', name: 'Tarjeta Cuadrado', price: 60.00, baseCost: 12.93, targetUnits: 20, included: true },
+      { id: 'proj-formato-l-esp', name: 'Tarjeta Formato L', price: 80.00, baseCost: 12.93, targetUnits: 20, included: true }
+    ]
+  };
+  const updatedTargets = computeDynamicTargets(updatedScenario);
+  assert.equal(updatedTargets.monthlyRevenueEstimate, 2800.00, 'Al variar el mix de unidades, la meta mensual sube a 2800.00');
+
+  // 4. Filtrado de ventas mensuales vs ventas totales
+  const currentMonth = getAccountingMonth(localDate());
+  const sampleSales = [
+    { id: 'sale-1', totalAmount: 160.00, date: localDate(), clientName: 'Café Roma' },
+    { id: 'sale-2', totalAmount: 200.00, date: '2025-01-15', clientName: 'Venta Año Pasado' }
+  ];
+
+  const currentMonthSales = sampleSales.filter(s => !s.date || getAccountingMonth(s.date) === currentMonth);
+  const monthlySalesAmount = currentMonthSales.reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0);
+  const totalSalesAmount = sampleSales.reduce((acc, s) => acc + (Number(s.totalAmount) || 0), 0);
+
+  assert.equal(monthlySalesAmount, 160.00, 'Las ventas del mes deben ser S/ 160.00');
+  assert.equal(totalSalesAmount, 360.00, 'Las ventas totales acumuladas deben ser S/ 360.00');
+
+  // 5. Progreso de ventas mensuales contra la meta mensual
+  const progressPct = Math.round((monthlySalesAmount / targets.monthlyRevenueEstimate) * 100);
+  assert.equal(progressPct, 8, '160 / 2100 debe dar 8% de avance mensual');
+});
+
+
 
 
 
