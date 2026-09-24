@@ -249,3 +249,39 @@ test('registering a direct sale immediately places lead into Entregado y Cobrado
   assert.equal(withNewLead[0].contacted, true);
   assert.equal(withNewLead[0].businessName, 'Pollería Rokys');
 });
+
+test('cannot select or sell more than available physical stock', () => {
+  const inventory = [{ id: 'inv-card-l', sku: 'CRD-L', name: 'Tarjeta L', quantity: 1 }];
+  const product = { id: 'prod-l', sku: 'CRD-L', name: 'Tarjeta Google NFC Formato L ESP', price: 80, cost: 20, stock: 1 };
+  
+  // 1. Intentar vender 2 cuando solo queda 1 en stock arroja error de stock insuficiente
+  assert.throws(() => {
+    createSale({
+      form: { clientName: 'Lavatelli Dry Cleaners', quantity: 2, paymentMethod: 'Yape' },
+      product,
+      inventory,
+      userId: 'luis'
+    });
+  }, /Stock insuficiente/);
+
+  // 2. Vender exactamente 1 (el total disponible) se procesa correctamente y reduce stock a 0
+  const saleResult = createSale({
+    form: { clientName: 'Lavatelli Dry Cleaners', quantity: 1, paymentMethod: 'Yape' },
+    product,
+    inventory,
+    userId: 'luis'
+  });
+  assert.equal(saleResult.sale.quantity, 1);
+  assert.equal(saleResult.inventory.find(i => i.id === 'inv-card-l').quantity, 0);
+
+  // 3. Intentar vender cuando el stock quedó en 0 es rechazado de inmediato
+  assert.throws(() => {
+    createSale({
+      form: { clientName: 'Otro Cliente', quantity: 1, paymentMethod: 'Yape' },
+      product,
+      inventory: saleResult.inventory,
+      userId: 'luis'
+    });
+  }, /Stock insuficiente/);
+});
+

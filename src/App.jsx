@@ -188,6 +188,35 @@ export default function App() {
       }
     });
 
+    // 3. Garantizar cálculo de stock en tiempo real para todos los productos y packs
+    list.forEach(p => {
+      if (p.bundleItems && Array.isArray(p.bundleItems) && p.bundleItems.length > 0) {
+        let minPack = Infinity;
+        p.bundleItems.forEach(b => {
+          const invItem = inventory.find(i => 
+            i.id === b.id || i.sku === b.sku || 
+            (i.name && b.name && i.name.toLowerCase() === b.name.toLowerCase())
+          );
+          const invQty = invItem ? Number(invItem.quantity) || 0 : 0;
+          const reqQty = Number(b.quantity) || 1;
+          const packs = Math.floor(invQty / reqQty);
+          if (packs < minPack) minPack = packs;
+        });
+        p.stock = minPack === Infinity ? 0 : Math.max(0, minPack);
+      } else {
+        const invItem = inventory.find(i => 
+          (p.inventoryId && i.id === p.inventoryId) || 
+          (p.sku && i.sku && i.sku.toLowerCase() === p.sku.toLowerCase()) ||
+          (p.name && i.name && i.name.toLowerCase().trim() === p.name.toLowerCase().trim())
+        );
+        if (invItem) {
+          p.stock = Math.max(0, Number(invItem.quantity) || 0);
+        } else if (p.stock === undefined) {
+          p.stock = 0;
+        }
+      }
+    });
+
     return list;
   }, [rawProducts, inventory]);
 
@@ -443,21 +472,29 @@ export default function App() {
 
   // Helper para abrir modal de Nueva Venta con el primer producto activo preseleccionado
   const handleOpenNewSaleModal = () => {
-    const firstProd = products[0];
-    setNewSaleForm(prev => ({
-      ...prev,
-      productId: prev.productId && products.some(p => p.id === prev.productId) ? prev.productId : (firstProd?.id || ''),
-      quantity: 1,
-      isCustomPricing: false,
-      customUnitPrice: '',
-      customUnitCost: ''
-    }));
+    const catalogList = products.length > 0 ? products : INITIAL_PRODUCTS;
+    const inStockProd = catalogList.find(p => Number(p.stock) > 0) || catalogList[0];
+    const initialId = inStockProd?.id || '';
+    setNewSaleForm(prev => {
+      const activeProd = catalogList.find(p => p.id === prev.productId) || inStockProd;
+      const activeStock = activeProd ? Math.max(0, Number(activeProd.stock ?? 0)) : 0;
+      const clampedQty = activeStock > 0 ? Math.min(Number(prev.quantity) || 1, activeStock) : 1;
+      return {
+        ...prev,
+        productId: activeProd?.id || initialId,
+        quantity: clampedQty,
+        isCustomPricing: false,
+        customUnitPrice: '',
+        customUnitCost: ''
+      };
+    });
     setIsNewSaleModalOpen(true);
   };
 
   // Helper para cerrar y limpiar modal de Nueva Venta
   const handleCloseNewSaleModal = () => {
-    const firstProd = products[0];
+    const catalogList = products.length > 0 ? products : INITIAL_PRODUCTS;
+    const firstProd = catalogList.find(p => Number(p.stock) > 0) || catalogList[0];
     setNewSaleForm({
       clientName: '',
       contactPerson: '',
@@ -500,10 +537,22 @@ export default function App() {
   const handleAddNewSale = e => {
     e.preventDefault();
     try {
-      const selectedId = newSaleForm.productId || products[0]?.id;
-      const product = products.find(p => p.id === selectedId) || products[0];
+      const catalogList = products.length > 0 ? products : INITIAL_PRODUCTS;
+      const selectedId = newSaleForm.productId || (catalogList[0]?.id || '');
+      const product = catalogList.find(p => p.id === selectedId) || catalogList[0];
       if (!product) throw new Error('Selecciona un producto del catálogo.');
-      const result = createSale({ form: { ...newSaleForm, productId: product.id }, product, inventory, userId: currentUser.id });
+
+      const qty = parseInt(newSaleForm.quantity, 10);
+      if (isNaN(qty) || qty <= 0) throw new Error('Ingresa una cantidad válida mayor a cero.');
+      const maxStock = Number(product.stock ?? 0);
+      if (maxStock <= 0) {
+        throw new Error(`El producto "${product.name}" no tiene existencias disponibles en almacén.`);
+      }
+      if (qty > maxStock) {
+        throw new Error(`Stock insuficiente: solo queda ${maxStock} unidad${maxStock === 1 ? '' : 'es'} en stock de "${product.name}". No se puede vender ${qty}.`);
+      }
+
+      const result = createSale({ form: { ...newSaleForm, productId: product.id, quantity: qty }, product, inventory, userId: currentUser.id });
       setInventory(result.inventory);
       setSales(prev => [result.sale, ...prev]);
       setNfcCards(prev => [...result.cards, ...prev]);
@@ -679,6 +728,10 @@ export default function App() {
     try {
       if (sales.some(s => s.leadId === lead.id)) throw new Error('Este prospecto ya tiene una venta.');
       const product = products.find(p => p.id === lead.interestedProduct || p.name === lead.interestedProduct);
+      if (!product) throw new Error('No se encontró el producto de interés en el catálogo.');
+      if (Number(product.stock ?? 0) < 1) {
+        throw new Error(`Stock insuficiente: "${product.name}" no tiene existencias disponibles en almacén.`);
+      }
       const form = { clientName: lead.businessName, contactPerson: lead.contactName, phone: lead.phone,
         district: lead.district, quantity: 1, soldBy: lead.assignedTo === 'both' ? currentUser.id : lead.assignedTo,
         paymentMethod: 'Transferencia', googlePlaceId: lead.placeId || '' };
@@ -1411,242 +1464,330 @@ export default function App() {
       </div>
 
       {/* MODAL GLOBAL: Nueva Venta */}
-      {isNewSaleModalOpen && <div className="modal-overlay" onClick={handleCloseNewSaleModal}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Registrar Nueva Venta | LinkeoGes</h3>
-              <button className="close-btn" onClick={handleCloseNewSaleModal}>✕</button>
-            </div>
+      {isNewSaleModalOpen && (() => {
+        const catalogList = products.length > 0 ? products : INITIAL_PRODUCTS;
+        const selectedProdId = newSaleForm.productId || (catalogList[0]?.id || '');
+        const currentProd = catalogList.find(p => p.id === selectedProdId) || catalogList[0];
+        const availableStock = Number(currentProd?.stock ?? 0);
+        const isOutOfStock = availableStock <= 0;
+        const defaultPrice = currentProd ? Number(currentProd.price || 0) : 0;
+        const defaultCost = currentProd ? Number(currentProd.cost || 0) : 0;
+        const currentUnitPrice = newSaleForm.isCustomPricing && newSaleForm.customUnitPrice !== '' ? Number(newSaleForm.customUnitPrice) : defaultPrice;
+        const currentUnitCost = newSaleForm.isCustomPricing && newSaleForm.customUnitCost !== '' ? Number(newSaleForm.customUnitCost) : defaultCost;
+        const qty = Number(newSaleForm.quantity) || 1;
+        const currentTotal = (currentUnitPrice * qty).toFixed(2);
+        const currentProfit = ((currentUnitPrice - currentUnitCost) * qty).toFixed(2);
 
-            <form onSubmit={handleAddNewSale}>
-              <div className="form-group">
-                <label className="form-label">Nombre del Negocio / Cliente:</label>
-                <input type="text" className="form-control" placeholder="Ej: Barbería Don Tito, Pollería Roky's..." value={newSaleForm.clientName} onChange={e => setNewSaleForm({
-              ...newSaleForm,
-              clientName: e.target.value
-            })} required />
+        return (
+          <div className="modal-overlay" onClick={handleCloseNewSaleModal}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">Registrar Nueva Venta | LinkeoGes</h3>
+                <button className="close-btn" onClick={handleCloseNewSaleModal}>✕</button>
               </div>
 
-              <div className="form-row">
+              <form onSubmit={handleAddNewSale}>
                 <div className="form-group">
-                  <label className="form-label">Producto o Pack:</label>
-                  <select 
-                    className="form-control" 
-                    value={newSaleForm.productId || (products[0] ? products[0].id : (INITIAL_PRODUCTS[0]?.id || ''))} 
-                    onChange={e => setNewSaleForm({
-                      ...newSaleForm,
-                      productId: e.target.value
-                    })} 
-                    required
-                  >
-                    {(products.length > 0 ? products : INITIAL_PRODUCTS).map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — S/ {Number(p.price || 0).toFixed(2)} {p.stock > 0 ? `(${p.stock} en stock)` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="form-label">Nombre del Negocio / Cliente:</label>
+                  <input type="text" className="form-control" placeholder="Ej: Barbería Don Tito, Pollería Roky's..." value={newSaleForm.clientName} onChange={e => setNewSaleForm({
+                    ...newSaleForm,
+                    clientName: e.target.value
+                  })} required />
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Cantidad:</label>
-                  <input type="number" min="1" className="form-control" value={newSaleForm.quantity} onChange={e => setNewSaleForm({
-                ...newSaleForm,
-                quantity: e.target.value
-              })} required />
-                </div>
-              </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Producto o Pack:</label>
+                    <select 
+                      className="form-control" 
+                      value={selectedProdId} 
+                      onChange={e => {
+                        const nextId = e.target.value;
+                        const nextProd = catalogList.find(p => p.id === nextId) || catalogList[0];
+                        const nextStock = Number(nextProd?.stock ?? 0);
+                        const curQty = parseInt(newSaleForm.quantity, 10) || 1;
+                        const clampedQty = nextStock > 0 ? Math.min(Math.max(1, curQty), nextStock) : 1;
+                        setNewSaleForm({
+                          ...newSaleForm,
+                          productId: nextId,
+                          quantity: clampedQty
+                        });
+                      }} 
+                      required
+                    >
+                      {catalogList.map(p => {
+                        const pStock = Number(p.stock ?? 0);
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {p.name} — S/ {Number(p.price || 0).toFixed(2)} ({pStock > 0 ? `${pStock} en stock` : 'Sin stock'})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
 
-              {/* Panel de Precios de Almacén y Opción de Modificar Costo / Precio */}
-              {(() => {
-            const selectedProdId = newSaleForm.productId || products[0]?.id;
-            const currentProd = products.find(p => p.id === selectedProdId) || products[0];
-            const defaultPrice = currentProd ? Number(currentProd.price || 0) : 0;
-            const defaultCost = currentProd ? Number(currentProd.cost || 0) : 0;
-            const currentUnitPrice = newSaleForm.isCustomPricing && newSaleForm.customUnitPrice !== '' ? Number(newSaleForm.customUnitPrice) : defaultPrice;
-            const currentUnitCost = newSaleForm.isCustomPricing && newSaleForm.customUnitCost !== '' ? Number(newSaleForm.customUnitCost) : defaultCost;
-            const qty = Number(newSaleForm.quantity) || 1;
-            const currentTotal = (currentUnitPrice * qty).toFixed(2);
-            const currentProfit = ((currentUnitPrice - currentUnitCost) * qty).toFixed(2);
-            return <div style={{
-              padding: '12px 16px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'rgba(0, 102, 255, 0.06)',
-              border: '1px solid rgba(0, 102, 255, 0.22)',
-              marginBottom: '16px'
-            }}>
-                    <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '8px',
-                flexWrap: 'wrap',
-                gap: '8px'
-              }}>
-                      <span style={{
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  color: 'var(--text-main)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}>
-                        🏷️ Catálogo Oficial: Venta S/ {defaultPrice.toFixed(2)} | Insumo S/ {defaultCost.toFixed(2)}
-                      </span>
-                      <button type="button" className="btn btn-secondary btn-sm" style={{
-                  fontSize: '0.75rem',
-                  padding: '4px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px'
-                }} onClick={() => {
-                  setNewSaleForm(prev => ({
-                    ...prev,
-                    isCustomPricing: !prev.isCustomPricing,
-                    customUnitPrice: !prev.isCustomPricing ? defaultPrice.toString() : '',
-                    customUnitCost: !prev.isCustomPricing ? defaultCost.toString() : ''
-                  }));
-                }}>
-                        <Edit3 size={13} />
-                        <span>{newSaleForm.isCustomPricing ? 'Restablecer precios por defecto' : 'Modificar costo / precio'}</span>
-                      </button>
+                  <div className="form-group">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ marginBottom: 0 }}>Cantidad:</label>
+                      {isOutOfStock ? (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#ef4444' }}>
+                          ❌ Agotado (0 en stock)
+                        </span>
+                      ) : availableStock === 1 ? (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#f59e0b' }}>
+                          ⚠️ Solo queda 1 disponible
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#10b981' }}>
+                          📦 {availableStock} disponibles
+                        </span>
+                      )}
                     </div>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max={Math.max(1, availableStock)}
+                      disabled={isOutOfStock}
+                      className="form-control" 
+                      value={newSaleForm.quantity} 
+                      onChange={e => {
+                        const raw = e.target.value;
+                        if (raw === '') {
+                          setNewSaleForm({ ...newSaleForm, quantity: '' });
+                          return;
+                        }
+                        let num = parseInt(raw, 10);
+                        if (isNaN(num)) return;
+                        if (availableStock > 0 && num > availableStock) {
+                          showToast(`Stock insuficiente: solo queda ${availableStock} unidad${availableStock === 1 ? '' : 'es'} de "${currentProd?.name || 'este producto'}".`, 'warning');
+                          num = availableStock;
+                        } else if (num < 1) {
+                          num = 1;
+                        }
+                        setNewSaleForm({
+                          ...newSaleForm,
+                          quantity: num
+                        });
+                      }}
+                      onBlur={() => {
+                        const num = parseInt(newSaleForm.quantity, 10);
+                        if (isNaN(num) || num < 1) {
+                          setNewSaleForm(prev => ({ ...prev, quantity: availableStock > 0 ? 1 : 1 }));
+                        } else if (availableStock > 0 && num > availableStock) {
+                          setNewSaleForm(prev => ({ ...prev, quantity: availableStock }));
+                        }
+                      }}
+                      required 
+                    />
+                  </div>
+                </div>
 
-                    {newSaleForm.isCustomPricing && <div className="form-row" style={{
-                marginTop: '10px'
-              }}>
-                        <div className="form-group" style={{
-                  marginBottom: 0
+                {/* Panel de Precios de Almacén y Opción de Modificar Costo / Precio */}
+                <div style={{
+                  padding: '12px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'rgba(0, 102, 255, 0.06)',
+                  border: '1px solid rgba(0, 102, 255, 0.22)',
+                  marginBottom: '16px'
                 }}>
-                          <label className="form-label" style={{
-                    fontSize: '0.76rem'
-                  }}>Precio Unitario de Venta Modificado (S/):</label>
-                          <input type="number" step="0.01" className="form-control" value={newSaleForm.customUnitPrice} onChange={e => setNewSaleForm({
-                    ...newSaleForm,
-                    customUnitPrice: e.target.value
-                  })} required />
-                        </div>
-                        <div className="form-group" style={{
-                  marginBottom: 0
-                }}>
-                          <label className="form-label" style={{
-                    fontSize: '0.76rem'
-                  }}>Costo Unitario Insumo Modificado (S/):</label>
-                          <input type="number" step="0.01" className="form-control" value={newSaleForm.customUnitCost} onChange={e => setNewSaleForm({
-                    ...newSaleForm,
-                    customUnitCost: e.target.value
-                  })} required />
-                        </div>
-                      </div>}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '8px',
+                    flexWrap: 'wrap',
+                    gap: '8px'
+                  }}>
+                    <span style={{
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      color: 'var(--text-main)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      🏷️ Catálogo Oficial: Venta S/ {defaultPrice.toFixed(2)} | Insumo S/ {defaultCost.toFixed(2)}
+                    </span>
+                    <button type="button" className="btn btn-secondary btn-sm" style={{
+                      fontSize: '0.75rem',
+                      padding: '4px 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }} onClick={() => {
+                      setNewSaleForm(prev => ({
+                        ...prev,
+                        isCustomPricing: !prev.isCustomPricing,
+                        customUnitPrice: !prev.isCustomPricing ? defaultPrice.toString() : '',
+                        customUnitCost: !prev.isCustomPricing ? defaultCost.toString() : ''
+                      }));
+                    }}>
+                      <Edit3 size={13} />
+                      <span>{newSaleForm.isCustomPricing ? 'Restablecer precios por defecto' : 'Modificar costo / precio'}</span>
+                    </button>
+                  </div>
 
-                    <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: '10px',
-                paddingTop: '8px',
-                borderTop: '1px solid var(--border-subtle)'
-              }}>
-                      <span style={{
-                  fontSize: '0.8rem',
-                  color: 'var(--text-muted)'
-                }}>
-                        Total Cobro ({qty} uds): <strong style={{
-                    color: '#10b981',
-                    fontSize: '0.95rem'
-                  }}>S/ {currentTotal}</strong>
-                      </span>
-                      <span style={{
-                  fontSize: '0.8rem',
-                  color: 'var(--text-muted)'
-                }}>
-                        Margen Bruto Linkeo: <strong style={{
+                  {newSaleForm.isCustomPricing && <div className="form-row" style={{
+                    marginTop: '10px'
+                  }}>
+                    <div className="form-group" style={{
+                      marginBottom: 0
+                    }}>
+                      <label className="form-label" style={{
+                        fontSize: '0.76rem'
+                      }}>Precio Unitario de Venta Modificado (S/):</label>
+                      <input type="number" step="0.01" className="form-control" value={newSaleForm.customUnitPrice} onChange={e => setNewSaleForm({
+                        ...newSaleForm,
+                        customUnitPrice: e.target.value
+                      })} required />
+                    </div>
+                    <div className="form-group" style={{
+                      marginBottom: 0
+                    }}>
+                      <label className="form-label" style={{
+                        fontSize: '0.76rem'
+                      }}>Costo Unitario Insumo Modificado (S/):</label>
+                      <input type="number" step="0.01" className="form-control" value={newSaleForm.customUnitCost} onChange={e => setNewSaleForm({
+                        ...newSaleForm,
+                        customUnitCost: e.target.value
+                      })} required />
+                    </div>
+                  </div>}
+
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginTop: '10px',
+                    paddingTop: '8px',
+                    borderTop: '1px solid var(--border-subtle)'
+                  }}>
+                    <span style={{
+                      fontSize: '0.8rem',
+                      color: 'var(--text-muted)'
+                    }}>
+                      Total Cobro ({qty} uds): <strong style={{
+                        color: '#10b981',
+                        fontSize: '0.95rem'
+                      }}>S/ {currentTotal}</strong>
+                    </span>
+                    <span style={{
+                      fontSize: '0.8rem',
+                      color: 'var(--text-muted)'
+                    }}>
+                      Margen Bruto Linkeo: <strong style={{
+                        color: '#38bdf8',
+                        fontSize: '0.95rem'
+                      }}>S/ {currentProfit}</strong>
+                    </span>
+                  </div>
+
+                  {newSaleForm.isCustomPricing && <div style={{
+                    fontSize: '0.73rem',
                     color: '#38bdf8',
-                    fontSize: '0.95rem'
-                  }}>S/ {currentProfit}</strong>
-                      </span>
-                    </div>
+                    marginTop: '6px'
+                  }}>
+                    ✏️ Precio y costo personalizados para esta transacción. El catálogo maestro no se altera.
+                  </div>}
+                </div>
 
-                    {newSaleForm.isCustomPricing && <div style={{
-                fontSize: '0.73rem',
-                color: '#38bdf8',
-                marginTop: '6px'
-              }}>
-                        ✏️ Precio y costo personalizados para esta transacción. El catálogo maestro no se altera.
-                      </div>}
-                  </div>;
-          })()}
+                {isOutOfStock && (
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#f87171',
+                    fontSize: '0.82rem',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>⚠️</span>
+                    <span><strong>Producto sin stock:</strong> No hay existencias disponibles en almacén para vender este producto. Selecciona otro o ingresa stock en Inventario.</span>
+                  </div>
+                )}
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Distrito de Lima (Maestro Central):</label>
-                  <DistrictCombobox 
-                    value={newSaleForm.district}
-                    onChange={dist => setNewSaleForm({ ...newSaleForm, district: dist })}
-                    districts={districts}
-                    required
-                  />
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Distrito de Lima (Maestro Central):</label>
+                    <DistrictCombobox 
+                      value={newSaleForm.district}
+                      onChange={dist => setNewSaleForm({ ...newSaleForm, district: dist })}
+                      districts={districts}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Método de Pago:</label>
+                    <select className="form-control" value={newSaleForm.paymentMethod} onChange={e => setNewSaleForm({
+                      ...newSaleForm,
+                      paymentMethod: e.target.value
+                    })}>
+                      <option value="Yape">Yape</option>
+                      <option value="Plin">Plin</option>
+                      <option value="Transferencia BCP">Transferencia BCP</option>
+                      <option value="Transferencia BBVA">Transferencia BBVA</option>
+                      <option value="Efectivo">Efectivo contraentrega</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Método de Pago:</label>
-                  <select className="form-control" value={newSaleForm.paymentMethod} onChange={e => setNewSaleForm({
-                ...newSaleForm,
-                paymentMethod: e.target.value
-              })}>
-                    <option value="Yape">Yape</option>
-                    <option value="Plin">Plin</option>
-                    <option value="Transferencia BCP">Transferencia BCP</option>
-                    <option value="Transferencia BBVA">Transferencia BBVA</option>
-                    <option value="Efectivo">Efectivo contraentrega</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Google Place ID (Generará la URL directa de 5 estrellas):</label>
-                <input type="text" className="form-control code-mono" placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4" value={newSaleForm.googlePlaceId} onChange={e => setNewSaleForm({
-              ...newSaleForm,
-              googlePlaceId: e.target.value
-            })} />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Contacto (WhatsApp):</label>
-                  <input type="text" className="form-control" placeholder="+51 987 654 321" value={newSaleForm.phone} onChange={e => setNewSaleForm({
-                ...newSaleForm,
-                phone: e.target.value
-              })} />
+                  <label className="form-label">Google Place ID (Generará la URL directa de 5 estrellas):</label>
+                  <input type="text" className="form-control code-mono" placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4" value={newSaleForm.googlePlaceId} onChange={e => setNewSaleForm({
+                    ...newSaleForm,
+                    googlePlaceId: e.target.value
+                  })} />
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Vendedor / Socio Responsable:</label>
-                  <select className="form-control" value={newSaleForm.soldBy} onChange={e => setNewSaleForm({
-                ...newSaleForm,
-                soldBy: e.target.value
-              })}>
-                    <option value="luis">👨‍💼 Luis Romero (Co-CEO)</option>
-                    <option value="kevin">🚀 Kevin Servat (Co-CEO)</option>
-                  </select>
-                </div>
-              </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Contacto (WhatsApp):</label>
+                    <input type="text" className="form-control" placeholder="+51 987 654 321" value={newSaleForm.phone} onChange={e => setNewSaleForm({
+                      ...newSaleForm,
+                      phone: e.target.value
+                    })} />
+                  </div>
 
-              <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '10px',
-            marginTop: '20px'
-          }}>
-                <button type="button" className="btn btn-secondary" onClick={handleCloseNewSaleModal}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Registrar Venta & Chip
-                </button>
-              </div>
-            </form>
+                  <div className="form-group">
+                    <label className="form-label">Vendedor / Socio Responsable:</label>
+                    <select className="form-control" value={newSaleForm.soldBy} onChange={e => setNewSaleForm({
+                      ...newSaleForm,
+                      soldBy: e.target.value
+                    })}>
+                      <option value="luis">👨‍💼 Luis Romero (Co-CEO)</option>
+                      <option value="kevin">🚀 Kevin Servat (Co-CEO)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '10px',
+                  marginTop: '20px'
+                }}>
+                  <button type="button" className="btn btn-secondary" onClick={handleCloseNewSaleModal}>
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    disabled={isOutOfStock}
+                    title={isOutOfStock ? "No se puede registrar la venta: producto sin existencias" : ""}
+                    style={isOutOfStock ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                  >
+                    Registrar Venta & Chip
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>}
+        );
+      })()}
 
       {/* MODAL GLOBAL: Nuevo Gasto */}
       {isNewExpenseModalOpen && <div className="modal-overlay" onClick={handleCloseNewExpenseModal}>
