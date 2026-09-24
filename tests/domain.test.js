@@ -285,3 +285,21 @@ test('cannot select or sell more than available physical stock', () => {
   }, /Stock insuficiente/);
 });
 
+test('lead captures and preserves optional email/gmail address', () => {
+  const leadWithEmail = {
+    id: 'lead-test-1',
+    businessName: 'Barbería Don Tito',
+    contactName: 'Tito Gonzales',
+    phone: '+51 987 654 321',
+    email: 'dontito.barberia@gmail.com',
+    district: 'Miraflores',
+    stage: 'prospecto',
+    estimatedValue: 120
+  };
+  const dbRow = mappers.leadToDb(leadWithEmail);
+  assert.equal(dbRow.email, 'dontito.barberia@gmail.com');
+  const frontObj = mappers.leadToFront(dbRow);
+  assert.equal(frontObj.email, 'dontito.barberia@gmail.com');
+});
+
+

@@ -38,6 +38,7 @@ export function createSale({ form, product, inventory, userId }) {
   const cards = Array.from({ length: quantity }, () => ({
     id: `LNK-${crypto.randomUUID()}`, chipUid: '', model: product.name, productId: product.id,
     businessName: form.clientName, contactName: form.contactPerson, contactPhone: form.phone,
+    contactEmail: form.email || '',
     district: form.district, placeId: form.googlePlaceId?.trim() || '',
     reviewUrl: form.googlePlaceId?.trim() ? `https://search.google.com/local/writereview?placeid=${encodeURIComponent(form.googlePlaceId.trim())}` : '',
     status: 'Pendiente de grabación', assignedDate: date, saleId: id, history: [],
@@ -46,7 +47,7 @@ export function createSale({ form, product, inventory, userId }) {
   const totalAmount = Math.round(unitPrice * quantity * 100) / 100;
   return {
     sale: { id, saleNumber: `VTA-${id.slice(5).toUpperCase()}`, date, clientName: form.clientName,
-      contactPerson: form.contactPerson, phone: form.phone, district: form.district,
+      contactPerson: form.contactPerson, phone: form.phone, email: form.email || '', district: form.district,
       productId: product.id, productName: product.name, quantity, unitPrice, cost, totalAmount,
       profit: Math.round((totalAmount - cost) * 100) / 100, paymentMethod: form.paymentMethod,
       soldBy: form.soldBy || userId, status: 'Cobrado / Por entregar', cardIds: cards.map(c => c.id), stockMovements },

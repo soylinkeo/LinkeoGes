@@ -10,7 +10,8 @@ import {
   XCircle,
   Sparkles, 
   Trash2,
-  Edit3
+  Edit3,
+  Mail
 } from 'lucide-react';
 import DistrictCombobox from './DistrictCombobox.jsx';
 import { INITIAL_PRODUCTS } from '../data/initialData.js';
@@ -78,6 +79,7 @@ export default function KanbanView({
     address: '',
     contactName: '',
     phone: '',
+    email: '',
     stage: 'prospecto',
     contacted: false,
     interestedProduct: '',
@@ -96,6 +98,7 @@ export default function KanbanView({
     address: '',
     contactName: '',
     phone: '',
+    email: '',
     contacted: false,
     interestedProduct: '',
     estimatedValue: 100.00,
@@ -113,6 +116,7 @@ export default function KanbanView({
       address: '',
       contactName: '',
       phone: '',
+      email: '',
       contacted: false,
       interestedProduct: '',
       estimatedValue: 100.00,
@@ -139,6 +143,7 @@ export default function KanbanView({
       address: lead.address || '',
       contactName: lead.contactName || '',
       phone: lead.phone || '',
+      email: lead.email || '',
       stage: normalizeLeadStage(lead.stage),
       contacted: Boolean(lead.contacted),
       interestedProduct: lead.interestedProduct || '',
@@ -168,6 +173,7 @@ export default function KanbanView({
       address: editLeadForm.address.trim(),
       contactName: editLeadForm.contactName.trim(),
       phone: editLeadForm.phone.trim(),
+      email: editLeadForm.email.trim(),
       stage: normalizeLeadStage(editLeadForm.stage),
       contacted: Boolean(editLeadForm.contacted),
       interestedProduct: editLeadForm.interestedProduct,
@@ -212,6 +218,7 @@ export default function KanbanView({
       address: newLeadForm.address.trim(),
       contactName: newLeadForm.contactName.trim(),
       phone: newLeadForm.phone.trim(),
+      email: newLeadForm.email.trim(),
       stage: 'prospecto',
       contacted: Boolean(newLeadForm.contacted),
       interestedProduct: newLeadForm.interestedProduct,
@@ -400,10 +407,15 @@ export default function KanbanView({
 
                     <div className="kanban-card-title">{lead.businessName}</div>
 
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
                       <MapPin size={11} />
                       <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.district}</span>
                       {lead.contactName && <span>• {lead.contactName.split(' ')[0]}</span>}
+                      {lead.email && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: 'var(--text-muted)' }} title={lead.email}>
+                          • <Mail size={10} color="#ea4335" /> {lead.email.length > 20 ? `${lead.email.slice(0, 18)}...` : lead.email}
+                        </span>
+                      )}
                     </div>
 
                     <div style={{ marginTop: '6px', padding: '5px 7px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-input)', fontSize: '0.72rem' }}>
@@ -433,6 +445,21 @@ export default function KanbanView({
                           title="Contactar por WhatsApp"
                         >
                           <Phone size={12} />
+                        </a>
+                      )}
+
+                      {/* Correo / Gmail Directo */}
+                      {lead.email && (
+                        <a 
+                          href={`mailto:${lead.email}?subject=${encodeURIComponent(`Tarjetas Inteligentes Linkeo para ${lead.businessName}`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-icon"
+                          style={{ width: '26px', height: '26px', color: '#ea4335' }}
+                          onClick={(e) => e.stopPropagation()}
+                          title={`Enviar correo a: ${lead.email}`}
+                        >
+                          <Mail size={12} />
                         </a>
                       )}
 
@@ -614,6 +641,20 @@ export default function KanbanView({
                     onChange={(e) => setNewLeadForm({ ...newLeadForm, phone: e.target.value })}
                   />
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Mail size={13} color="#ea4335" />
+                  <span>Correo Electrónico / Gmail (Opcional):</span>
+                </label>
+                <input 
+                  type="email" 
+                  className="form-control"
+                  placeholder="ejemplo@gmail.com o contacto@negocio.com"
+                  value={newLeadForm.email}
+                  onChange={(e) => setNewLeadForm({ ...newLeadForm, email: e.target.value })}
+                />
               </div>
 
               <div className="form-row">
@@ -821,6 +862,20 @@ export default function KanbanView({
                     onChange={(e) => setEditLeadForm({ ...editLeadForm, phone: e.target.value })}
                   />
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Mail size={13} color="#ea4335" />
+                  <span>Correo Electrónico / Gmail (Opcional):</span>
+                </label>
+                <input 
+                  type="email" 
+                  className="form-control"
+                  placeholder="ejemplo@gmail.com o contacto@negocio.com"
+                  value={editLeadForm.email}
+                  onChange={(e) => setEditLeadForm({ ...editLeadForm, email: e.target.value })}
+                />
               </div>
 
               <div className="form-row">

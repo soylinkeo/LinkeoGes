@@ -732,7 +732,7 @@ export default function App() {
       if (Number(product.stock ?? 0) < 1) {
         throw new Error(`Stock insuficiente: "${product.name}" no tiene existencias disponibles en almacén.`);
       }
-      const form = { clientName: lead.businessName, contactPerson: lead.contactName, phone: lead.phone,
+      const form = { clientName: lead.businessName, contactPerson: lead.contactName, phone: lead.phone, email: lead.email || '',
         district: lead.district, quantity: 1, soldBy: lead.assignedTo === 'both' ? currentUser.id : lead.assignedTo,
         paymentMethod: 'Transferencia', googlePlaceId: lead.placeId || '' };
       const result = createSale({ form, product, inventory, userId: currentUser.id });
