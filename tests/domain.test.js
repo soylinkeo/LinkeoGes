@@ -622,4 +622,51 @@ test('calculateUnitsProjection calculates bottom-up product quantities, replacem
   assert.equal(resWithFuture.netProfit, 2612.10);
 });
 
+test('projections sales mix matches real warehouse inventory and prevents duplicate imports', async () => {
+  const { getProductInventoryInfo } = await import('../src/utils/projectionsUtils.js');
+  const { INITIAL_INVENTORY, INITIAL_PRODUCTS } = await import('../src/data/initialData.js');
+
+  // 1. Probar que Cuadrado ESP obtiene 15 unidades de stock físico real y costo S/ 12.93
+  const prodCuadradoEsp = { id: 'p1', name: 'Tarjeta Google NFC Cuadrado ESP', sku: 'SKU-LNK-6781' };
+  const infoCuadrado = getProductInventoryInfo(prodCuadradoEsp, INITIAL_INVENTORY, INITIAL_PRODUCTS);
+  assert.equal(infoCuadrado.stock, 15, 'Cuadrado ESP debe tener 15 unidades en taller, no 1 ud');
+  assert.equal(infoCuadrado.cost, 12.93);
+
+  // 2. Probar que Formato L ESP obtiene 15 unidades de stock físico real y costo S/ 12.93
+  const prodFormatoL = { id: 'p2', name: 'Tarjeta Google NFC Formato L ESP', sku: 'SKU-LNK-9972' };
+  const infoL = getProductInventoryInfo(prodFormatoL, INITIAL_INVENTORY, INITIAL_PRODUCTS);
+  assert.equal(infoL.stock, 15, 'Formato L ESP debe tener 15 unidades en taller, no 1 ud');
+  assert.equal(infoL.cost, 12.93);
+
+  // 3. Probar que Cuadrado ING obtiene 1 unidad (su muestra real de stock)
+  const prodCuadradoIng = { id: 'p3', name: 'Tarjeta Google NFC Cuadrado ING', sku: 'SKU-LNK-1367' };
+  const infoIng = getProductInventoryInfo(prodCuadradoIng, INITIAL_INVENTORY, INITIAL_PRODUCTS);
+  assert.equal(infoIng.stock, 1);
+  assert.equal(infoIng.cost, 60.00);
+
+  // 4. Probar deduplicación: Si Cuadrado ESP y Formato L ya están en el mix, no aparecen en disponibles para importar
+  const projectedProducts = [
+    { id: 'proj-1', catalogId: 'prod-ind-1', sku: 'SKU-LNK-6781', name: 'Tarjeta Google NFC Cuadrado ESP' },
+    { id: 'proj-2', catalogId: 'prod-ind-2', sku: 'SKU-LNK-9972', name: 'Tarjeta Google NFC Formato L ESP' }
+  ];
+
+  const availableToImport = INITIAL_PRODUCTS.filter(prod => {
+    const already = projectedProducts.some(p => 
+      p.catalogId === prod.id || 
+      (p.sku && prod.sku && p.sku.toLowerCase() === prod.sku.toLowerCase()) ||
+      p.name === prod.name
+    );
+    return !already;
+  });
+
+  // INITIAL_PRODUCTS tiene 5 productos: Cuadrado ESP, Formato L ESP, Cuadrado ING, Pack Dúo, Pack Trío
+  // Al filtrar los 2 ya agregados, deben quedar exactamente 3
+  assert.equal(availableToImport.length, 3);
+  assert.ok(!availableToImport.some(p => p.sku === 'SKU-LNK-6781'), 'Cuadrado ESP no debe duplicarse');
+  assert.ok(!availableToImport.some(p => p.sku === 'SKU-LNK-9972'), 'Formato L ESP no debe duplicarse');
+  assert.ok(availableToImport.some(p => p.sku === 'SKU-LNK-1367'), 'Cuadrado ING debe estar disponible');
+  assert.ok(availableToImport.some(p => p.sku === 'SKU-PACK-DUO'), 'Pack Dúo debe estar disponible');
+  assert.ok(availableToImport.some(p => p.sku === 'SKU-PACK-TRIO'), 'Pack Trío debe estar disponible');
+});
+
 

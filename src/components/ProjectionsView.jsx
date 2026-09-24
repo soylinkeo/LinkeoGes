@@ -28,7 +28,11 @@ import {
   PieChart
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
-import { calculateUnitsProjection, DEFAULT_REINVESTMENT_PERCENT } from '../utils/projectionsUtils';
+import { 
+  calculateUnitsProjection, 
+  DEFAULT_REINVESTMENT_PERCENT,
+  getProductInventoryInfo
+} from '../utils/projectionsUtils';
 import { normalizeLeadStage } from '../utils/leadMessages';
 import { 
   EXCEL_PLAN_30_DAYS_TEMPLATE, 
@@ -242,6 +246,20 @@ export default function ProjectionsView({
   }, [projectionsData?.variableCosts, projectionsData?.variableUnitCosts]);
 
   const projectedProducts = projectionsData?.projectedProducts || [];
+
+  // Productos disponibles para importar desde el catálogo (excluyendo los que ya están en projectedProducts para evitar duplicados)
+  const availableProductsToImport = useMemo(() => {
+    return products.filter(prod => {
+      const alreadyInProjection = projectedProducts.some(p => {
+        if (p.catalogId && p.catalogId === prod.id) return true;
+        if (p.sku && prod.sku && p.sku.trim().toLowerCase() === prod.sku.trim().toLowerCase()) return true;
+        if (p.name && prod.name && p.name.trim().toLowerCase() === prod.name.trim().toLowerCase()) return true;
+        return false;
+      });
+      return !alreadyInProjection;
+    });
+  }, [products, projectedProducts]);
+
   const initialInvestment = projectionsData?.initialInvestment || [];
   const funnelRatios = projectionsData?.funnelRatios || {
     contactToResponse: 0.35,
@@ -811,7 +829,7 @@ export default function ProjectionsView({
   };
 
   const handleImportProductFromCatalog = (product) => {
-    if (projectedProducts.some(p => p.catalogId === product.id || p.name === product.name)) {
+    if (projectedProducts.some(p => p.catalogId === product.id || (p.sku && product.sku && p.sku.trim().toLowerCase() === product.sku.trim().toLowerCase()) || p.name === product.name)) {
       if (showToast) {
         showToast('⚠️ Este producto ya forma parte del modelado de proyecciones.', 'warning');
       } else {
@@ -820,15 +838,19 @@ export default function ProjectionsView({
       return;
     }
 
+    const invInfo = getProductInventoryInfo(product, inventory, products);
+    const initialUnits = invInfo.stock !== null && invInfo.stock > 0 ? invInfo.stock : 10;
+    const initialCost = invInfo.cost > 0 ? invInfo.cost : (Number(product.cost) || 12.93);
+
     const imported = {
       id: `proj-imp-${Date.now()}`,
       catalogId: product.id,
       name: product.name,
       sku: product.sku || generateRandomSku('LNK-PROD'),
       price: Number(product.price) || 60,
-      baseCost: Number(product.cost) || 13,
+      baseCost: initialCost,
       mixPercent: 50,
-      targetUnits: 10,
+      targetUnits: initialUnits,
       isCustom: false,
       included: true
     };
@@ -855,14 +877,13 @@ export default function ProjectionsView({
         entityType: 'Mix Producto',
         entityId: imported.sku,
         entityName: imported.name,
-        reason: `Producto importado del catálogo al modelo de proyecciones.`
+        reason: `Producto importado del catálogo al modelo de proyecciones (Stock: ${invInfo.stock ?? 'N/A'}, Costo: S/ ${initialCost.toFixed(2)}).`
       });
     }
 
     if (showToast) {
-      showToast(`✅ "${product.name}" importado al modelo de proyecciones`, 'success');
+      showToast(`✅ "${product.name}" importado (${initialUnits} uds)`, 'success');
     }
-    setIsImportProductModalOpen(false);
   };
 
   // Handlers para Gastos Fijos
@@ -2588,19 +2609,19 @@ export default function ProjectionsView({
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '40px' }}>Activo</th>
-                    <th>SKU</th>
-                    <th>Producto / Insumo</th>
-                    <th>Precio Venta</th>
+                    <th style={{ width: '38px', textAlign: 'center' }}>Activo</th>
+                    <th style={{ minWidth: '220px' }}>Producto / Modelo</th>
+                    <th style={{ width: '110px', textAlign: 'center' }}>Stock Almacén</th>
+                    <th style={{ width: '100px', textAlign: 'right' }}>Precio Venta</th>
                     <th style={{ width: '130px', textAlign: 'center', background: 'rgba(0, 102, 255, 0.08)' }}>
                       Unidades a Vender
                     </th>
-                    <th>Venta Total</th>
-                    <th>Costo Reposición Unit.</th>
-                    <th>Fondo Reposición Tot.</th>
-                    <th>Margen Ganancia</th>
-                    <th>% Mix</th>
-                    <th style={{ textAlign: 'center', width: '80px' }}>Acciones</th>
+                    <th style={{ width: '115px', textAlign: 'right' }}>Venta Total</th>
+                    <th style={{ width: '105px', textAlign: 'right' }}>Costo Rep. Unit.</th>
+                    <th style={{ width: '120px', textAlign: 'right' }}>Fondo Reposición</th>
+                    <th style={{ width: '125px', textAlign: 'right' }}>Margen Ganancia</th>
+                    <th style={{ width: '75px', textAlign: 'center' }}>% Mix</th>
+                    <th style={{ textAlign: 'center', width: '75px' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2610,6 +2631,9 @@ export default function ProjectionsView({
                     const prodReplacement = prodUnits * prod.baseCost;
                     const prodTotalVarCost = prodUnits * prod.totalUnitVariableCost;
                     const prodMargin = prodRevenue - prodTotalVarCost;
+
+                    const invInfo = getProductInventoryInfo(prod, inventory, products);
+                    const realStock = invInfo.stock;
 
                     return (
                       <tr key={prod.id} style={{ opacity: prod.included === false ? 0.45 : 1 }}>
@@ -2623,30 +2647,52 @@ export default function ProjectionsView({
                           />
                         </td>
                         <td>
-                          <span className="code-mono" style={{ fontSize: '0.78rem' }}>{prod.sku}</span>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <span>{prod.name}</span>
-                            {(() => {
-                              const invItem = inventory.find(i => 
-                                (prod.sku && i.sku && i.sku.toLowerCase() === prod.sku.toLowerCase()) ||
-                                (i.name && prod.name && (i.name.toLowerCase().includes(prod.name.toLowerCase().slice(0, 12)) || prod.name.toLowerCase().includes(i.name.toLowerCase().slice(0, 12))))
-                              );
-                              const qty = invItem ? Number(invItem.quantity) || 0 : ((prod.name || '').includes('Cuadrado') || (prod.name || '').includes('L') ? 15 : null);
-                              return qty !== null ? (
-                                <span className="badge badge-purple" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                                  Stock taller: {qty} uds
-                                </span>
-                              ) : null;
-                            })()}
+                          <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-main)', marginBottom: '3px' }}>
+                            {prod.name}
                           </div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
-                            {prod.isCustom ? '✨ Producto Proyectado / Futuro' : '📦 Producto del Catálogo'}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span className="code-mono" style={{ fontSize: '0.72rem', background: 'var(--bg-input)', padding: '1px 5px', borderRadius: '3px', border: '1px solid var(--border-subtle)' }}>
+                              {prod.sku}
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
+                              {prod.isCustom ? '✨ Modelo Proyectado' : '📦 Catálogo'}
+                            </span>
                           </div>
                         </td>
-                        <td>
-                          <strong>S/ {prod.price.toFixed(2)}</strong>
+                        <td style={{ textAlign: 'center' }}>
+                          {realStock !== null ? (
+                            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                              <span 
+                                className={`badge ${realStock > 0 ? 'badge-green' : 'badge-yellow'}`}
+                                style={{ fontSize: '0.75rem', fontWeight: 800, padding: '2px 8px' }}
+                              >
+                                {realStock} uds
+                              </span>
+                              {prod.targetUnits !== realStock && realStock > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateProductUnits(prod.id, realStock)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--primary-600)',
+                                    fontSize: '0.67rem',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    textDecoration: 'underline'
+                                  }}
+                                  title={`Alinear meta con el stock físico del almacén (${realStock} uds)`}
+                                >
+                                  Usar stock
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>Sin stock</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <strong style={{ color: 'var(--text-main)' }}>S/ {prod.price.toFixed(2)}</strong>
                         </td>
                         <td style={{ textAlign: 'center', background: 'rgba(0, 102, 255, 0.04)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
@@ -2670,21 +2716,21 @@ export default function ProjectionsView({
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>uds</span>
                           </div>
                         </td>
-                        <td style={{ fontWeight: 800, color: '#10b981' }}>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#10b981' }}>
                           S/ {prodRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td>
+                        <td style={{ textAlign: 'right' }}>
                           <span style={{ color: 'var(--text-muted)' }}>S/ {prod.baseCost.toFixed(2)}</span>
                         </td>
-                        <td>
+                        <td style={{ textAlign: 'right' }}>
                           <span style={{ color: '#ef4444', fontWeight: 700 }}>
                             S/ {prodReplacement.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
-                          <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
+                          <div style={{ fontSize: '0.67rem', color: 'var(--text-subtle)' }}>
                             (Para reponer mercadería)
                           </div>
                         </td>
-                        <td>
+                        <td style={{ textAlign: 'right' }}>
                           <strong style={{ color: prodMargin > 0 ? '#10b981' : '#ef4444' }}>
                             S/ {prodMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </strong>
@@ -2692,7 +2738,7 @@ export default function ProjectionsView({
                             {prod.marginPct.toFixed(1)}% margen unit.
                           </div>
                         </td>
-                        <td>
+                        <td style={{ textAlign: 'center' }}>
                           <span className="badge badge-blue" style={{ fontSize: '0.78rem' }}>
                             {prod.mixPercent}%
                           </span>
@@ -2730,17 +2776,17 @@ export default function ProjectionsView({
                         {simulationResults.units} uds
                       </span>
                     </td>
-                    <td style={{ padding: '12px', color: '#10b981', fontSize: '0.95rem' }}>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#10b981', fontSize: '0.95rem' }}>
                       S/ {simulationResults.grossRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td style={{ padding: '12px' }}></td>
-                    <td style={{ padding: '12px', color: '#ef4444', fontSize: '0.95rem' }}>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#ef4444', fontSize: '0.95rem' }}>
                       - S/ {simulationResults.replacementFund.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td style={{ padding: '12px', color: '#8b5cf6', fontSize: '0.95rem' }}>
+                    <td style={{ padding: '12px', textAlign: 'right', color: '#8b5cf6', fontSize: '0.95rem' }}>
                       S/ {simulationResults.totalMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td style={{ padding: '12px' }}>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
                       <span className="badge badge-green" style={{ fontSize: '0.8rem' }}>
                         100%
                       </span>
@@ -4040,7 +4086,7 @@ export default function ProjectionsView({
       {/* ========================================================================= */}
       {isImportProductModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '580px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Boxes size={18} color="var(--primary-600)" />
@@ -4050,56 +4096,97 @@ export default function ProjectionsView({
             </div>
 
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              Selecciona un producto existente de tu Catálogo para incorporarlo al modelo financiero interactivo:
+              Selecciona un producto existente de tu Catálogo para incorporarlo al modelo financiero (los ya agregados se excluyen automáticamente para evitar duplicados):
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '340px', overflowY: 'auto' }}>
-              {products.length === 0 ? (
-                <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No tienes productos registrados aún en el Catálogo.
-                  <div style={{ marginTop: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '360px', overflowY: 'auto' }}>
+              {availableProductsToImport.length === 0 ? (
+                <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-subtle)' }}>
+                  <CheckCircle size={32} color="#10b981" style={{ margin: '0 auto 10px auto' }} />
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-main)', marginBottom: '6px' }}>
+                    {products.length === 0 
+                      ? 'No tienes productos registrados en el Catálogo' 
+                      : '¡Todos los productos del Catálogo ya están agregados!'}
+                  </div>
+                  <p style={{ fontSize: '0.82rem', maxWidth: '440px', margin: '0 auto 16px auto', color: 'var(--text-muted)' }}>
+                    {products.length === 0 
+                      ? 'Registra productos en la pestaña de Catálogo o Almacén para poder importarlos al modelo.' 
+                      : 'Todos tus modelos del catálogo ya forman parte de la tabla sin duplicados. Puedes proyectar nuevos productos futuros o ajustar las unidades de los existentes.'}
+                  </p>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
                     <button 
-                      className="btn btn-secondary btn-sm"
+                      className="btn btn-primary btn-sm"
                       onClick={() => {
                         setIsImportProductModalOpen(false);
-                        setCurrentTab('products');
+                        setIsNewProductModalOpen(true);
                       }}
                     >
-                      Ir a Catálogo de Productos
+                      <Plus size={14} />
+                      <span>+ Proyectar Nuevo Producto</span>
+                    </button>
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setIsImportProductModalOpen(false)}
+                    >
+                      Cerrar
                     </button>
                   </div>
                 </div>
               ) : (
-                products.map(prod => (
-                  <div 
-                    key={prod.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '12px 14px',
-                      background: 'var(--bg-input)',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border-subtle)'
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{prod.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '10px' }}>
-                        <span className="code-mono">{prod.sku}</span>
-                        <span>Precio: <strong>S/ {Number(prod.price).toFixed(2)}</strong></span>
-                        <span>Costo: S/ {Number(prod.cost || 0).toFixed(2)}</span>
-                      </div>
-                    </div>
+                availableProductsToImport.map(prod => {
+                  const invInfo = getProductInventoryInfo(prod, inventory, products);
+                  const displayStock = invInfo.stock;
+                  const displayCost = invInfo.cost > 0 ? invInfo.cost : (Number(prod.cost) || 0);
 
-                    <button 
-                      className="btn btn-primary btn-sm"
-                      onClick={() => handleImportProductFromCatalog(prod)}
+                  return (
+                    <div 
+                      key={prod.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '12px 14px',
+                        background: 'var(--bg-input)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-subtle)',
+                        gap: '12px'
+                      }}
                     >
-                      Importar
-                    </button>
-                  </div>
-                ))
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                            {prod.name}
+                          </span>
+                          {displayStock !== null ? (
+                            <span 
+                              className={`badge ${displayStock > 0 ? 'badge-green' : 'badge-yellow'}`}
+                              style={{ fontSize: '0.68rem', padding: '1px 6px' }}
+                            >
+                              Stock actual: {displayStock} uds
+                            </span>
+                          ) : (
+                            <span className="badge badge-purple" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                              Catálogo
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                          <span className="code-mono">{prod.sku}</span>
+                          <span>Precio: <strong style={{ color: 'var(--text-main)' }}>S/ {Number(prod.price).toFixed(2)}</strong></span>
+                          <span>Costo reposición: <strong style={{ color: '#ef4444' }}>S/ {displayCost.toFixed(2)}</strong></span>
+                        </div>
+                      </div>
+
+                      <button 
+                        className="btn btn-primary btn-sm"
+                        onClick={() => handleImportProductFromCatalog(prod)}
+                        style={{ whiteSpace: 'nowrap' }}
+                      >
+                        Importar
+                      </button>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>

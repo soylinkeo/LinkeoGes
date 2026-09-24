@@ -239,3 +239,65 @@ export function computeDynamicTargets(projectionsData, fallbackTargets = {}) {
     isCustom: true
   };
 }
+
+/**
+ * Obtiene la información real de stock físico y costo unitario desde el inventario del almacén
+ */
+export function getProductInventoryInfo(prod, inventoryList = [], productsList = []) {
+  if (!prod) return { stock: null, cost: 0, invItem: null };
+
+  // 1. Enlace directo mediante catalogId -> producto catálogo -> inventoryId
+  const catalogProd = productsList.find(p => 
+    p.id === prod.catalogId || 
+    p.id === prod.id || 
+    (p.sku && prod.sku && p.sku.trim().toLowerCase() === prod.sku.trim().toLowerCase())
+  );
+  
+  let match = null;
+  if (catalogProd?.inventoryId) {
+    match = inventoryList.find(i => i.id === catalogProd.inventoryId);
+  }
+
+  // 2. Coincidencia exacta por SKU
+  if (!match && prod.sku) {
+    const cleanSku = String(prod.sku).trim().toLowerCase();
+    match = inventoryList.find(i => i.sku && String(i.sku).trim().toLowerCase() === cleanSku);
+  }
+
+  // 3. Coincidencia exacta por nombre normalizado
+  if (!match && prod.name) {
+    const cleanName = String(prod.name).trim().toLowerCase();
+    match = inventoryList.find(i => String(i.name || '').trim().toLowerCase() === cleanName);
+  }
+
+  // 4. Desambiguación semántica por modelo Linkeo (Cuadrado ESP vs Formato L ESP vs Cuadrado ING)
+  if (!match && prod.name) {
+    const pName = String(prod.name).toLowerCase();
+    const isCuadrado = pName.includes('cuadrado');
+    const isL = pName.includes('formato l') || pName.includes(' l ') || pName.endsWith(' l') || pName.includes('l esp');
+    const isEsp = pName.includes('esp') || pName.includes('español');
+    const isIng = pName.includes('ing') || pName.includes('inglés');
+
+    match = inventoryList.find(i => {
+      const iName = String(i.name || '').toLowerCase();
+      if (isCuadrado && iName.includes('cuadrado')) {
+        if (isEsp && (iName.includes('esp') || iName.includes('español'))) return true;
+        if (isIng && (iName.includes('ing') || iName.includes('inglés'))) return true;
+        if (!isEsp && !isIng) return true;
+      }
+      if (isL && (iName.includes('formato l') || iName.includes(' l') || iName.includes('l esp'))) {
+        if (isEsp && (iName.includes('esp') || iName.includes('español'))) return true;
+        return true;
+      }
+      return false;
+    });
+  }
+
+  const stock = match ? (Number(match.quantity) || 0) : null;
+  const cost = match && match.unitCost !== undefined && Number(match.unitCost) > 0 
+    ? Number(match.unitCost) 
+    : (Number(prod.baseCost || prod.cost) || 0);
+
+  return { stock, cost, invItem: match };
+}
+
