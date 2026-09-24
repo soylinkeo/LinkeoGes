@@ -2605,238 +2605,292 @@ export default function ProjectionsView({
               </div>
             </div>
           ) : (
-          <div className="table-responsive" style={{ marginBottom: '24px', overflowX: 'auto' }}>
-              <table className="data-table" style={{ fontSize: '0.82rem', tableLayout: 'auto', width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '32px', textAlign: 'center', padding: '8px 6px' }}>✓</th>
-                    <th style={{ minWidth: '160px', padding: '8px 6px' }}>Producto / Modelo</th>
-                    <th style={{ width: '80px', textAlign: 'center', padding: '8px 6px' }}>Stock</th>
-                    <th style={{ width: '85px', textAlign: 'right', padding: '8px 6px' }}>P. Venta</th>
-                    <th style={{ width: '110px', textAlign: 'center', background: 'rgba(0, 102, 255, 0.08)', padding: '8px 6px' }}>
-                      Uds. a Vender
-                    </th>
-                    <th style={{ width: '95px', textAlign: 'right', padding: '8px 6px' }}>Venta Total</th>
-                    <th style={{ width: '88px', textAlign: 'right', padding: '8px 6px' }}>Costo Rep.</th>
-                    <th style={{ width: '100px', textAlign: 'right', padding: '8px 6px' }}>Fdo. Reposición</th>
-                    <th style={{ width: '105px', textAlign: 'right', padding: '8px 6px' }}>Margen</th>
-                    <th style={{ width: '60px', textAlign: 'center', padding: '8px 6px' }}>% Mix</th>
-                    <th style={{ textAlign: 'center', width: '64px', padding: '8px 4px' }}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projectedProducts.map(prod => {
-                    const isActive = prod.included !== false;
+          <div style={{ marginBottom: '20px', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
+            <table style={{
+              width: '100%',
+              tableLayout: 'fixed',
+              borderCollapse: 'collapse',
+              fontSize: '0.8rem',
+            }}>
+              <colgroup>
+                <col style={{ width: '32px' }} />   {/* ✓ */}
+                <col style={{ width: '22%' }} />    {/* Producto */}
+                <col style={{ width: '72px' }} />   {/* Stock */}
+                <col style={{ width: '80px' }} />   {/* P.Venta */}
+                <col style={{ width: '100px' }} />  {/* Uds */}
+                <col style={{ width: '88px' }} />   {/* Ingresos */}
+                <col style={{ width: '100px' }} />  {/* Costo + Fdo */}
+                <col style={{ width: '100px' }} />  {/* Margen */}
+                <col style={{ width: '52px' }} />   {/* %Mix */}
+                <col style={{ width: '56px' }} />   {/* Acciones */}
+              </colgroup>
+              <thead>
+                <tr style={{ background: 'var(--bg-input)', borderBottom: '2px solid var(--border-subtle)' }}>
+                  <th style={{ padding: '9px 6px', textAlign: 'center', color: 'var(--text-subtle)', fontWeight: 600, fontSize: '0.72rem' }}>✓</th>
+                  <th style={{ padding: '9px 10px', color: 'var(--text-subtle)', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Producto / Modelo</th>
+                  <th style={{ padding: '9px 6px', textAlign: 'center', color: 'var(--text-subtle)', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Stock</th>
+                  <th style={{ padding: '9px 8px', textAlign: 'right', color: 'var(--text-subtle)', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>P. Venta</th>
+                  <th style={{ padding: '9px 8px', textAlign: 'center', background: 'rgba(99,102,241,0.07)', color: 'var(--text-subtle)', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Uds. a Vender</th>
+                  <th style={{ padding: '9px 8px', textAlign: 'right', color: '#10b981', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ingresos</th>
+                  <th style={{ padding: '9px 8px', textAlign: 'right', color: '#ef4444', fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Costo / Fdo. Rep.</th>
+                  <th style={{ padding: '9px 8px', textAlign: 'right', color: 'var(--text-subtle)', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Margen</th>
+                  <th style={{ padding: '9px 4px', textAlign: 'center', color: 'var(--text-subtle)', fontWeight: 600, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Mix</th>
+                  <th style={{ padding: '9px 4px', textAlign: 'center', color: 'var(--text-subtle)', fontWeight: 600, fontSize: '0.72rem' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {projectedProducts.map((prod, idx) => {
+                  const isActive = prod.included !== false;
 
-                    // Calcular economics solo si activo
-                    const price = Number(prod.price) || 0;
-                    const baseCost = Number(prod.baseCost) || 0;
-                    const paymentFee = price * (totalVariablePercent / 100);
-                    const totalUnitVarCost = baseCost + commonVariablePerUnit + paymentFee;
-                    const prodUnits = isActive ? (Number(prod.targetUnits !== undefined ? prod.targetUnits : 0) || 0) : 0;
-                    const prodRevenue = prodUnits * price;
-                    const prodReplacement = prodUnits * baseCost;
-                    const prodTotalVarCost = prodUnits * totalUnitVarCost;
-                    const prodMargin = prodRevenue - prodTotalVarCost;
-                    const marginPct = price > 0 ? ((price - totalUnitVarCost) / price) * 100 : 0;
+                  const price = Number(prod.price) || 0;
+                  const baseCost = Number(prod.baseCost) || 0;
+                  const paymentFee = price * (totalVariablePercent / 100);
+                  const totalUnitVarCost = baseCost + commonVariablePerUnit + paymentFee;
+                  const prodUnits = isActive ? (Number(prod.targetUnits !== undefined ? prod.targetUnits : 0) || 0) : 0;
+                  const prodRevenue = prodUnits * price;
+                  const prodReplacement = prodUnits * baseCost;
+                  const prodTotalVarCost = prodUnits * totalUnitVarCost;
+                  const prodMargin = prodRevenue - prodTotalVarCost;
+                  const marginPct = price > 0 ? ((price - totalUnitVarCost) / price) * 100 : 0;
 
-                    const invInfo = getProductInventoryInfo(prod, inventory, products);
-                    const realStock = invInfo.stock;
+                  const invInfo = getProductInventoryInfo(prod, inventory, products);
+                  const realStock = invInfo.stock;
 
-                    return (
-                      <tr key={prod.id} style={{ opacity: isActive ? 1 : 0.38 }}>
-                        <td style={{ textAlign: 'center', padding: '6px 4px' }}>
-                          <input 
-                            type="checkbox"
-                            checked={isActive}
-                            onChange={() => handleToggleProductInclusion(prod.id)}
-                            title="Incluir / Excluir de la proyección"
-                            style={{ cursor: 'pointer', width: '15px', height: '15px' }}
-                          />
-                        </td>
-                        <td style={{ padding: '6px 8px' }}>
-                          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-main)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
-                            {prod.name}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                            <span className="code-mono" style={{ fontSize: '0.68rem', background: 'var(--bg-input)', padding: '1px 4px', borderRadius: '3px', border: '1px solid var(--border-subtle)' }}>
-                              {prod.sku}
-                            </span>
-                            <span style={{ fontSize: '0.66rem', color: 'var(--text-subtle)' }}>
-                              {prod.isCustom ? '✨ Proyectado' : '📦 Catálogo'}
-                            </span>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'center', padding: '6px 4px' }}>
-                          {realStock !== null ? (
-                            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                              <span 
-                                className={`badge ${realStock > 0 ? 'badge-green' : 'badge-yellow'}`}
-                                style={{ fontSize: '0.7rem', fontWeight: 800, padding: '1px 6px' }}
-                              >
-                                {realStock} uds
-                              </span>
-                              {isActive && prod.targetUnits !== realStock && realStock > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateProductUnits(prod.id, realStock)}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'var(--primary-600)',
-                                    fontSize: '0.64rem',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                    textDecoration: 'underline'
-                                  }}
-                                  title={`Alinear meta con el stock físico del almacén (${realStock} uds)`}
-                                >
-                                  Usar stock
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>—</span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'right', padding: '6px 8px' }}>
-                          <strong style={{ color: 'var(--text-main)', fontSize: '0.82rem' }}>S/ {price.toFixed(2)}</strong>
-                        </td>
-                        <td style={{ textAlign: 'center', background: isActive ? 'rgba(0, 102, 255, 0.04)' : 'transparent', padding: '6px 6px' }}>
-                          {isActive ? (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                              <input 
-                                type="number"
-                                min="0"
-                                max="10000"
-                                value={prod.targetUnits !== undefined ? prod.targetUnits : 0}
-                                onChange={(e) => handleUpdateProductUnits(prod.id, e.target.value)}
-                                className="form-control"
-                                style={{ 
-                                  width: '62px', 
-                                  padding: '4px 6px', 
-                                  textAlign: 'center', 
-                                  fontWeight: 800, 
-                                  fontSize: '0.88rem',
-                                  color: 'var(--primary-600)',
-                                  border: '2px solid rgba(0, 102, 255, 0.3)'
-                                }}
-                              />
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>uds</span>
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>excluido</span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 800, color: isActive ? '#10b981' : 'var(--text-subtle)', padding: '6px 8px' }}>
-                          {isActive ? `S/ ${prodRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-                        </td>
-                        <td style={{ textAlign: 'right', padding: '6px 8px' }}>
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>S/ {baseCost.toFixed(2)}</span>
-                        </td>
-                        <td style={{ textAlign: 'right', padding: '6px 8px' }}>
-                          {isActive ? (
-                            <span style={{ color: '#ef4444', fontWeight: 700 }}>
-                              S/ {prodReplacement.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          ) : <span style={{ color: 'var(--text-subtle)' }}>—</span>}
-                        </td>
-                        <td style={{ textAlign: 'right', padding: '6px 8px' }}>
-                          {isActive ? (
-                            <>
-                              <strong style={{ color: prodMargin > 0 ? '#10b981' : '#ef4444', fontSize: '0.82rem' }}>
-                                S/ {prodMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </strong>
-                              <div style={{ fontSize: '0.65rem', color: 'var(--text-subtle)' }}>
-                                {marginPct.toFixed(1)}% unit.
-                              </div>
-                            </>
-                          ) : <span style={{ color: 'var(--text-subtle)' }}>—</span>}
-                        </td>
-                        <td style={{ textAlign: 'center', padding: '6px 4px' }}>
-                          {isActive ? (
-                            <span className="badge badge-blue" style={{ fontSize: '0.72rem', padding: '2px 5px' }}>
-                              {prod.mixPercent}%
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>—</span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'center', padding: '6px 4px' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                            <button 
-                              className="btn-icon"
-                              onClick={() => handleOpenEditProduct(prod)}
-                              title="Editar producto proyectado"
-                            >
-                              <Edit3 size={12} />
-                            </button>
-                            <button 
-                              className="btn-icon"
-                              style={{ color: '#ef4444' }}
-                              onClick={() => handleDeleteProjectedProduct(prod)}
-                              title="Eliminar de la proyección (con auditoría)"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: 'var(--bg-card)', fontWeight: 800, borderTop: '2px solid var(--border-subtle)' }}>
-                    <td colSpan={4} style={{ textAlign: 'right', padding: '12px' }}>
-                      Totales del Mix de Productos:
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>
-                      <span className="badge badge-blue" style={{ fontSize: '0.88rem', padding: '4px 10px' }}>
-                        {simulationResults.units} uds
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#10b981', fontSize: '0.95rem' }}>
-                      S/ {simulationResults.grossRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td style={{ padding: '12px' }}></td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#ef4444', fontSize: '0.95rem' }}>
-                      - S/ {simulationResults.replacementFund.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'right', color: '#8b5cf6', fontSize: '0.95rem' }}>
-                      S/ {simulationResults.totalMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>
-                      <span className="badge badge-green" style={{ fontSize: '0.8rem' }}>
-                        100%
-                      </span>
-                    </td>
-                    <td></td>
-                  </tr>
+                  const rowBg = idx % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-input)';
 
-                  {/* Fila Resumen Financiero Completo */}
-                  <tr style={{ background: 'rgba(0, 102, 255, 0.05)', borderTop: '1px dashed var(--border-subtle)' }}>
-                    <td colSpan={11} style={{ padding: '14px 18px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.82rem' }}>
-                          <span>Gastos Fijos: <strong style={{ color: '#f59e0b' }}>-S/ {totalFixedCosts.toFixed(2)}</strong></span>
-                          <span>|</span>
-                          <span>Utilidad Neta Negocio: <strong style={{ color: '#06b6d4' }}>S/ {simulationResults.netProfit.toFixed(2)}</strong></span>
-                          <span>|</span>
-                          <span>Fondo Reinversión ({simulationResults.reinvestmentPercent}%): <strong style={{ color: '#a855f7' }}>-S/ {simulationResults.reinvestmentAmount.toFixed(2)}</strong></span>
+                  return (
+                    <tr
+                      key={prod.id}
+                      style={{
+                        background: rowBg,
+                        opacity: isActive ? 1 : 0.4,
+                        borderBottom: '1px solid var(--border-subtle)',
+                        transition: 'background 0.15s',
+                      }}
+                    >
+                      {/* ✓ Checkbox */}
+                      <td style={{ padding: '7px 4px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isActive}
+                          onChange={() => handleToggleProductInclusion(prod.id)}
+                          title="Incluir / Excluir de la proyección"
+                          style={{ cursor: 'pointer', width: '14px', height: '14px', accentColor: 'var(--primary-600)' }}
+                        />
+                      </td>
+
+                      {/* Producto */}
+                      <td style={{ padding: '7px 10px', overflow: 'hidden' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {prod.name}
                         </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>Reparto Limpio por Socio (50/50):</span>
-                          <span style={{ fontSize: '1.15rem', fontWeight: 900, color: '#10b981' }}>
-                            S/ {simulationResults.profitPerPartner.toFixed(2)} c/u
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                          <span className="code-mono" style={{ fontSize: '0.64rem', color: 'var(--text-subtle)', background: 'var(--bg-subtle)', padding: '0px 4px', borderRadius: '3px', border: '1px solid var(--border-subtle)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px', display: 'inline-block' }}>
+                            {prod.sku}
+                          </span>
+                          <span style={{ fontSize: '0.62rem', color: 'var(--text-subtle)', flexShrink: 0 }}>
+                            {prod.isCustom ? '✨' : '📦'}
                           </span>
                         </div>
+                      </td>
+
+                      {/* Stock */}
+                      <td style={{ padding: '7px 4px', textAlign: 'center' }}>
+                        {realStock !== null ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                            <span
+                              className={`badge ${realStock > 0 ? 'badge-green' : 'badge-yellow'}`}
+                              style={{ fontSize: '0.68rem', fontWeight: 800, padding: '1px 5px' }}
+                            >
+                              {realStock}
+                            </span>
+                            {isActive && prod.targetUnits !== realStock && realStock > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateProductUnits(prod.id, realStock)}
+                                style={{ background: 'none', border: 'none', color: 'var(--primary-600)', fontSize: '0.6rem', cursor: 'pointer', padding: 0, textDecoration: 'underline', lineHeight: 1.2 }}
+                                title="Alinear con stock real"
+                              >
+                                ↑ usar
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Precio */}
+                      <td style={{ padding: '7px 8px', textAlign: 'right' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.8rem' }}>S/{price.toFixed(0)}</span>
+                        <div style={{ fontSize: '0.62rem', color: 'var(--text-subtle)' }}>.{(price % 1).toFixed(2).slice(2)}</div>
+                      </td>
+
+                      {/* Unidades */}
+                      <td style={{ padding: '5px 6px', textAlign: 'center', background: isActive ? 'rgba(99,102,241,0.05)' : 'transparent' }}>
+                        {isActive ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              max="10000"
+                              value={prod.targetUnits !== undefined ? prod.targetUnits : 0}
+                              onChange={(e) => handleUpdateProductUnits(prod.id, e.target.value)}
+                              style={{
+                                width: '56px',
+                                padding: '4px 4px',
+                                textAlign: 'center',
+                                fontWeight: 800,
+                                fontSize: '0.9rem',
+                                color: 'var(--primary-600)',
+                                border: '1.5px solid rgba(99,102,241,0.4)',
+                                borderRadius: '6px',
+                                background: 'var(--bg-card)',
+                                outline: 'none',
+                              }}
+                            />
+                            <span style={{ fontSize: '0.64rem', color: 'var(--text-subtle)' }}>u</span>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', fontStyle: 'italic' }}>excluido</span>
+                        )}
+                      </td>
+
+                      {/* Ingresos */}
+                      <td style={{ padding: '7px 8px', textAlign: 'right' }}>
+                        {isActive ? (
+                          <span style={{ fontWeight: 800, color: '#10b981', fontSize: '0.8rem' }}>
+                            S/{prodRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        ) : <span style={{ color: 'var(--text-subtle)' }}>—</span>}
+                      </td>
+
+                      {/* Costo unit. / Fondo total (merged) */}
+                      <td style={{ padding: '7px 8px', textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>S/{baseCost.toFixed(2)}<span style={{ fontSize: '0.6rem', color: 'var(--text-subtle)' }}>/u</span></div>
+                        {isActive ? (
+                          <div style={{ fontSize: '0.72rem', color: '#ef4444', fontWeight: 700 }}>
+                            -{prodReplacement.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} total
+                          </div>
+                        ) : <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>—</div>}
+                      </td>
+
+                      {/* Margen */}
+                      <td style={{ padding: '7px 8px', textAlign: 'right' }}>
+                        {isActive ? (
+                          <>
+                            <div style={{ fontWeight: 800, fontSize: '0.8rem', color: prodMargin > 0 ? '#10b981' : '#ef4444' }}>
+                              S/{prodMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            <div style={{ fontSize: '0.62rem', color: marginPct > 30 ? '#10b981' : marginPct > 10 ? '#f59e0b' : '#ef4444', fontWeight: 600 }}>
+                              {marginPct.toFixed(1)}% margen
+                            </div>
+                          </>
+                        ) : <span style={{ color: 'var(--text-subtle)' }}>—</span>}
+                      </td>
+
+                      {/* % Mix */}
+                      <td style={{ padding: '7px 4px', textAlign: 'center' }}>
+                        {isActive ? (
+                          <span style={{
+                            display: 'inline-block',
+                            background: 'rgba(99,102,241,0.15)',
+                            color: 'var(--primary-600)',
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            padding: '2px 5px',
+                            borderRadius: '10px',
+                            border: '1px solid rgba(99,102,241,0.25)',
+                          }}>
+                            {prod.mixPercent}%
+                          </span>
+                        ) : <span style={{ color: 'var(--text-subtle)', fontSize: '0.7rem' }}>—</span>}
+                      </td>
+
+                      {/* Acciones */}
+                      <td style={{ padding: '7px 4px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                          <button
+                            className="btn-icon"
+                            onClick={() => handleOpenEditProduct(prod)}
+                            title="Editar"
+                            style={{ padding: '4px' }}
+                          >
+                            <Edit3 size={11} />
+                          </button>
+                          <button
+                            className="btn-icon"
+                            style={{ color: '#ef4444', padding: '4px' }}
+                            onClick={() => handleDeleteProjectedProduct(prod)}
+                            title="Eliminar"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+
+              {/* Footer totales */}
+              <tfoot>
+                <tr style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(16,185,129,0.06))', borderTop: '2px solid var(--border-subtle)' }}>
+                  <td colSpan={4} style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Totales:
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      background: 'rgba(99,102,241,0.15)',
+                      color: 'var(--primary-600)',
+                      fontSize: '0.82rem',
+                      fontWeight: 900,
+                      padding: '3px 8px',
+                      borderRadius: '20px',
+                      border: '1px solid rgba(99,102,241,0.3)',
+                    }}>
+                      {simulationResults.units} uds
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'right', color: '#10b981', fontWeight: 900, fontSize: '0.88rem' }}>
+                    S/{simulationResults.grossRevenue.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'right', color: '#ef4444', fontWeight: 800, fontSize: '0.82rem' }}>
+                    -{simulationResults.replacementFund.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td style={{ padding: '10px 8px', textAlign: 'right', color: '#8b5cf6', fontWeight: 900, fontSize: '0.88rem' }}>
+                    S/{simulationResults.totalMargin.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td style={{ padding: '10px 4px', textAlign: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 800 }}>100%</span>
+                  </td>
+                  <td></td>
+                </tr>
+
+                {/* Fila resumen financiero */}
+                <tr style={{ background: 'rgba(99,102,241,0.04)', borderTop: '1px dashed var(--border-subtle)' }}>
+                  <td colSpan={10} style={{ padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.78rem' }}>
+                        <span>Gastos Fijos: <strong style={{ color: '#f59e0b' }}>-S/{totalFixedCosts.toFixed(2)}</strong></span>
+                        <span style={{ color: 'var(--border-subtle)' }}>|</span>
+                        <span>Utilidad Neta: <strong style={{ color: '#06b6d4' }}>S/{simulationResults.netProfit.toFixed(2)}</strong></span>
+                        <span style={{ color: 'var(--border-subtle)' }}>|</span>
+                        <span>Reinversión ({simulationResults.reinvestmentPercent}%): <strong style={{ color: '#a855f7' }}>-S/{simulationResults.reinvestmentAmount.toFixed(2)}</strong></span>
                       </div>
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>Reparto por Socio (50/50):</span>
+                        <span style={{ fontSize: '1.05rem', fontWeight: 900, color: '#10b981' }}>
+                          S/{simulationResults.profitPerPartner.toFixed(2)} c/u
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
           )}
         </div>
       )}
