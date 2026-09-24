@@ -1745,11 +1745,26 @@ export default function App() {
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Contacto (WhatsApp):</label>
-                    <input type="text" className="form-control" placeholder="+51 987 654 321" value={newSaleForm.phone} onChange={e => setNewSaleForm({
-                      ...newSaleForm,
-                      phone: e.target.value
-                    })} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label className="form-label" style={{ margin: 0 }}>Contacto (WhatsApp):</label>
+                      <span style={{ fontSize: '0.72rem', color: newSaleForm.phone?.length === 9 ? '#10b981' : 'var(--text-muted)', fontWeight: 600 }}>
+                        {newSaleForm.phone?.length || 0}/9 dígitos
+                      </span>
+                    </div>
+                    <input 
+                      type="tel" 
+                      className="form-control" 
+                      placeholder="987654321" 
+                      maxLength={9}
+                      value={newSaleForm.phone} 
+                      onChange={e => {
+                        const clean = e.target.value.replace(/\D/g, '').slice(0, 9);
+                        setNewSaleForm({
+                          ...newSaleForm,
+                          phone: clean
+                        });
+                      }} 
+                    />
                   </div>
 
                   <div className="form-group">

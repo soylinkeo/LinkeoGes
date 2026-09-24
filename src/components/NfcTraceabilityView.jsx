@@ -862,13 +862,22 @@ export default function NfcTraceabilityView({
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Teléfono WhatsApp:</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ margin: 0 }}>Teléfono WhatsApp:</label>
+                    <span style={{ fontSize: '0.72rem', color: newCardForm.contactPhone?.length === 9 ? '#10b981' : 'var(--text-muted)', fontWeight: 600 }}>
+                      {newCardForm.contactPhone?.length || 0}/9 dígitos
+                    </span>
+                  </div>
                   <input 
-                    type="text" 
+                    type="tel" 
                     className="form-control"
-                    placeholder="+51 987 654 321"
+                    placeholder="987654321"
+                    maxLength={9}
                     value={newCardForm.contactPhone}
-                    onChange={(e) => setNewCardForm({ ...newCardForm, contactPhone: e.target.value })}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/\D/g, '').slice(0, 9);
+                      setNewCardForm({ ...newCardForm, contactPhone: clean });
+                    }}
                   />
                 </div>
               </div>

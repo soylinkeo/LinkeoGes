@@ -145,6 +145,8 @@ export default function KanbanView({
   const handleOpenEditLead = (lead) => {
     setEditingLead(lead);
     const hasMapsUrl = Boolean(lead.googleMapsUrl && lead.googleMapsUrl.trim());
+    const rawPhone = String(lead.phone || '').replace(/\D/g, '');
+    const normalizedPhone = rawPhone.length === 11 && rawPhone.startsWith('51') ? rawPhone.slice(2) : rawPhone.slice(0, 9);
     setEditLeadForm({
       id: lead.id,
       businessName: lead.businessName || '',
@@ -154,7 +156,7 @@ export default function KanbanView({
       googleMapsUrl: lead.googleMapsUrl || '',
       isMapsVerified: hasMapsUrl,
       contactName: lead.contactName || '',
-      phone: lead.phone || '',
+      phone: normalizedPhone,
       email: lead.email || '',
       stage: normalizeLeadStage(lead.stage),
       contacted: Boolean(lead.contacted),
@@ -245,7 +247,7 @@ export default function KanbanView({
       address: editLeadForm.address.trim(),
       googleMapsUrl: editLeadForm.googleMapsUrl.trim(),
       contactName: editLeadForm.contactName.trim(),
-      phone: editLeadForm.phone.trim(),
+      phone: editLeadForm.phone.replace(/\D/g, '').slice(0, 9),
       email: editLeadForm.email.trim(),
       stage: normalizeLeadStage(editLeadForm.stage),
       contacted: Boolean(editLeadForm.contacted),
@@ -291,7 +293,7 @@ export default function KanbanView({
       address: newLeadForm.address.trim(),
       googleMapsUrl: newLeadForm.googleMapsUrl.trim(),
       contactName: newLeadForm.contactName.trim(),
-      phone: newLeadForm.phone.trim(),
+      phone: newLeadForm.phone.replace(/\D/g, '').slice(0, 9),
       email: newLeadForm.email.trim(),
       stage: 'prospecto',
       contacted: Boolean(newLeadForm.contacted),
@@ -549,7 +551,7 @@ export default function KanbanView({
                       {/* WhatsApp Directo */}
                       {lead.phone && (
                         <a 
-                          href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hola ${lead.contactName || ''}, te saluda el equipo de Linkeo (linkeocards.com). Te escribo sobre las tarjetas inteligentes con Google Reviews para ${lead.businessName}.`)}`}
+                          href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + lead.phone.replace(/[^0-9]/g, '') : lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hola ${lead.contactName || ''}, te saluda el equipo de Linkeo (linkeocards.com). Te escribo sobre las tarjetas inteligentes con Google Reviews para ${lead.businessName}.`)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-icon"
@@ -851,13 +853,22 @@ export default function KanbanView({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Teléfono WhatsApp:</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ margin: 0 }}>Teléfono WhatsApp:</label>
+                    <span style={{ fontSize: '0.72rem', color: newLeadForm.phone?.length === 9 ? '#10b981' : 'var(--text-muted)', fontWeight: 600 }}>
+                      {newLeadForm.phone?.length || 0}/9 dígitos
+                    </span>
+                  </div>
                   <input 
-                    type="text" 
+                    type="tel" 
                     className="form-control"
-                    placeholder="+51 987 654 321"
+                    placeholder="987654321"
+                    maxLength={9}
                     value={newLeadForm.phone}
-                    onChange={(e) => setNewLeadForm({ ...newLeadForm, phone: e.target.value })}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/\D/g, '').slice(0, 9);
+                      setNewLeadForm({ ...newLeadForm, phone: clean });
+                    }}
                   />
                 </div>
               </div>
@@ -1178,13 +1189,22 @@ export default function KanbanView({
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Teléfono WhatsApp:</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ margin: 0 }}>Teléfono WhatsApp:</label>
+                    <span style={{ fontSize: '0.72rem', color: editLeadForm.phone?.length === 9 ? '#10b981' : 'var(--text-muted)', fontWeight: 600 }}>
+                      {editLeadForm.phone?.length || 0}/9 dígitos
+                    </span>
+                  </div>
                   <input 
-                    type="text" 
+                    type="tel" 
                     className="form-control"
-                    placeholder="+51 987 654 321"
+                    placeholder="987654321"
+                    maxLength={9}
                     value={editLeadForm.phone}
-                    onChange={(e) => setEditLeadForm({ ...editLeadForm, phone: e.target.value })}
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/\D/g, '').slice(0, 9);
+                      setEditLeadForm({ ...editLeadForm, phone: clean });
+                    }}
                   />
                 </div>
               </div>

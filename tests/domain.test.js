@@ -325,5 +325,20 @@ test('lead captures, formats and preserves google maps url with check verificati
   assert.equal(frontObj.googleMapsUrl, 'https://maps.app.goo.gl/example123');
 });
 
+test('phone input is strictly limited to 9 numeric digits and formats international WhatsApp link', () => {
+  const sanitizePhone = (input) => String(input || '').replace(/\D/g, '').slice(0, 9);
+  
+  // Test numeric filtering & 9-digit truncation
+  assert.equal(sanitizePhone('933 668 238'), '933668238');
+  assert.equal(sanitizePhone('933668238000'), '933668238');
+  assert.equal(sanitizePhone('abc933xyz668238'), '933668238');
+
+  // Test WhatsApp wa.me generation with 9-digit Peru mobile
+  const cleanPhone = sanitizePhone('933668238');
+  assert.equal(cleanPhone.length, 9);
+  const waNumber = cleanPhone.length === 9 ? `51${cleanPhone}` : cleanPhone;
+  assert.equal(waNumber, '51933668238');
+});
+
 
 
