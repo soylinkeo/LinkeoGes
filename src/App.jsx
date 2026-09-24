@@ -1155,6 +1155,41 @@ export default function App() {
       reason: `Nuevo SKU agregado al almacén con stock inicial de ${newItem.quantity} uds.`
     });
   };
+
+  const handleEditInventoryItem = updatedItem => {
+    const existing = inventory.find(i => i.id === updatedItem.id);
+    setInventory(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+
+    // Si el insumo está vinculado a un producto en el catálogo comercial, mantenerlo sincronizado
+    setProducts(prev => prev.map(p => {
+      if (p.inventoryId === updatedItem.id || (p.sku && existing && p.sku === existing.sku)) {
+        const priceNum = Number(p.price) || 0;
+        const newCost = Number(updatedItem.unitCost) || 0;
+        const newMargin = priceNum - newCost;
+        const newMarginPct = priceNum > 0 ? (newMargin / priceNum) * 100 : 0;
+        return {
+          ...p,
+          sku: updatedItem.sku,
+          name: updatedItem.name,
+          category: updatedItem.category,
+          cost: newCost,
+          stock: Number(updatedItem.quantity) || 0,
+          margin: newMargin,
+          marginPct: Number(newMarginPct.toFixed(1))
+        };
+      }
+      return p;
+    }));
+
+    logAudit({
+      actionType: 'Modificación',
+      entityType: 'Insumo',
+      entityId: updatedItem.id,
+      entityName: updatedItem.name,
+      snapshot: existing || null,
+      reason: `Insumo de inventario actualizado: ${updatedItem.name} (${updatedItem.quantity} uds, S/ ${Number(updatedItem.unitCost).toFixed(2)}).`
+    });
+  };
   const handleAddNewProduct = newProd => {
     const existing = inventory.find(i => i.id === newProd.inventoryId || i.sku === newProd.sku);
     const inventoryId = existing?.id || crypto.randomUUID();
@@ -1683,7 +1718,24 @@ export default function App() {
           {currentTab === 'calendar' && <CalendarView events={calendarEvents} onAddNewEvent={handleAddNewEvent} onEditEvent={handleEditEvent} nfcCards={nfcCards} onRequestDelete={handleRequestDelete} districts={districts} showToast={showToast} />}
 
           {/* MÓDULO 6: Almacén & Inventario Integral (Catálogo, Packs Promocionales, Insumos Físicos y Proveedores) */}
-          {(currentTab === 'inventory' || currentTab === 'products') && <InventoryView inventory={inventory} products={products} suppliers={suppliers} onUpdateInventoryStock={handleUpdateInventoryStock} onAddNewInventoryItem={handleAddNewInventoryItem} onAddNewProduct={handleAddNewProduct} onAddNewSupplier={handleAddNewSupplier} onEditSupplier={handleEditSupplier} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onRequestDelete={handleRequestDelete} initialSubTab={currentTab === 'products' ? 'catalog' : 'catalog'} showToast={showToast} />}
+          {(currentTab === 'inventory' || currentTab === 'products') && (
+            <InventoryView 
+              inventory={inventory} 
+              products={products} 
+              suppliers={suppliers} 
+              onUpdateInventoryStock={handleUpdateInventoryStock} 
+              onAddNewInventoryItem={handleAddNewInventoryItem} 
+              onEditInventoryItem={handleEditInventoryItem}
+              onAddNewProduct={handleAddNewProduct} 
+              onEditProduct={handleEditProduct}
+              onAddNewSupplier={handleAddNewSupplier} 
+              onEditSupplier={handleEditSupplier} 
+              onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} 
+              onRequestDelete={handleRequestDelete} 
+              initialSubTab={currentTab === 'products' ? 'catalog' : 'catalog'} 
+              showToast={showToast} 
+            />
+          )}
 
           {/* MÓDULO 7: Finanzas & Balances 50/50 */}
           {currentTab === 'finances' && <FinanceView sales={sales} expenses={expenses} products={products} inventory={inventory} onAddNewExpense={handleAddNewExpense} onEditExpense={handleEditExpense} onAddNewSale={handleOpenNewSaleModal} onExportExcel={handleExportExcel} partnerBalance={partnerBalance} onSettlePartnerDebt={handleSettlePartnerDebt} targets={dynamicTargets} onRequestDelete={handleRequestDelete} onAddNewProduct={handleAddNewProduct} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}

@@ -82,7 +82,9 @@ export default function InventoryView({
   suppliers = [],
   onUpdateInventoryStock,
   onAddNewInventoryItem,
+  onEditInventoryItem,
   onAddNewProduct,
+  onEditProduct,
   onAddNewSupplier,
   onEditSupplier,
   onOpenNewExpense,
@@ -104,6 +106,9 @@ export default function InventoryView({
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editingPack, setEditingPack] = useState(null);
 
   // Helpers de reseteo limpio de formularios
   const handleClosePackModal = () => {
@@ -115,11 +120,13 @@ export default function InventoryView({
       bundleComponents: [],
       description: ''
     });
+    setEditingPack(null);
     setIsPackModalOpen(false);
   };
 
   const handleCloseProductModal = () => {
     setNewProductForm({
+      inventoryId: '',
       name: '',
       sku: generateRandomSku('LNK-PROD'),
       category: 'Individual',
@@ -130,6 +137,7 @@ export default function InventoryView({
       badge: 'Nuevo Producto',
       description: ''
     });
+    setEditingProduct(null);
     setIsNewProductModalOpen(false);
   };
 
@@ -146,6 +154,7 @@ export default function InventoryView({
       reorderUrl: '',
       notes: ''
     });
+    setEditingItem(null);
     setSelectedSupplierId(null);
     setSupplierFilterQuery('');
     setSupplierComboboxOpen(false);
@@ -352,6 +361,33 @@ export default function InventoryView({
     }
 
     const finalSku = (packForm.sku && packForm.sku.trim()) || generateRandomSku('LNK-PACK');
+    if (editingPack) {
+      const updatedPack = {
+        ...editingPack,
+        name: packForm.name.trim(),
+        sku: finalSku,
+        category: 'Pack',
+        type: 'Pack Promocional',
+        price: promoPriceNum,
+        cost: Number(packTotalCost.toFixed(2)),
+        regularPrice: Number(packSuggestedRegularPrice.toFixed(2)),
+        margin: Number(packProfit.toFixed(2)),
+        marginPct: packMarginPct,
+        badge: packForm.badge.trim() || 'Pack Promocional',
+        description: packForm.description.trim(),
+        bundleItems: packForm.bundleComponents
+      };
+
+      if (onEditProduct) {
+        onEditProduct(updatedPack);
+      }
+      if (showToast) {
+        showToast(`✓ Pack "${updatedPack.name}" actualizado correctamente`, 'success');
+      }
+      handleClosePackModal();
+      return;
+    }
+
     const newPack = {
       id: `prod-pack-${Date.now()}`,
       name: packForm.name.trim(),
@@ -374,6 +410,46 @@ export default function InventoryView({
       showToast(`Pack "${newPack.name}" creado y publicado en el catálogo`, 'success');
     }
     handleClosePackModal();
+  };
+
+  const handleOpenEditProduct = (prod) => {
+    const isPack = prod.type === 'pack' || (prod.bundleItems && prod.bundleItems.length > 0);
+    if (isPack) {
+      setEditingPack(prod);
+      setPackForm({
+        name: prod.name || '',
+        sku: prod.sku || '',
+        badge: prod.badge || '🔥 Pack Dúo',
+        promoPrice: prod.price !== undefined ? prod.price : '',
+        bundleComponents: (prod.bundleItems || []).map(bi => {
+          const invMatch = inventory.find(i => i.id === bi.id || i.sku === bi.sku);
+          return {
+            id: bi.id || invMatch?.id || `comp-${Date.now()}`,
+            name: bi.name,
+            sku: bi.sku || invMatch?.sku || '',
+            unitCost: invMatch ? Number(invMatch.unitCost || 0) : 12.93,
+            quantity: bi.quantity || 1
+          };
+        }),
+        description: prod.description || ''
+      });
+      setIsPackModalOpen(true);
+    } else {
+      setEditingProduct(prod);
+      setNewProductForm({
+        inventoryId: prod.inventoryId || '',
+        name: prod.name || '',
+        sku: prod.sku || '',
+        category: prod.category || 'Individual',
+        type: prod.type || 'NFC Inteligente',
+        price: prod.price !== undefined ? prod.price : '',
+        cost: prod.cost !== undefined ? prod.cost : 0,
+        stock: prod.stock !== undefined ? prod.stock : 0,
+        badge: prod.badge || '',
+        description: prod.description || ''
+      });
+      setIsNewProductModalOpen(true);
+    }
   };
 
   // -------------------------------------------------------------
@@ -474,7 +550,7 @@ export default function InventoryView({
 
   const handleCreateProduct = (e) => {
     e.preventDefault();
-    if (!newProductForm.inventoryId) {
+    if (!newProductForm.inventoryId && !editingProduct?.bundleItems?.length) {
       if (showToast) {
         showToast('⚠️ Debes seleccionar un insumo registrado en el inventario.', 'warning');
       } else {
@@ -490,6 +566,33 @@ export default function InventoryView({
     const marginPct = priceNum > 0 ? (marginNum / priceNum) * 100 : 0;
     const stockNum = selectedItem ? Number(selectedItem.quantity ?? 0) : (Math.max(0, parseInt(newProductForm.stock) || 0));
     const finalSku = selectedItem ? selectedItem.sku : ((newProductForm.sku && newProductForm.sku.trim()) || generateRandomSku('LNK-PROD'));
+
+    if (editingProduct) {
+      const updatedProd = {
+        ...editingProduct,
+        name: newProductForm.name.trim(),
+        inventoryId: newProductForm.inventoryId || editingProduct.inventoryId,
+        sku: finalSku,
+        category: newProductForm.category,
+        type: newProductForm.type,
+        price: priceNum,
+        cost: costNum,
+        stock: stockNum,
+        margin: marginNum,
+        marginPct: Number(marginPct.toFixed(1)),
+        badge: newProductForm.badge.trim(),
+        description: newProductForm.description.trim()
+      };
+
+      if (onEditProduct) {
+        onEditProduct(updatedProd);
+      }
+      if (showToast) {
+        showToast(`✅ Producto "${updatedProd.name}" actualizado en el catálogo`, 'success');
+      }
+      handleCloseProductModal();
+      return;
+    }
 
     const newProd = {
       id: `prod-${Date.now()}`,
@@ -573,6 +676,7 @@ export default function InventoryView({
   };
 
   const handleOpenNewItemModal = () => {
+    setEditingItem(null);
     const defaultSup = dbSuppliersList.length > 0 ? dbSuppliersList[0] : null;
     setSelectedSupplierId(defaultSup?.id || null);
     setNewItemForm({
@@ -592,26 +696,77 @@ export default function InventoryView({
     setIsNewItemModalOpen(true);
   };
 
-  const handleCreateItem = (e) => {
-    e.preventDefault();
-    const finalSku = (newItemForm.sku && newItemForm.sku.trim()) || generateRandomSku('SKU-LNK');
-    const item = {
-      id: `inv-${Date.now()}`,
-      sku: finalSku,
-      name: newItemForm.name,
-      category: newItemForm.category,
-      quantity: Number(newItemForm.quantity) || 0,
-      minThreshold: Number(newItemForm.minThreshold) || 20,
-      unitCost: Number(newItemForm.unitCost) || 0,
-      supplier: newItemForm.supplier,
-      leadTimeDays: Number(newItemForm.leadTimeDays) || 15,
-      reorderUrl: newItemForm.reorderUrl,
-      notes: newItemForm.notes
-    };
+  const handleOpenEditItem = (item) => {
+    setEditingItem(item);
+    const matchedSup = dbSuppliersList.find(s => s.name.toLowerCase() === (item.supplier || '').toLowerCase());
+    setSelectedSupplierId(matchedSup?.id || null);
+    setNewItemForm({
+      id: item.id,
+      sku: item.sku || '',
+      name: item.name || '',
+      category: item.category || 'Chips / Insumos',
+      quantity: item.quantity !== undefined ? item.quantity : 0,
+      minThreshold: item.minThreshold !== undefined ? item.minThreshold : 10,
+      unitCost: item.unitCost !== undefined ? item.unitCost : 0,
+      supplier: item.supplier || '',
+      leadTimeDays: item.leadTimeDays !== undefined ? item.leadTimeDays : 15,
+      reorderUrl: item.reorderUrl || '',
+      notes: item.notes || ''
+    });
+    setSupplierFilterQuery(item.supplier || '');
+    setSupplierComboboxOpen(false);
+    setIsNewItemModalOpen(true);
+  };
 
-    onAddNewInventoryItem(item);
-    if (showToast) {
-      showToast(`Insumo "${item.name}" guardado en inventario (${item.quantity} uds)`, 'success');
+  const handleSaveItem = (e) => {
+    e.preventDefault();
+    if (!newItemForm.name.trim()) {
+      if (showToast) showToast('Ingresa un nombre para el insumo', 'warning');
+      return;
+    }
+
+    const finalSku = (newItemForm.sku && newItemForm.sku.trim()) || generateRandomSku('SKU-LNK');
+    
+    if (editingItem) {
+      const updatedItem = {
+        ...editingItem,
+        sku: finalSku,
+        name: newItemForm.name.trim(),
+        category: newItemForm.category,
+        quantity: Math.max(0, parseInt(newItemForm.quantity, 10) || 0),
+        minThreshold: Math.max(0, parseInt(newItemForm.minThreshold, 10) || 0),
+        unitCost: Math.max(0, parseFloat(newItemForm.unitCost) || 0),
+        supplier: newItemForm.supplier,
+        leadTimeDays: Math.max(0, parseInt(newItemForm.leadTimeDays, 10) || 0),
+        reorderUrl: newItemForm.reorderUrl || '',
+        notes: newItemForm.notes || ''
+      };
+
+      if (onEditInventoryItem) {
+        onEditInventoryItem(updatedItem);
+      }
+      if (showToast) {
+        showToast(`✓ Insumo "${updatedItem.name}" actualizado correctamente`, 'success');
+      }
+    } else {
+      const item = {
+        id: `inv-${Date.now()}`,
+        sku: finalSku,
+        name: newItemForm.name.trim(),
+        category: newItemForm.category,
+        quantity: Number(newItemForm.quantity) || 0,
+        minThreshold: Number(newItemForm.minThreshold) || 20,
+        unitCost: Number(newItemForm.unitCost) || 0,
+        supplier: newItemForm.supplier,
+        leadTimeDays: Number(newItemForm.leadTimeDays) || 15,
+        reorderUrl: newItemForm.reorderUrl,
+        notes: newItemForm.notes
+      };
+
+      onAddNewInventoryItem(item);
+      if (showToast) {
+        showToast(`Insumo "${item.name}" guardado en inventario (${item.quantity} uds)`, 'success');
+      }
     }
     handleCloseItemModal();
   };
@@ -996,6 +1151,14 @@ export default function InventoryView({
                           </span>
                           <button 
                             className="btn-icon" 
+                            style={{ width: '28px', height: '28px', color: 'var(--primary-400)' }}
+                            onClick={() => handleOpenEditProduct(prod)}
+                            title="Editar producto o pack del catálogo"
+                          >
+                            <Edit size={13} />
+                          </button>
+                          <button 
+                            className="btn-icon" 
                             style={{ width: '28px', height: '28px', color: '#ef4444' }}
                             onClick={() => onRequestDelete && onRequestDelete(prod, 'Producto')}
                             title="Eliminar producto del catálogo (Auditoría)"
@@ -1006,7 +1169,11 @@ export default function InventoryView({
                       </div>
 
                       {/* Nombre y Tipo */}
-                      <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 4px 0', lineHeight: 1.3 }}>
+                      <h3 
+                        style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 4px 0', lineHeight: 1.3, cursor: 'pointer' }}
+                        onClick={() => handleOpenEditProduct(prod)}
+                        title="Haz clic para editar este producto"
+                      >
                         {prod.name}
                       </h3>
                       <div style={{ fontSize: '0.8rem', color: isPack ? 'var(--primary-600)' : 'var(--text-muted)', fontWeight: 600, marginBottom: '12px' }}>
@@ -1262,9 +1429,24 @@ export default function InventoryView({
                       const isLow = (Number(item.quantity) || 0) <= (Number(item.minThreshold) || 10);
                       return (
                         <tr key={item.id}>
-                          <td><span className="code-mono">{item.sku}</span></td>
                           <td>
-                            <strong style={{ fontSize: '0.9rem' }}>{item.name}</strong>
+                            <span 
+                              className="code-mono"
+                              style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}
+                              onClick={() => handleOpenEditItem(item)}
+                              title="Haz clic para editar este insumo"
+                            >
+                              {item.sku}
+                            </span>
+                          </td>
+                          <td>
+                            <strong 
+                              style={{ fontSize: '0.9rem', cursor: 'pointer', color: 'var(--text-main)' }}
+                              onClick={() => handleOpenEditItem(item)}
+                              title="Haz clic para editar este insumo"
+                            >
+                              {item.name}
+                            </strong>
                             {item.notes && (
                               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                                 {item.notes}
@@ -1274,7 +1456,13 @@ export default function InventoryView({
                           <td><span className="badge badge-blue">{item.category}</span></td>
                           <td style={{ fontWeight: 800, fontSize: '1rem', color: isLow ? '#f59e0b' : 'var(--text-main)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span>{item.quantity} uds</span>
+                              <span 
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => handleOpenEditItem(item)}
+                                title="Haz clic para editar el stock"
+                              >
+                                {item.quantity} uds
+                              </span>
                               <div style={{ display: 'inline-flex', gap: '3px' }}>
                                 <button 
                                   className="btn-icon" 
@@ -1329,6 +1517,14 @@ export default function InventoryView({
                                   <span>Publicar en Catálogo</span>
                                 </button>
                               )}
+                              <button 
+                                className="btn-icon" 
+                                style={{ width: '26px', height: '26px', color: 'var(--primary-400)' }}
+                                onClick={() => handleOpenEditItem(item)}
+                                title="Editar insumo / producto de inventario"
+                              >
+                                <Edit size={13} />
+                              </button>
                               <button 
                                 className="btn-icon" 
                                 style={{ width: '26px', height: '26px', color: '#ef4444' }}
@@ -1455,7 +1651,9 @@ export default function InventoryView({
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Gift size={22} color="var(--primary-600)" />
-                <h3 className="modal-title">Armar Pack Promocional o Combo Comercial</h3>
+                <h3 className="modal-title">
+                  {editingPack ? 'Editar Pack Promocional' : 'Armar Pack Promocional o Combo Comercial'}
+                </h3>
               </div>
               <button className="close-btn" onClick={handleClosePackModal}>✕</button>
             </div>
@@ -1727,7 +1925,7 @@ export default function InventoryView({
                 </button>
                 <button type="submit" className="btn btn-primary">
                   <Gift size={15} />
-                  <span>Publicar Pack Promocional</span>
+                  <span>{editingPack ? 'Guardar Cambios' : 'Publicar Pack Promocional'}</span>
                 </button>
               </div>
             </form>
@@ -1742,7 +1940,9 @@ export default function InventoryView({
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">Registrar Producto en Catálogo Oficial</h3>
+              <h3 className="modal-title">
+                {editingProduct ? 'Editar Producto del Catálogo Oficial' : 'Registrar Producto en Catálogo Oficial'}
+              </h3>
               <button className="close-btn" onClick={handleCloseProductModal}>✕</button>
             </div>
 
@@ -1907,8 +2107,8 @@ export default function InventoryView({
                 <button type="button" className="btn btn-secondary" onClick={handleCloseProductModal}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={inventory.length === 0 || !newProductForm.inventoryId}>
-                  Publicar en Catálogo
+                <button type="submit" className="btn btn-primary" disabled={inventory.length === 0 || (!newProductForm.inventoryId && !editingProduct?.bundleItems?.length)}>
+                  {editingProduct ? 'Guardar Cambios' : 'Publicar en Catálogo'}
                 </button>
               </div>
             </form>
@@ -1923,11 +2123,13 @@ export default function InventoryView({
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">Agregar Insumo Físico a Inventario</h3>
+              <h3 className="modal-title">
+                {editingItem ? 'Editar Insumo / Producto de Inventario' : 'Agregar Insumo Físico a Inventario'}
+              </h3>
               <button className="close-btn" onClick={handleCloseItemModal}>✕</button>
             </div>
 
-            <form onSubmit={handleCreateItem}>
+            <form onSubmit={handleSaveItem}>
               <div className="form-group">
                 <label className="form-label">Nombre del Insumo / Material:</label>
                 <input 
@@ -2111,7 +2313,7 @@ export default function InventoryView({
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Guardar en Inventario
+                  {editingItem ? 'Guardar Cambios' : 'Guardar en Inventario'}
                 </button>
               </div>
             </form>

@@ -894,6 +894,90 @@ test('monthly sales KPI and target automatically synchronize with Projections gr
   assert.equal(progressPct, 8, '160 / 2100 debe dar 8% de avance mensual');
 });
 
+test('inventory editing updates physical stock, unit cost, metadata and synchronizes linked catalog products', () => {
+  // Estado inicial de almacén y catálogo comercial
+  const initialInventory = [
+    {
+      id: 'inv-item-1',
+      sku: 'SKU-LNK-1367',
+      name: 'Tarjeta Google NFC Cuadrado ING',
+      category: 'Chips / Insumos',
+      quantity: 1,
+      minThreshold: 10,
+      unitCost: 12.93,
+      supplier: 'HACHANI_UN Official Store',
+      leadTimeDays: 13
+    }
+  ];
+
+  const initialProducts = [
+    {
+      id: 'prod-1',
+      inventoryId: 'inv-item-1',
+      sku: 'SKU-LNK-1367',
+      name: 'Tarjeta Google NFC Cuadrado ING',
+      category: 'Individual',
+      price: 60.00,
+      cost: 12.93,
+      stock: 1,
+      margin: 47.07,
+      marginPct: 78.5
+    }
+  ];
+
+  // Simular la edición del insumo de inventario: se actualiza stock a 25, costo unitario a 14.50, nombre y proveedor
+  const updatedItem = {
+    id: 'inv-item-1',
+    sku: 'SKU-LNK-1367-V2',
+    name: 'Tarjeta Google NFC Cuadrado ING (Actualizado)',
+    category: 'Chips / Insumos',
+    quantity: 25,
+    minThreshold: 8,
+    unitCost: 14.50,
+    supplier: 'HACHANI Global Store',
+    leadTimeDays: 10
+  };
+
+  // Función de actualización de inventario y sincronización con catálogo (idéntica a handleEditInventoryItem en App.jsx)
+  const updatedInventory = initialInventory.map(i => i.id === updatedItem.id ? updatedItem : i);
+  const updatedProducts = initialProducts.map(p => {
+    if (p.inventoryId === updatedItem.id || (p.sku && p.sku === initialInventory[0].sku)) {
+      const priceNum = Number(p.price) || 0;
+      const newCost = Number(updatedItem.unitCost) || 0;
+      const newMargin = priceNum - newCost;
+      const newMarginPct = priceNum > 0 ? (newMargin / priceNum) * 100 : 0;
+      return {
+        ...p,
+        sku: updatedItem.sku,
+        name: updatedItem.name,
+        category: updatedItem.category,
+        cost: newCost,
+        stock: Number(updatedItem.quantity) || 0,
+        margin: newMargin,
+        marginPct: Number(newMarginPct.toFixed(1))
+      };
+    }
+    return p;
+  });
+
+  // 1. Verificaciones en inventario
+  const storedItem = updatedInventory.find(i => i.id === 'inv-item-1');
+  assert.equal(storedItem.quantity, 25);
+  assert.equal(storedItem.unitCost, 14.50);
+  assert.equal(storedItem.name, 'Tarjeta Google NFC Cuadrado ING (Actualizado)');
+  assert.equal(storedItem.sku, 'SKU-LNK-1367-V2');
+  assert.equal(storedItem.supplier, 'HACHANI Global Store');
+  assert.equal(storedItem.leadTimeDays, 10);
+
+  // 2. Verificaciones en producto vinculado del catálogo comercial
+  const linkedProd = updatedProducts.find(p => p.id === 'prod-1');
+  assert.equal(linkedProd.stock, 25, 'El stock del producto debe reflejar los 25 del almacén');
+  assert.equal(linkedProd.cost, 14.50, 'El costo del producto comercial debe sincronizarse a S/ 14.50');
+  assert.equal(linkedProd.sku, 'SKU-LNK-1367-V2', 'El SKU del producto debe sincronizarse');
+  assert.equal(linkedProd.margin, 45.50, 'El nuevo margen bruto debe ser 60 - 14.50 = 45.50');
+  assert.equal(linkedProd.marginPct, 75.8, 'El porcentaje de margen debe recalcularse a (45.50 / 60) * 100 = 75.8%');
+});
+
 
 
 
