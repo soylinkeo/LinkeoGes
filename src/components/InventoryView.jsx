@@ -1450,7 +1450,7 @@ export default function InventoryView({
       {/* MODAL 1: CREADOR DE PACKS Y PROMOCIONES (UNIR PRODUCTOS)                  */}
       {/* ========================================================================= */}
       {isPackModalOpen && (
-        <div className="modal-overlay" onClick={handleClosePackModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1739,7 +1739,7 @@ export default function InventoryView({
       {/* MODAL 2: NUEVO PRODUCTO INDIVIDUAL                                        */}
       {/* ========================================================================= */}
       {isNewProductModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseProductModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Registrar Producto en Catálogo Oficial</h3>
@@ -1920,7 +1920,7 @@ export default function InventoryView({
       {/* MODAL 3: AGREGAR INSUMO / SKU A INVENTARIO                                 */}
       {/* ========================================================================= */}
       {isNewItemModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseItemModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Agregar Insumo Físico a Inventario</h3>
@@ -2123,7 +2123,7 @@ export default function InventoryView({
       {/* MODAL 4: CREAR / EDITAR PROVEEDOR                                         */}
       {/* ========================================================================= */}
       {isSupplierModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseSupplierModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div className="modal-header">
               <h3 className="modal-title">

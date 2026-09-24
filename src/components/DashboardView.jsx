@@ -575,7 +575,7 @@ export default function DashboardView({
 
       {/* Modal para configurar metas manuales */}
       {isTargetModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsTargetModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

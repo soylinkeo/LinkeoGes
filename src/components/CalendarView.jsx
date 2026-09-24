@@ -818,7 +818,7 @@ export default function CalendarView({
       {/* MODAL: Nueva Cita / Enrutamiento                                          */}
       {/* ========================================================================= */}
       {isNewEventModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseNewEventModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Agendar Nueva Cita o Visita Presencial</h3>
@@ -954,7 +954,7 @@ export default function CalendarView({
       {/* MODAL: Completar Cita (+ Resumen de lo que se hizo)                       */}
       {/* ========================================================================= */}
       {completingEvent && (
-        <div className="modal-overlay" onClick={handleCloseCompleteModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1017,7 +1017,7 @@ export default function CalendarView({
       {/* MODAL: Editar Cita / Evento                                               */}
       {/* ========================================================================= */}
       {isEditEventModalOpen && editingEvent && (
-        <div className="modal-overlay" onClick={handleCloseEditEventModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Editar Cita o Visita Agendada</h3>
@@ -1166,7 +1166,7 @@ export default function CalendarView({
       {/* MODAL: Nueva Tarea Diaria (Asignada a Socio)                              */}
       {/* ========================================================================= */}
       {isNewTaskModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseNewTaskModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1262,7 +1262,7 @@ export default function CalendarView({
       {/* MODAL: Editar Tarea Diaria                                                */}
       {/* ========================================================================= */}
       {editingTask && (
-        <div className="modal-overlay" onClick={handleCloseEditTask}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Editar Tarea Diaria</h3>

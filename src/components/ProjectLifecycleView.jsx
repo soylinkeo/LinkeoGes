@@ -347,7 +347,7 @@ export default function ProjectLifecycleView({
 
       {/* MODAL: Agregar Hito */}
       {isAddModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsAddModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Agregar Nuevo Hito / Entregable</h3>
@@ -396,7 +396,7 @@ export default function ProjectLifecycleView({
 
       {/* MODAL: Editar Hito */}
       {isEditModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsEditModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Editar Hito / Entregable</h3>

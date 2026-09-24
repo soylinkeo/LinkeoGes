@@ -511,7 +511,7 @@ export default function KanbanView({
 
       {/* MODAL: Nuevo Prospecto */}
       {isNewLeadModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseNewLeadModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Registrar Nuevo Prospecto B2B</h3>
@@ -715,7 +715,7 @@ export default function KanbanView({
 
       {/* MODAL: Editar Prospecto */}
       {isEditLeadModalOpen && editingLead && (
-        <div className="modal-overlay" onClick={handleCloseEditLeadModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -951,7 +951,7 @@ export default function KanbanView({
 
       {/* MODAL: Confirmar Conversión a Venta */}
       {isConvertModalOpen && selectedLead && (
-        <div className="modal-overlay" onClick={handleCloseConvertModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">🎉 Convertir Prospecto en Venta Real</h3>

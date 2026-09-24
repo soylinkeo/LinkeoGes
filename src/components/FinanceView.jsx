@@ -501,7 +501,7 @@ export default function FinanceView({
 
       {/* MODAL: Crear / Editar Gasto */}
       {isNewExpenseModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseExpenseModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">
@@ -760,7 +760,7 @@ export default function FinanceView({
 
       {/* MODAL: Liquidación entre Socios */}
       {isSettleModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseSettleModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Registrar Liquidación de Balance 50/50</h3>

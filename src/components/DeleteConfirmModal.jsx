@@ -46,7 +46,7 @@ export default function DeleteConfirmModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
+    <div className="modal-overlay">
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
         <div className="modal-header" style={{ borderBottomColor: 'rgba(239, 68, 68, 0.3)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

@@ -430,7 +430,7 @@ export default function AuditView({
 
       {/* MODAL: Snapshot de Datos */}
       {selectedSnapshot && (
-        <div className="modal-overlay" onClick={() => setSelectedSnapshot(null)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
             <div className="modal-header">
               <div>

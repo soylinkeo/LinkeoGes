@@ -295,7 +295,7 @@ export default function ProductsCatalogView({
 
       {/* MODAL: Nuevo Producto o Innovación */}
       {isNewProductModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsNewProductModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Registrar Producto / Insumo en Almacén</h3>

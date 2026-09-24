@@ -3042,7 +3042,7 @@ export default function ProjectionsView({
       {/* MODAL: PROYECTAR NUEVO PRODUCTO HIPOTÉTICO / FUTURO                       */}
       {/* ========================================================================= */}
       {isNewProductModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseNewProductModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3148,7 +3148,7 @@ export default function ProjectionsView({
       {/* MODAL: EDITAR PRODUCTO PROYECTADO                                         */}
       {/* ========================================================================= */}
       {isEditProductModalOpen && editingProduct && (
-        <div className="modal-overlay" onClick={() => setIsEditProductModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal-header">
               <h3 className="modal-title">Editar Producto Proyectado</h3>
@@ -3236,7 +3236,7 @@ export default function ProjectionsView({
       {/* MODAL: IMPORTAR PRODUCTO DEL ALMACÉN / CATÁLOGO                           */}
       {/* ========================================================================= */}
       {isImportProductModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsImportProductModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3307,7 +3307,7 @@ export default function ProjectionsView({
       {/* MODAL: AGREGAR GASTO FIJO MENSUAL                                         */}
       {/* ========================================================================= */}
       {isNewFixedCostModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseNewFixedCostModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <div className="modal-header">
               <h3 className="modal-title">Agregar Gasto Fijo Mensual</h3>
@@ -3369,7 +3369,7 @@ export default function ProjectionsView({
       {/* MODAL: EDITAR GASTO FIJO                                                  */}
       {/* ========================================================================= */}
       {isEditFixedCostModalOpen && editingFixedCost && (
-        <div className="modal-overlay" onClick={() => setIsEditFixedCostModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <div className="modal-header">
               <h3 className="modal-title">Editar Gasto Fijo</h3>
@@ -3428,7 +3428,7 @@ export default function ProjectionsView({
       {/* MODAL: AGREGAR GASTO VARIABLE                                             */}
       {/* ========================================================================= */}
       {isNewVariableCostModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseNewVariableCostModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3512,7 +3512,7 @@ export default function ProjectionsView({
       {/* MODAL: EDITAR GASTO VARIABLE                                              */}
       {/* ========================================================================= */}
       {isEditVariableCostModalOpen && editingVariableCost && (
-        <div className="modal-overlay" onClick={() => setIsEditVariableCostModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3593,7 +3593,7 @@ export default function ProjectionsView({
       {/* MODAL: AGREGAR ÍTEM DE INVERSIÓN INICIAL                                  */}
       {/* ========================================================================= */}
       {isNewInvestmentModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseNewInvestmentModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <div className="modal-header">
               <h3 className="modal-title">Agregar Ítem a Inversión Inicial</h3>
@@ -3658,7 +3658,7 @@ export default function ProjectionsView({
       {/* MODAL: EDITAR ÍTEM DE INVERSIÓN INICIAL                                   */}
       {/* ========================================================================= */}
       {isEditInvestmentModalOpen && editingInvestmentItem && (
-        <div className="modal-overlay" onClick={() => setIsEditInvestmentModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <div className="modal-header">
               <h3 className="modal-title">Editar Ítem de Inversión Inicial</h3>
@@ -3732,7 +3732,7 @@ export default function ProjectionsView({
       {/* MODAL: AJUSTAR RATIOS DE CONVERSIÓN DEL EMBUDO                            */}
       {/* ========================================================================= */}
       {isEditFunnelModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsEditFunnelModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3825,7 +3825,7 @@ export default function ProjectionsView({
       {/* MODAL: AGREGAR TAREA PLAN 30 DÍAS                                         */}
       {/* ========================================================================= */}
       {isAddPlanModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsAddPlanModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3984,7 +3984,7 @@ export default function ProjectionsView({
       {/* MODAL: EDITAR TAREA PLAN 30 DÍAS                                          */}
       {/* ========================================================================= */}
       {isEditPlanModalOpen && editingPlanTask && (
-        <div className="modal-overlay" onClick={() => setIsEditPlanModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -4162,7 +4162,7 @@ export default function ProjectionsView({
       {/* MODAL: PERSONALIZAR NOMBRES DE SEMANAS                                    */}
       {/* ========================================================================= */}
       {isEditWeekTitlesModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsEditWeekTitlesModalOpen(false)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

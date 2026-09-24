@@ -1479,7 +1479,7 @@ export default function App() {
         const currentProfit = ((currentUnitPrice - currentUnitCost) * qty).toFixed(2);
 
         return (
-          <div className="modal-overlay" onClick={handleCloseNewSaleModal}>
+          <div className="modal-overlay">
             <div className="modal-content" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <h3 className="modal-title">Registrar Nueva Venta | LinkeoGes</h3>
@@ -1790,7 +1790,7 @@ export default function App() {
       })()}
 
       {/* MODAL GLOBAL: Nuevo Gasto */}
-      {isNewExpenseModalOpen && <div className="modal-overlay" onClick={handleCloseNewExpenseModal}>
+      {isNewExpenseModalOpen && <div className="modal-overlay">
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Registrar Nuevo Gasto Operativo</h3>

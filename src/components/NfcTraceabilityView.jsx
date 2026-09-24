@@ -459,7 +459,7 @@ export default function NfcTraceabilityView({
 
       {/* MODAL 1: Visor QR, Payload NFC y Bitácora de Soporte */}
       {activeModalCard && (
-        <div className="modal-overlay" onClick={() => setActiveModalCard(null)}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -572,7 +572,7 @@ export default function NfcTraceabilityView({
 
       {/* MODAL 2: Editar Enlace / Soporte Técnico */}
       {isEditModalOpen && editingCard && (
-        <div className="modal-overlay" onClick={handleCloseEditModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Gestión de Enlace & Soporte: {editingCard.id}</h3>
@@ -664,7 +664,7 @@ export default function NfcTraceabilityView({
 
       {/* MODAL 3: Vincular Nueva Tarjeta NFC */}
       {isNewCardModalOpen && (
-        <div className="modal-overlay" onClick={handleCloseNewCardModal}>
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">Vincular Nueva Tarjeta NFC</h3>

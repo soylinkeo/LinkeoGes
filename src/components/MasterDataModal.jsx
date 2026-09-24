@@ -57,7 +57,7 @@ export default function MasterDataModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={handleCloseAndSave}>
+    <div className="modal-overlay">
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px' }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

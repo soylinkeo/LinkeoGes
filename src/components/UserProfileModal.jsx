@@ -118,7 +118,7 @@ export default function UserProfileModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={handleModalClose}>
+    <div className="modal-overlay">
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
