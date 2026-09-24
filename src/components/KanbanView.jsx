@@ -17,7 +17,14 @@ import {
   Search,
   MessageSquare,
   Copy,
-  Send
+  Send,
+  Filter,
+  Clock,
+  RotateCcw,
+  SlidersHorizontal,
+  AlertTriangle,
+  X,
+  ArrowRight
 } from 'lucide-react';
 import DistrictCombobox from './DistrictCombobox.jsx';
 import { INITIAL_PRODUCTS } from '../data/initialData.js';
@@ -28,7 +35,8 @@ export const STAGES = [
   { id: 'negociacion', label: '3. Negociación', color: '#f59e0b' },
   { id: 'configurando', label: '4. Configurando NFC', color: '#8b5cf6' },
   { id: 'entregado', label: '5. Entregado y Cobrado (Ventas)', color: '#10b981' },
-  { id: 'postventa', label: '6. Post-Venta', color: '#06b6d4' }
+  { id: 'postventa', label: '6. Post-Venta', color: '#06b6d4' },
+  { id: 'no_hecha_o_espera', label: '7. Venta no hecha o cliente en espera', color: '#f43f5e' }
 ];
 
 export const normalizeLeadStage = (stage) => {
@@ -38,8 +46,39 @@ export const normalizeLeadStage = (stage) => {
   if (s === 'esperando_info') return 'configurando';
   if (s === 'entregado_cobrado') return 'entregado';
   if (s === 'post_venta' || s === 'post-venta') return 'postventa';
+  if (s === 'no_hecha' || s === 'espera' || s === 'no_hecha_o_espera' || s === 'cliente_espera' || s.includes('espera') || s.includes('no hecha')) return 'no_hecha_o_espera';
   if (STAGES.some(st => st.id === s)) return s;
   return 'prospecto';
+};
+
+export const getLeadAgeInDays = (lead) => {
+  if (!lead) return 0;
+  let dateMs = null;
+  if (lead.createdAt) {
+    const parsed = new Date(lead.createdAt).getTime();
+    if (!isNaN(parsed)) dateMs = parsed;
+  }
+  if (!dateMs && lead.id && String(lead.id).startsWith('lead-')) {
+    const rawNum = parseInt(lead.id.replace('lead-', ''), 10);
+    if (!isNaN(rawNum) && rawNum > 1600000000000) {
+      dateMs = rawNum;
+    }
+  }
+  if (!dateMs && lead.nextStepDate) {
+    const parsed = new Date(lead.nextStepDate).getTime();
+    if (!isNaN(parsed)) dateMs = parsed;
+  }
+  if (!dateMs) return 0;
+  const diffDays = Math.floor((Date.now() - dateMs) / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays);
+};
+
+export const isLeadOverOneWeek = (lead) => {
+  const stage = normalizeLeadStage(lead?.stage);
+  if (stage === 'entregado' || stage === 'postventa' || stage === 'no_hecha_o_espera') {
+    return false;
+  }
+  return getLeadAgeInDays(lead) >= 7;
 };
 
 import { buildLeadWhatsAppMessage, getLeadMessageVariants } from '../utils/leadMessages.js';
@@ -114,6 +153,135 @@ export default function KanbanView({
     }
     return Array.from(map.values());
   }, [products]);
+
+  // Estados de Búsqueda y Filtros
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterSeller, setFilterSeller] = useState('all');
+  const [filterRubro, setFilterRubro] = useState('all');
+  const [filterDistrict, setFilterDistrict] = useState('all');
+  const [filterContacted, setFilterContacted] = useState('all');
+  const [filterAge, setFilterAge] = useState('all');
+
+  // Leads con más de 1 semana sin concretar en etapas activas
+  const leadsOverOneWeek = useMemo(() => {
+    return leads.filter(isLeadOverOneWeek);
+  }, [leads]);
+
+  const handleMoveOldLeadsToWait = () => {
+    if (leadsOverOneWeek.length === 0) {
+      if (showToast) showToast('No hay prospectos activos con más de 1 semana sin movimiento', 'info');
+      return;
+    }
+    const count = leadsOverOneWeek.length;
+    leadsOverOneWeek.forEach(l => {
+      onUpdateLeadStage(l.id, 'no_hecha_o_espera');
+    });
+    if (showToast) {
+      showToast(`⏰ Se trasladaron ${count} prospecto${count > 1 ? 's' : ''} a "7. Venta no hecha o cliente en espera"`, 'success');
+    }
+    confetti({
+      particleCount: 60,
+      spread: 70,
+      origin: { y: 0.7 }
+    });
+  };
+
+  // Opciones dinámicas para filtros de Rubro y Distrito
+  const availableRubros = useMemo(() => {
+    const set = new Set();
+    leads.forEach(l => {
+      if (l.rubro && l.rubro.trim()) set.add(l.rubro.trim());
+    });
+    return Array.from(set).sort();
+  }, [leads]);
+
+  const availableDistricts = useMemo(() => {
+    const set = new Set();
+    leads.forEach(l => {
+      if (l.district && l.district.trim()) set.add(l.district.trim());
+    });
+    if (Array.isArray(districts)) {
+      districts.forEach(d => { if (d && d.trim()) set.add(d.trim()); });
+    }
+    return Array.from(set).sort();
+  }, [leads, districts]);
+
+  // Leads filtrados en tiempo real
+  const filteredLeads = useMemo(() => {
+    return leads.filter(lead => {
+      if (searchTerm.trim()) {
+        const query = searchTerm.toLowerCase().trim();
+        const bName = String(lead.businessName || '').toLowerCase();
+        const cName = String(lead.contactName || '').toLowerCase();
+        const dist = String(lead.district || '').toLowerCase();
+        const ph = String(lead.phone || '').toLowerCase();
+        const em = String(lead.email || '').toLowerCase();
+        const nt = String(lead.notes || '').toLowerCase();
+        const prod = String(lead.interestedProduct || '').toLowerCase();
+        const rub = String(lead.rubro || '').toLowerCase();
+
+        const matches = bName.includes(query) ||
+          cName.includes(query) ||
+          dist.includes(query) ||
+          ph.includes(query) ||
+          em.includes(query) ||
+          nt.includes(query) ||
+          prod.includes(query) ||
+          rub.includes(query);
+
+        if (!matches) return false;
+      }
+
+      if (filterSeller !== 'all') {
+        const seller = String(lead.assignedTo || '').toLowerCase();
+        if (filterSeller === 'luis' && seller !== 'luis') return false;
+        if (filterSeller === 'kevin' && seller !== 'kevin') return false;
+      }
+
+      if (filterRubro !== 'all') {
+        if (String(lead.rubro || '').trim().toLowerCase() !== filterRubro.trim().toLowerCase()) {
+          return false;
+        }
+      }
+
+      if (filterDistrict !== 'all') {
+        if (String(lead.district || '').trim().toLowerCase() !== filterDistrict.trim().toLowerCase()) {
+          return false;
+        }
+      }
+
+      if (filterContacted !== 'all') {
+        if (filterContacted === 'contacted' && !lead.contacted) return false;
+        if (filterContacted === 'not_contacted' && lead.contacted) return false;
+      }
+
+      if (filterAge !== 'all') {
+        const isOld = isLeadOverOneWeek(lead);
+        if (filterAge === 'over_7d' && !isOld) return false;
+        if (filterAge === 'under_7d' && isOld) return false;
+      }
+
+      return true;
+    });
+  }, [leads, searchTerm, filterSeller, filterRubro, filterDistrict, filterContacted, filterAge]);
+
+  const hasActiveFilters = Boolean(
+    searchTerm.trim() || 
+    filterSeller !== 'all' || 
+    filterRubro !== 'all' || 
+    filterDistrict !== 'all' || 
+    filterContacted !== 'all' || 
+    filterAge !== 'all'
+  );
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setFilterSeller('all');
+    setFilterRubro('all');
+    setFilterDistrict('all');
+    setFilterContacted('all');
+    setFilterAge('all');
+  };
 
   // Formulario editar lead
   const [editLeadForm, setEditLeadForm] = useState({
@@ -418,12 +586,12 @@ export default function KanbanView({
     });
   };
 
-  const totalPipelineValue = leads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
+  const totalPipelineValue = filteredLeads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
 
   return (
     <div className="kanban-view">
       {/* Header Compacto para maximizar espacio vertical */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
@@ -431,7 +599,7 @@ export default function KanbanView({
               <span>Pipeline B2B | Embudo de Ventas Linkeo</span>
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: 0 }}>
-              6 fases comerciales • Prospectos activos en Lima
+              7 fases comerciales • Prospectos y cuentas Linkeo B2B
             </p>
           </div>
 
@@ -440,16 +608,167 @@ export default function KanbanView({
               Pipeline: S/ {totalPipelineValue.toFixed(2)}
             </span>
             <span className="badge badge-blue" style={{ fontSize: '0.72rem' }}>
-              {leads.length} Leads
+              {filteredLeads.length} {hasActiveFilters ? `de ${leads.length}` : ''} Leads
             </span>
           </div>
         </div>
 
-        <button className="btn btn-primary btn-sm" onClick={() => setIsNewLeadModalOpen(true)}>
-          <Plus size={15} />
-          <span>+ Nuevo Prospecto / Lead</span>
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button className="btn btn-primary btn-sm" onClick={() => setIsNewLeadModalOpen(true)}>
+            <Plus size={15} />
+            <span>+ Nuevo Prospecto / Lead</span>
+          </button>
+        </div>
       </div>
+
+      {/* Barra de Búsqueda y Filtros Multicriterio */}
+      <div className="kanban-toolbar">
+        {/* Buscador por Texto */}
+        <div className="kanban-search-box">
+          <Search size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          <input 
+            type="text"
+            placeholder="Buscar por negocio, contacto, distrito, teléfono..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button 
+              type="button" 
+              onClick={() => setSearchTerm('')} 
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+              title="Borrar búsqueda"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Filtro Vendedor */}
+        <select 
+          className="kanban-filter-select"
+          value={filterSeller}
+          onChange={(e) => setFilterSeller(e.target.value)}
+          title="Filtrar por vendedor asignado"
+        >
+          <option value="all">👤 Todos los vendedores</option>
+          <option value="luis">👨‍💼 Luis Romero</option>
+          <option value="kevin">🚀 Kevin Servat</option>
+        </select>
+
+        {/* Filtro Rubro */}
+        <select 
+          className="kanban-filter-select"
+          value={filterRubro}
+          onChange={(e) => setFilterRubro(e.target.value)}
+          title="Filtrar por tipo de negocio / rubro"
+        >
+          <option value="all">🏢 Todos los rubros</option>
+          {availableRubros.map(r => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
+
+        {/* Filtro Distrito */}
+        <select 
+          className="kanban-filter-select"
+          value={filterDistrict}
+          onChange={(e) => setFilterDistrict(e.target.value)}
+          title="Filtrar por distrito"
+        >
+          <option value="all">📍 Todos los distritos</option>
+          {availableDistricts.map(d => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+
+        {/* Filtro Contactado */}
+        <select 
+          className="kanban-filter-select"
+          value={filterContacted}
+          onChange={(e) => setFilterContacted(e.target.value)}
+          title="Filtrar por estado de contacto"
+        >
+          <option value="all">🔔 Contacto: Todos</option>
+          <option value="contacted">✅ Contactados</option>
+          <option value="not_contacted">⏳ Sin contactar</option>
+        </select>
+
+        {/* Filtro Antigüedad */}
+        <select 
+          className="kanban-filter-select"
+          value={filterAge}
+          onChange={(e) => setFilterAge(e.target.value)}
+          title="Filtrar por antigüedad del prospecto"
+        >
+          <option value="all">📅 Antigüedad: Todos</option>
+          <option value="over_7d">⚠️ Inactivos (+1 semana)</option>
+          <option value="under_7d">⚡ Recientes (&lt;1 semana)</option>
+        </select>
+
+        {/* Botón Limpiar Filtros */}
+        {hasActiveFilters && (
+          <button 
+            type="button" 
+            className="btn btn-secondary btn-sm"
+            onClick={handleClearFilters}
+            style={{ fontSize: '0.75rem', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            <RotateCcw size={12} />
+            <span>Limpiar filtros</span>
+          </button>
+        )}
+
+        <div style={{ marginLeft: 'auto', fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>Mostrando <strong>{filteredLeads.length}</strong> de <strong>{leads.length}</strong> leads</span>
+        </div>
+      </div>
+
+      {/* Banner de Traslado Masivo por Regla de 1 Semana */}
+      {leadsOverOneWeek.length > 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px',
+          padding: '9px 14px',
+          background: 'linear-gradient(90deg, rgba(244, 63, 94, 0.1) 0%, rgba(245, 158, 11, 0.08) 100%)',
+          border: '1px solid rgba(244, 63, 94, 0.28)',
+          borderRadius: 'var(--radius-md)',
+          fontSize: '0.78rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.1rem' }}>⏰</span>
+            <span>
+              <strong>Regla de 1 semana:</strong> Hay <strong>{leadsOverOneWeek.length}</strong> prospecto{leadsOverOneWeek.length > 1 ? 's' : ''} activo{leadsOverOneWeek.length > 1 ? 's' : ''} con más de 7 días sin avance comercial.
+            </span>
+          </div>
+
+          <button 
+            type="button"
+            className="btn btn-sm"
+            onClick={handleMoveOldLeadsToWait}
+            style={{
+              backgroundColor: '#f43f5e',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.75rem',
+              padding: '5px 12px',
+              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 6px rgba(244, 63, 94, 0.35)'
+            }}
+          >
+            <span>Enviar a "7. Venta no hecha o cliente en espera" ({leadsOverOneWeek.length})</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
+      )}
 
       {/* Selector Táctil de Fases en Móvil */}
       <div 
@@ -459,7 +778,7 @@ export default function KanbanView({
           overflowX: 'auto', 
           whiteSpace: 'nowrap',
           paddingBottom: '8px', 
-          marginBottom: '14px',
+          marginBottom: '6px',
           WebkitOverflowScrolling: 'touch'
         }}
       >
@@ -469,10 +788,10 @@ export default function KanbanView({
           onClick={() => setMobileStageFilter('all')}
           style={{ fontSize: '0.78rem', padding: '5px 12px', flexShrink: 0 }}
         >
-          Todas las Fases ({leads.length})
+          Todas las Fases ({filteredLeads.length})
         </button>
         {STAGES.map(stage => {
-          const count = leads.filter(l => normalizeLeadStage(l.stage) === stage.id).length;
+          const count = filteredLeads.filter(l => normalizeLeadStage(l.stage) === stage.id).length;
           return (
             <button 
               key={stage.id}
@@ -492,7 +811,7 @@ export default function KanbanView({
       {/* Tablero Kanban Full Width */}
       <div className="kanban-board">
         {(mobileStageFilter === 'all' ? STAGES : STAGES.filter(s => s.id === mobileStageFilter)).map(stage => {
-          const stageLeads = leads.filter(l => normalizeLeadStage(l.stage) === stage.id);
+          const stageLeads = filteredLeads.filter(l => normalizeLeadStage(l.stage) === stage.id);
           const totalValue = stageLeads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
 
           return (
@@ -511,7 +830,12 @@ export default function KanbanView({
               </div>
 
               <div className="kanban-col-body">
-                {stageLeads.map(lead => {
+                {stageLeads.length === 0 ? (
+                  <div style={{ padding: '28px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.74rem' }}>
+                    Sin prospectos en esta fase
+                  </div>
+                ) : (
+                  stageLeads.map(lead => {
                   const associatedSale = sales.find(s => 
                     (s.leadId && s.leadId === lead.id) || 
                     (s.clientName && lead.businessName && s.clientName.trim().toLowerCase() === lead.businessName.trim().toLowerCase())
@@ -619,6 +943,89 @@ export default function KanbanView({
                         👉 {lead.nextStepNote || 'Seguimiento comercial'}
                       </div>
                     </div>
+
+                    {/* Alerta de Antigüedad (+7 días) y traslado a Espera */}
+                    {isLeadOverOneWeek(lead) && normalizeLeadStage(lead.stage) !== 'no_hecha_o_espera' && (
+                      <div 
+                        style={{
+                          marginTop: '6px',
+                          padding: '4px 8px',
+                          borderRadius: 'var(--radius-xs)',
+                          backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                          border: '1px solid rgba(244, 63, 94, 0.28)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: '0.68rem',
+                          color: '#fda4af',
+                          fontWeight: 600
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Clock size={11} color="#f43f5e" /> +7 días sin concretar
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStageChange(lead.id, 'no_hecha_o_espera');
+                          }}
+                          style={{
+                            background: 'rgba(244, 63, 94, 0.2)',
+                            border: '1px solid rgba(244, 63, 94, 0.4)',
+                            borderRadius: '4px',
+                            color: '#fff',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            padding: '1px 6px',
+                            fontSize: '0.66rem'
+                          }}
+                          title="Enviar a 7. Venta no hecha o cliente en espera"
+                        >
+                          A Espera →
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Badge de Reactivación si está en Fase 7 */}
+                    {normalizeLeadStage(lead.stage) === 'no_hecha_o_espera' && (
+                      <div 
+                        style={{
+                          marginTop: '6px',
+                          padding: '4px 8px',
+                          borderRadius: 'var(--radius-xs)',
+                          backgroundColor: 'rgba(244, 63, 94, 0.08)',
+                          border: '1px solid rgba(244, 63, 94, 0.22)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: '0.68rem',
+                          color: '#fda4af'
+                        }}
+                      >
+                        <span>⏳ En espera / No hecha</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStageChange(lead.id, 'negociacion');
+                          }}
+                          style={{
+                            background: 'rgba(59, 130, 246, 0.15)',
+                            border: '1px solid rgba(59, 130, 246, 0.35)',
+                            borderRadius: '4px',
+                            color: '#60a5fa',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            padding: '1px 6px',
+                            fontSize: '0.66rem'
+                          }}
+                          title="Reactivar negociación comercial"
+                        >
+                          ⚡ Reactivar
+                        </button>
+                      </div>
+                    )}
 
                     <div className="kanban-card-footer">
                       {/* Asignado */}
@@ -794,7 +1201,7 @@ export default function KanbanView({
                     ) : null}
                   </div>
                 );
-              })}
+              }))}
               </div>
             </div>
           );

@@ -722,4 +722,62 @@ test('calculatePartnerCashAccounts correctly handles sales held in personal acco
   assert.equal(kevinResult.debtLuisToKevin, -50); // Negativo significa que Kevin le transfiere 50 a Luis
 });
 
+test('kanban pipeline stage 7 (no_hecha_o_espera) and 1-week inactivity rule', async () => {
+  const { normalizeLeadStage, buildLeadWhatsAppMessage } = await import('../src/utils/leadMessages.js');
+
+  // 1. Normalización de etapa 7
+  assert.equal(normalizeLeadStage('no_hecha_o_espera'), 'no_hecha_o_espera');
+  assert.equal(normalizeLeadStage('cliente en espera'), 'no_hecha_o_espera');
+  assert.equal(normalizeLeadStage('no_hecha'), 'no_hecha_o_espera');
+
+  // 2. Generación de mensaje respetuoso de reactivación para la etapa 7
+  const reactivationMsg = buildLeadWhatsAppMessage({
+    businessName: 'Óptica Central',
+    stage: 'no_hecha_o_espera'
+  });
+  assert.ok(reactivationMsg.includes('retomar la propuesta'), 'Debe sugerir retomar la propuesta');
+  assert.ok(reactivationMsg.includes('https://linkeocards.com/'), 'Debe incluir enlace web oficial');
+  assert.ok(reactivationMsg.includes('https://www.instagram.com/linkeo_pe/'), 'Debe incluir Instagram');
+  assert.ok(reactivationMsg.includes('https://www.tiktok.com/@linkeocards'), 'Debe incluir TikTok');
+
+  // 3. Lógica de detección de antigüedad de 1 semana
+  const now = Date.now();
+  const eightDaysAgoMs = now - (8 * 24 * 60 * 60 * 1000);
+  const twoDaysAgoMs = now - (2 * 24 * 60 * 60 * 1000);
+
+  const oldLead = {
+    id: 'l-old',
+    createdAt: new Date(eightDaysAgoMs).toISOString(),
+    stage: 'visitado'
+  };
+
+  const recentLead = {
+    id: 'l-recent',
+    createdAt: new Date(twoDaysAgoMs).toISOString(),
+    stage: 'visitado'
+  };
+
+  const oldDeliveredLead = {
+    id: 'l-delivered',
+    createdAt: new Date(eightDaysAgoMs).toISOString(),
+    stage: 'entregado'
+  };
+
+  const getAgeDays = (lead) => {
+    const diff = Math.floor((Date.now() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, diff);
+  };
+
+  const isOverOneWeek = (lead) => {
+    const st = normalizeLeadStage(lead.stage);
+    if (st === 'entregado' || st === 'postventa' || st === 'no_hecha_o_espera') return false;
+    return getAgeDays(lead) >= 7;
+  };
+
+  assert.equal(isOverOneWeek(oldLead), true, 'Lead de 8 días en "visitado" debe calificar para la etapa 7');
+  assert.equal(isOverOneWeek(recentLead), false, 'Lead de 2 días no debe calificar');
+  assert.equal(isOverOneWeek(oldDeliveredLead), false, 'Venta ya entregada y cobrada no debe enviarse a no hecha');
+});
+
+
 

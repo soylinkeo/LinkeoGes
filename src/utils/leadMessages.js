@@ -19,6 +19,7 @@ export const normalizeLeadStage = (stage) => {
   if (s === 'esperando_info') return 'configurando';
   if (s === 'entregado_cobrado') return 'entregado';
   if (s === 'post_venta' || s === 'post-venta') return 'postventa';
+  if (s === 'no_hecha' || s === 'espera' || s === 'no_hecha_o_espera' || s === 'cliente_espera' || s.includes('espera') || s.includes('no hecha')) return 'no_hecha_o_espera';
   return s;
 };
 
@@ -186,6 +187,21 @@ Para cualquier soporte técnico o consulta sobre su dispositivo:
 ${socialLinksBlock}
 
 ¡Muchos éxitos y a seguir multiplicando esas reseñas positivas!`
+    );
+  }
+
+  // 7. Venta no hecha o cliente en espera (Reactivación y seguimiento respetuoso)
+  if (stage === 'no_hecha_o_espera') {
+    return (
+`¡Hola al equipo de ${entityName}! Te saluda el equipo de Linkeo.
+
+Nos comunicamos para consultarles si les gustaría retomar la propuesta de tarjetas inteligentes Linkeo NFC para Google Maps para su local.
+
+Entendemos que los tiempos y prioridades en cada negocio varían, por lo que quedamos a su entera disposición cuando sea un momento oportuno para coordinar una breve demostración sin compromiso:
+
+${socialLinksBlock}
+
+¿Les parecería bien que lo revisemos esta semana? ¡Muchos éxitos y un saludo muy cordial!`
     );
   }
 
