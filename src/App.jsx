@@ -554,14 +554,14 @@ export default function App() {
 
       const result = createSale({ form: { ...newSaleForm, productId: product.id, quantity: qty }, product, inventory, userId: currentUser.id });
       setInventory(result.inventory);
-      setSales(prev => [result.sale, ...prev]);
-      setNfcCards(prev => [...result.cards, ...prev]);
 
       // Al registrar una venta, va directamente a "Entregado y Cobrado" (etapa 5) sin pasar por flujos anteriores
       const clientNorm = (result.sale.clientName || '').trim().toLowerCase();
       const existingLeadIndex = leads.findIndex(l => (l.businessName || '').trim().toLowerCase() === clientNorm);
+      let targetLeadId;
 
       if (existingLeadIndex !== -1) {
+        targetLeadId = leads[existingLeadIndex].id;
         setLeads(prev => prev.map((l, idx) => idx === existingLeadIndex ? {
           ...l,
           stage: 'entregado',
@@ -570,8 +570,9 @@ export default function App() {
           notes: `${l.notes ? l.notes + ' | ' : ''}Venta confirmada: S/ ${Number(result.sale.totalAmount).toFixed(2)}`
         } : l));
       } else {
+        targetLeadId = `lead-sale-${result.sale.id || Date.now()}`;
         const directSaleLead = {
-          id: `lead-sale-${result.sale.id || Date.now()}`,
+          id: targetLeadId,
           businessName: result.sale.clientName,
           rubro: 'Tienda / Retail',
           district: result.sale.district || districts[0] || 'Miraflores',
@@ -589,6 +590,10 @@ export default function App() {
         };
         setLeads(prev => [directSaleLead, ...prev]);
       }
+
+      const saleWithLead = { ...result.sale, leadId: targetLeadId };
+      setSales(prev => [saleWithLead, ...prev]);
+      setNfcCards(prev => [...result.cards, ...prev]);
 
       logAudit({ actionType: 'Creación', entityType: 'Venta', entityId: result.sale.id, entityName: result.sale.clientName, reason: 'Venta y stock registrados conjuntamente. Prospecto directo a Entregado y Cobrado.' });
       cloud.engine.afterSaved(() => { handleCloseNewSaleModal(); pushToast('Venta confirmada en la nube'); });
@@ -695,8 +700,79 @@ export default function App() {
       reason: `Nuevo prospecto asignado a ${newLead.assignedTo === 'luis' ? 'Luis Romero' : 'Kevin Servat'}.`
     });
   };
+
+  const handleConvertLeadToSale = lead => {
+    try {
+      const existingSale = sales.find(s => 
+        (s.leadId && s.leadId === lead.id) || 
+        (s.clientName && lead.businessName && s.clientName.trim().toLowerCase() === lead.businessName.trim().toLowerCase())
+      );
+      if (existingSale) {
+        showToast(`El prospecto "${lead.businessName}" ya tiene una venta registrada (${existingSale.saleNumber || existingSale.id}).`, 'info');
+        return true;
+      }
+      let product = products.find(p => p.id === lead.interestedProduct || p.name === lead.interestedProduct);
+      if (!product) {
+        product = products.find(p => Number(p.stock ?? 0) > 0) || products[0];
+      }
+      if (!product) throw new Error('No hay productos disponibles en el catálogo.');
+      if (Number(product.stock ?? 0) < 1) {
+        throw new Error(`Stock insuficiente: "${product.name}" no tiene existencias disponibles en almacén.`);
+      }
+      const form = { 
+        clientName: lead.businessName, 
+        contactPerson: lead.contactName, 
+        phone: lead.phone, 
+        email: lead.email || '',
+        district: lead.district || 'Miraflores', 
+        quantity: 1, 
+        soldBy: lead.assignedTo === 'both' ? currentUser?.id || 'luis' : (lead.assignedTo || 'luis'),
+        paymentMethod: 'Transferencia', 
+        googlePlaceId: lead.placeId || '' 
+      };
+      const result = createSale({ form, product, inventory, userId: currentUser?.id || 'luis' });
+      setInventory(result.inventory);
+      setLeads(prev => prev.map(l => l.id === lead.id ? { 
+        ...l, 
+        stage: 'entregado', 
+        contacted: true, 
+        interestedProduct: product.name, 
+        estimatedValue: Number(product.price) || l.estimatedValue 
+      } : l));
+      setSales(prev => [{ ...result.sale, leadId: lead.id }, ...prev]);
+      setNfcCards(prev => [...result.cards, ...prev]);
+      logAudit({ 
+        actionType: 'Creación', 
+        entityType: 'Venta', 
+        entityId: result.sale.id, 
+        entityName: lead.businessName, 
+        reason: 'Venta generada automáticamente al pasar prospecto a Entregado y Cobrado.' 
+      });
+      return true;
+    } catch (error) { 
+      showToast(error.message, 'error'); 
+      return false; 
+    }
+  };
+
   const handleUpdateLeadStage = (leadId, newStage) => {
     const oldLead = leads.find(l => l.id === leadId);
+    if (!oldLead) return;
+
+    if (newStage === 'entregado') {
+      const existingSale = sales.find(s => 
+        (s.leadId && s.leadId === leadId) || 
+        (s.clientName && oldLead.businessName && s.clientName.trim().toLowerCase() === oldLead.businessName.trim().toLowerCase())
+      );
+      if (!existingSale) {
+        const success = handleConvertLeadToSale(oldLead);
+        if (success) {
+          showToast(`🎉 ¡Venta generada automáticamente! "${oldLead.businessName}" pasó a Entregado y Cobrado`, 'success');
+          return;
+        }
+      }
+    }
+
     setLeads(prev => prev.map(l => l.id === leadId ? {
       ...l,
       stage: newStage
@@ -711,8 +787,24 @@ export default function App() {
       diff: `Antes: ${oldLead?.stage} -> Ahora: ${newStage}`
     });
   };
+
   const handleUpdateLead = updatedLead => {
     const oldLead = leads.find(l => l.id === updatedLead.id);
+
+    if (updatedLead.stage === 'entregado' && oldLead?.stage !== 'entregado') {
+      const existingSale = sales.find(s => 
+        (s.leadId && s.leadId === updatedLead.id) || 
+        (s.clientName && updatedLead.businessName && s.clientName.trim().toLowerCase() === updatedLead.businessName.trim().toLowerCase())
+      );
+      if (!existingSale) {
+        const success = handleConvertLeadToSale(updatedLead);
+        if (success) {
+          showToast(`🎉 ¡Venta generada automáticamente! "${updatedLead.businessName}" pasó a Entregado y Cobrado`, 'success');
+          return;
+        }
+      }
+    }
+
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
     logAudit({
       actionType: 'Modificación',
@@ -723,26 +815,6 @@ export default function App() {
       snapshot: oldLead,
       diff: `Antes: ${oldLead?.businessName || ''} (${oldLead?.stage || ''}) -> Ahora: ${updatedLead.businessName} (${updatedLead.stage})`
     });
-  };
-  const handleConvertLeadToSale = lead => {
-    try {
-      if (sales.some(s => s.leadId === lead.id)) throw new Error('Este prospecto ya tiene una venta.');
-      const product = products.find(p => p.id === lead.interestedProduct || p.name === lead.interestedProduct);
-      if (!product) throw new Error('No se encontró el producto de interés en el catálogo.');
-      if (Number(product.stock ?? 0) < 1) {
-        throw new Error(`Stock insuficiente: "${product.name}" no tiene existencias disponibles en almacén.`);
-      }
-      const form = { clientName: lead.businessName, contactPerson: lead.contactName, phone: lead.phone, email: lead.email || '',
-        district: lead.district, quantity: 1, soldBy: lead.assignedTo === 'both' ? currentUser.id : lead.assignedTo,
-        paymentMethod: 'Transferencia', googlePlaceId: lead.placeId || '' };
-      const result = createSale({ form, product, inventory, userId: currentUser.id });
-      setInventory(result.inventory);
-      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, stage: 'entregado', contacted: true } : l));
-      setSales(prev => [{ ...result.sale, leadId: lead.id }, ...prev]);
-      setNfcCards(prev => [...result.cards, ...prev]);
-      logAudit({ actionType: 'Creación', entityType: 'Venta', entityId: result.sale.id, entityName: lead.businessName, reason: 'Venta convertida desde prospecto directamente a Entregado y Cobrado.' });
-      return true;
-    } catch (error) { showToast(error.message, 'error'); return false; }
   };
 
   const handleAddNewEvent = newEvent => {
@@ -1434,7 +1506,7 @@ export default function App() {
           {currentTab === 'nfc-traceability' && <NfcTraceabilityView nfcCards={nfcCards} products={products} inventory={inventory} onUpdateCard={handleUpdateCard} onAddNewCard={handleAddNewCard} selectedCardModal={selectedCardModal} setSelectedCardModal={setSelectedCardModal} onRequestDelete={handleRequestDelete} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
 
           {/* MÓDULO 4: Pipeline B2B (Kanban) */}
-          {currentTab === 'pipeline' && <KanbanView products={products} leads={leads} districts={districts} onUpdateLeadStage={handleUpdateLeadStage} onUpdateLead={handleUpdateLead} onAddNewLead={handleAddNewLead} onConvertLeadToSale={handleConvertLeadToSale} onRequestDelete={handleRequestDelete} showToast={showToast} />}
+          {currentTab === 'pipeline' && <KanbanView products={products} leads={leads} sales={sales} districts={districts} onUpdateLeadStage={handleUpdateLeadStage} onUpdateLead={handleUpdateLead} onAddNewLead={handleAddNewLead} onConvertLeadToSale={handleConvertLeadToSale} onRequestDelete={handleRequestDelete} showToast={showToast} />}
 
           {/* MÓDULO 5: Agenda & Coordinación de Visitas */}
           {currentTab === 'calendar' && <CalendarView events={calendarEvents} onAddNewEvent={handleAddNewEvent} onEditEvent={handleEditEvent} nfcCards={nfcCards} onRequestDelete={handleRequestDelete} districts={districts} showToast={showToast} />}

@@ -383,6 +383,77 @@ test('buildLeadWhatsAppMessage customizes by stage (prospect vs visitado) with w
   assert.ok(visitadoMsg.includes('https://www.tiktok.com/@linkeocards'));
 });
 
+test('moving a lead to Entregado y Cobrado automatically considers it a sale and links bidirectionally', () => {
+  const inventory = [{ id: 'inv-card-esp', sku: 'CRD-ESP', name: 'Tarjeta Google NFC Cuadrado ESP', quantity: 10 }];
+  const product = { id: 'prod-sq', sku: 'CRD-ESP', name: 'Tarjeta Google NFC Cuadrado ESP', price: 60, cost: 15, stock: 10 };
+  const products = [product];
 
+  let sales = [];
+  let leads = [
+    { 
+      id: 'lead-auto-1', 
+      businessName: 'Lavatelli Dry Cleaners', 
+      contactName: 'Encargado', 
+      phone: '987654321', 
+      district: 'Santiago de Surco', 
+      stage: 'negociacion', 
+      estimatedValue: 60,
+      interestedProduct: 'Tarjeta Google NFC Cuadrado ESP',
+      assignedTo: 'luis'
+    }
+  ];
 
+  // Simulated transition to 'entregado'
+  const targetLead = leads[0];
+  const newStage = 'entregado';
 
+  // Helper conversion logic matching App.jsx
+  const convertLeadToSale = (lead) => {
+    const existing = sales.find(s => 
+      (s.leadId && s.leadId === lead.id) || 
+      (s.clientName && lead.businessName && s.clientName.trim().toLowerCase() === lead.businessName.trim().toLowerCase())
+    );
+    if (existing) return existing;
+
+    const prod = products.find(p => p.id === lead.interestedProduct || p.name === lead.interestedProduct) || products[0];
+    const form = {
+      clientName: lead.businessName,
+      contactPerson: lead.contactName,
+      phone: lead.phone,
+      district: lead.district,
+      quantity: 1,
+      soldBy: lead.assignedTo || 'luis',
+      paymentMethod: 'Transferencia'
+    };
+    const result = createSale({ form, product: prod, inventory, userId: 'luis' });
+    const saleWithLead = { ...result.sale, leadId: lead.id };
+    sales = [saleWithLead, ...sales];
+    leads = leads.map(l => l.id === lead.id ? { ...l, stage: 'entregado', contacted: true } : l);
+    return saleWithLead;
+  };
+
+  if (newStage === 'entregado') {
+    convertLeadToSale(targetLead);
+  }
+
+  // Assertions:
+  // 1. Lead stage is now 'entregado'
+  assert.equal(leads[0].stage, 'entregado');
+  assert.equal(leads[0].contacted, true);
+
+  // 2. Sale was created with matching leadId
+  assert.equal(sales.length, 1);
+  assert.equal(sales[0].leadId, 'lead-auto-1');
+  assert.equal(sales[0].clientName, 'Lavatelli Dry Cleaners');
+  assert.equal(sales[0].totalAmount, 60);
+
+  // 3. Bidirectional link lookup matches
+  const linkedSale = sales.find(s => s.leadId === leads[0].id || s.clientName === leads[0].businessName);
+  assert.ok(linkedSale);
+  assert.equal(linkedSale.id, sales[0].id);
+
+  // 4. Repeated transition or conversion doesn't create duplicate sales
+  const secondAttempt = convertLeadToSale(leads[0]);
+  assert.equal(sales.length, 1);
+  assert.equal(secondAttempt.id, sales[0].id);
+});

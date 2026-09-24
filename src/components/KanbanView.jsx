@@ -24,7 +24,7 @@ export const STAGES = [
   { id: 'visitado', label: '2. Visitado', color: '#3b82f6' },
   { id: 'negociacion', label: '3. Negociación', color: '#f59e0b' },
   { id: 'configurando', label: '4. Configurando NFC', color: '#8b5cf6' },
-  { id: 'entregado', label: '5. Entregado y Cobrado', color: '#10b981' },
+  { id: 'entregado', label: '5. Entregado y Cobrado (Ventas)', color: '#10b981' },
   { id: 'postventa', label: '6. Post-Venta', color: '#06b6d4' }
 ];
 
@@ -44,6 +44,7 @@ export { buildLeadWhatsAppMessage };
 
 export default function KanbanView({
   leads = [],
+  sales = [],
   products = [],
   districts = [],
   onUpdateLeadStage,
@@ -269,9 +270,33 @@ export default function KanbanView({
       showToast(`✏️ Prospecto "${updatedLead.businessName}" actualizado correctamente`, 'success');
     }
     handleCloseEditLeadModal();
+
+    // Si pasa a Entregado y Cobrado, se considera automáticamente venta
+    if (updatedLead.stage === 'entregado' && editingLead?.stage !== 'entregado') {
+      const alreadyHasSale = sales.some(s => 
+        (s.leadId && s.leadId === updatedLead.id) || 
+        (s.clientName && updatedLead.businessName && s.clientName.trim().toLowerCase() === updatedLead.businessName.trim().toLowerCase())
+      );
+      if (!alreadyHasSale) {
+        handleOpenConvert(updatedLead);
+      }
+    }
   };
 
   const handleStageChange = (leadId, newStage) => {
+    const lead = leads.find(l => l.id === leadId);
+    if (newStage === 'entregado' && lead) {
+      const alreadyHasSale = sales.some(s => 
+        (s.leadId && s.leadId === lead.id) || 
+        (s.clientName && lead.businessName && s.clientName.trim().toLowerCase() === lead.businessName.trim().toLowerCase())
+      );
+      if (!alreadyHasSale) {
+        // Al pasar a Entregado y Cobrado, se considera automáticamente venta
+        handleOpenConvert(lead);
+        return;
+      }
+    }
+
     onUpdateLeadStage(leadId, newStage);
     const stageObj = STAGES.find(s => s.id === newStage);
     if (showToast) {
@@ -323,9 +348,14 @@ export default function KanbanView({
   const handleConfirmConvert = () => {
     if (!selectedLead) return;
     const name = selectedLead.businessName;
-    if (onConvertLeadToSale(selectedLead) === false) return;
+    const fallbackProduct = catalogOptions.find(p => Number(p.stock ?? 0) > 0)?.name || catalogOptions[0]?.name || 'Tarjeta Google NFC Cuadrado ESP';
+    const leadToConvert = {
+      ...selectedLead,
+      interestedProduct: selectedLead.interestedProduct || fallbackProduct
+    };
+    if (onConvertLeadToSale(leadToConvert) === false) return;
     if (showToast) {
-      showToast(`🎉 ¡Venta generada! Lead "${name}" directo a Entregado y Cobrado`, 'success');
+      showToast(`🎉 ¡Venta generada! Lead "${name}" conectado a Entregado y Cobrado`, 'success');
     }
     handleCloseConvertModal();
     confetti({
@@ -428,7 +458,14 @@ export default function KanbanView({
               </div>
 
               <div className="kanban-col-body">
-                {stageLeads.map(lead => (
+                {stageLeads.map(lead => {
+                  const associatedSale = sales.find(s => 
+                    (s.leadId && s.leadId === lead.id) || 
+                    (s.clientName && lead.businessName && s.clientName.trim().toLowerCase() === lead.businessName.trim().toLowerCase())
+                  );
+                  const isDelivered = normalizeLeadStage(lead.stage) === 'entregado';
+
+                  return (
                   <div 
                     key={lead.id} 
                     className="kanban-card"
@@ -634,8 +671,46 @@ export default function KanbanView({
                       </select>
                     </div>
 
-                    {/* Botón de Conversión directa si aún no ha culminado la venta */}
-                    {normalizeLeadStage(lead.stage) !== 'entregado' && normalizeLeadStage(lead.stage) !== 'postventa' && (
+                    {/* Conexión de Venta: Badge verificado o botón de conversión */}
+                    {associatedSale ? (
+                      <div 
+                        style={{
+                          width: '100%',
+                          marginTop: '8px',
+                          fontSize: '0.72rem',
+                          padding: '4px 8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          borderRadius: 'var(--radius-sm)',
+                          backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                          border: '1px solid rgba(16, 185, 129, 0.35)',
+                          color: '#10b981',
+                          fontWeight: 700
+                        }}
+                        title={`Venta oficial registrada en el sistema (#${associatedSale.saleNumber || associatedSale.id || 'VTA'})`}
+                      >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <Sparkles size={11} color="#10b981" />
+                          <span>Venta Concretada {associatedSale.saleNumber ? `(${associatedSale.saleNumber})` : ''}</span>
+                        </span>
+                        <span>S/ {Number(associatedSale.totalAmount ?? lead.estimatedValue).toFixed(2)}</span>
+                      </div>
+                    ) : isDelivered ? (
+                      <button 
+                        type="button"
+                        className="btn btn-success btn-sm"
+                        style={{ width: '100%', marginTop: '8px', fontSize: '0.72rem', padding: '4px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', backgroundColor: '#10b981', fontWeight: 700 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenConvert(lead);
+                        }}
+                        title="Este prospecto está en Entregado y Cobrado: clic para confirmar y registrar su venta oficial en el sistema"
+                      >
+                        <Sparkles size={12} />
+                        <span>⚡ Conectar Registro de Venta</span>
+                      </button>
+                    ) : normalizeLeadStage(lead.stage) !== 'postventa' ? (
                       <button 
                         type="button"
                         className="btn btn-success btn-sm"
@@ -649,9 +724,10 @@ export default function KanbanView({
                         <Sparkles size={12} />
                         <span>Convertir en Venta Directa</span>
                       </button>
-                    )}
+                    ) : null}
                   </div>
-                ))}
+                );
+              })}
               </div>
             </div>
           );
@@ -1388,9 +1464,10 @@ export default function KanbanView({
             </div>
 
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>
-              Esta acción registrará formalmente la venta de <strong>{selectedLead.businessName}</strong>,
-              sumará <strong>S/ {selectedLead.estimatedValue.toFixed(2)}</strong> a la facturación del mes
-              y generará la trazabilidad del chip NFC.
+              En Linkeo, <strong>todo lo que pasa a Entregado y Cobrado se considera automáticamente una venta concretada</strong>. 
+              Esta acción registrará formalmente la venta de <strong>{selectedLead.businessName}</strong>, 
+              sumará <strong>S/ {Number(selectedLead.estimatedValue || 0).toFixed(2)}</strong> a la facturación oficial del mes, 
+              descontará el stock de almacén y generará la trazabilidad del chip NFC.
             </p>
 
             <div style={{ backgroundColor: 'var(--bg-input)', padding: '16px', borderRadius: 'var(--radius-md)', marginBottom: '20px' }}>
@@ -1400,11 +1477,11 @@ export default function KanbanView({
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                 <span>Producto:</span>
-                <strong>{selectedLead.interestedProduct}</strong>
+                <strong>{selectedLead.interestedProduct || catalogOptions[0]?.name || 'Tarjeta Google NFC Cuadrado ESP'}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                 <span>Monto Facturado:</span>
-                <strong style={{ color: '#10b981' }}>S/ {selectedLead.estimatedValue.toFixed(2)}</strong>
+                <strong style={{ color: '#10b981' }}>S/ {Number(selectedLead.estimatedValue || 0).toFixed(2)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Vendedor:</span>
