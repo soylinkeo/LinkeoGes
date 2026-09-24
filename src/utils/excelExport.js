@@ -130,15 +130,17 @@ export function exportLinkeoGesToExcel({
 
   // 6. HOJA: PIPELINE Y LEADS B2B
   const leadHeaders = [
-    ['Negocio', 'Rubro', 'Distrito', 'Dirección', 'Contacto', 'Teléfono', 'Etapa Pipeline', 'Producto Interés', 'Valor Estimado (S/)', 'Asignado A', 'Próximo Paso', 'Fecha Próximo Paso', 'Notas']
+    ['Negocio', 'Rubro', 'Distrito', 'Dirección', 'Google Maps', 'Contacto', 'Teléfono', 'Email', 'Etapa Pipeline', 'Producto Interés', 'Valor Estimado (S/)', 'Asignado A', 'Próximo Paso', 'Fecha Próximo Paso', 'Notas']
   ];
   const leadRows = leads.map(l => [
     l.businessName,
     l.rubro,
     l.district,
     l.address || '',
+    l.googleMapsUrl || '',
     l.contactName,
     l.phone,
+    l.email || '',
     l.stage,
     l.interestedProduct,
     l.estimatedValue,

@@ -11,7 +11,10 @@ import {
   Sparkles, 
   Trash2,
   Edit3,
-  Mail
+  Mail,
+  Check,
+  ExternalLink,
+  Search
 } from 'lucide-react';
 import DistrictCombobox from './DistrictCombobox.jsx';
 import { INITIAL_PRODUCTS } from '../data/initialData.js';
@@ -77,6 +80,8 @@ export default function KanbanView({
     rubro: 'Restaurante / Cafetería',
     district: 'Miraflores',
     address: '',
+    googleMapsUrl: '',
+    isMapsVerified: false,
     contactName: '',
     phone: '',
     email: '',
@@ -96,6 +101,8 @@ export default function KanbanView({
     rubro: 'Restaurante / Cafetería',
     district: 'Miraflores',
     address: '',
+    googleMapsUrl: '',
+    isMapsVerified: false,
     contactName: '',
     phone: '',
     email: '',
@@ -114,6 +121,8 @@ export default function KanbanView({
       rubro: 'Restaurante / Cafetería',
       district: districts[0] || 'Miraflores',
       address: '',
+      googleMapsUrl: '',
+      isMapsVerified: false,
       contactName: '',
       phone: '',
       email: '',
@@ -135,12 +144,15 @@ export default function KanbanView({
 
   const handleOpenEditLead = (lead) => {
     setEditingLead(lead);
+    const hasMapsUrl = Boolean(lead.googleMapsUrl && lead.googleMapsUrl.trim());
     setEditLeadForm({
       id: lead.id,
       businessName: lead.businessName || '',
       rubro: lead.rubro || 'Restaurante / Cafetería',
       district: lead.district || (districts[0] || 'Miraflores'),
       address: lead.address || '',
+      googleMapsUrl: lead.googleMapsUrl || '',
+      isMapsVerified: hasMapsUrl,
       contactName: lead.contactName || '',
       phone: lead.phone || '',
       email: lead.email || '',
@@ -161,6 +173,66 @@ export default function KanbanView({
     setEditingLead(null);
   };
 
+  // Validación y apertura inmediata de Google Maps al dar Check
+  const handleCheckMapsUrl = (formType) => {
+    const isNew = formType === 'new';
+    const form = isNew ? newLeadForm : editLeadForm;
+    const setForm = isNew ? setNewLeadForm : setEditLeadForm;
+
+    let rawUrl = (form.googleMapsUrl || '').trim();
+
+    if (!rawUrl) {
+      // Si está en blanco, generar consulta con nombre, dirección y distrito
+      const queryParts = [form.businessName, form.address, form.district, 'Lima, Perú'].filter(Boolean);
+      const query = queryParts.join(' ');
+      if (!query.trim()) {
+        if (showToast) showToast('Ingresa un enlace o el nombre del negocio para buscarlo.', 'warning');
+        return;
+      }
+      const searchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+      setForm(prev => ({ ...prev, googleMapsUrl: searchUrl, isMapsVerified: true }));
+      window.open(searchUrl, '_blank', 'noopener,noreferrer');
+      if (showToast) showToast('🔍 Abriendo búsqueda en Google Maps al momento...', 'info');
+      return;
+    }
+
+    let formattedUrl = rawUrl;
+    if (!/^https?:\/\//i.test(formattedUrl)) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+
+    setForm(prev => ({
+      ...prev,
+      googleMapsUrl: formattedUrl,
+      isMapsVerified: true
+    }));
+
+    // Buscar y abrir al momento en nueva pestaña
+    window.open(formattedUrl, '_blank', 'noopener,noreferrer');
+    if (showToast) {
+      showToast('🗺️ Enlace de Google Maps verificado y abierto al momento', 'success');
+    }
+  };
+
+  // Botón rápido para buscar el local en Maps si aún no se tiene el enlace
+  const handleSearchMapsNow = (formType) => {
+    const isNew = formType === 'new';
+    const form = isNew ? newLeadForm : editLeadForm;
+    const setForm = isNew ? setNewLeadForm : setEditLeadForm;
+
+    const queryParts = [form.businessName, form.address, form.district, 'Lima, Perú'].filter(Boolean);
+    const query = queryParts.join(' ');
+    const searchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query || 'Lima Perú')}`;
+
+    window.open(searchUrl, '_blank', 'noopener,noreferrer');
+    if (!form.googleMapsUrl) {
+      setForm(prev => ({ ...prev, googleMapsUrl: searchUrl, isMapsVerified: true }));
+    }
+    if (showToast) {
+      showToast('🔍 Buscando negocio en Google Maps al momento...', 'info');
+    }
+  };
+
   const handleSaveEditLead = (e) => {
     e.preventDefault();
     if (!editingLead) return;
@@ -171,6 +243,7 @@ export default function KanbanView({
       rubro: editLeadForm.rubro,
       district: editLeadForm.district.trim(),
       address: editLeadForm.address.trim(),
+      googleMapsUrl: editLeadForm.googleMapsUrl.trim(),
       contactName: editLeadForm.contactName.trim(),
       phone: editLeadForm.phone.trim(),
       email: editLeadForm.email.trim(),
@@ -216,6 +289,7 @@ export default function KanbanView({
       rubro: newLeadForm.rubro,
       district: newLeadForm.district.trim(),
       address: newLeadForm.address.trim(),
+      googleMapsUrl: newLeadForm.googleMapsUrl.trim(),
       contactName: newLeadForm.contactName.trim(),
       phone: newLeadForm.phone.trim(),
       email: newLeadForm.email.trim(),
@@ -408,8 +482,32 @@ export default function KanbanView({
                     <div className="kanban-card-title">{lead.businessName}</div>
 
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
-                      <MapPin size={11} />
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.district}</span>
+                      {lead.googleMapsUrl ? (
+                        <a 
+                          href={lead.googleMapsUrl.startsWith('http') ? lead.googleMapsUrl : `https://${lead.googleMapsUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            color: '#3b82f6',
+                            textDecoration: 'none',
+                            fontWeight: 600
+                          }}
+                          title="Abrir ubicación en Google Maps"
+                        >
+                          <MapPin size={11} color="#3b82f6" />
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: 'underline' }}>{lead.district}</span>
+                          <ExternalLink size={9} />
+                        </a>
+                      ) : (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <MapPin size={11} />
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.district}</span>
+                        </div>
+                      )}
                       {lead.contactName && <span>• {lead.contactName.split(' ')[0]}</span>}
                       {lead.email && (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: 'var(--text-muted)' }} title={lead.email}>
@@ -432,6 +530,21 @@ export default function KanbanView({
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                         {lead.assignedTo === 'luis' ? '👨‍💼 Luis Romero' : '🚀 Kevin Servat'}
                       </span>
+
+                      {/* Google Maps Directo */}
+                      {lead.googleMapsUrl && (
+                        <a 
+                          href={lead.googleMapsUrl.startsWith('http') ? lead.googleMapsUrl : `https://${lead.googleMapsUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-icon"
+                          style={{ width: '26px', height: '26px', color: '#3b82f6' }}
+                          onClick={(e) => e.stopPropagation()}
+                          title="Abrir ubicación en Google Maps"
+                        >
+                          <MapPin size={12} />
+                        </a>
+                      )}
 
                       {/* WhatsApp Directo */}
                       {lead.phone && (
@@ -617,6 +730,112 @@ export default function KanbanView({
                   value={newLeadForm.address}
                   onChange={(e) => setNewLeadForm({ ...newLeadForm, address: e.target.value })}
                 />
+              </div>
+
+              {/* Enlace de Google Maps con Check y Búsqueda al momento */}
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                    <MapPin size={13} color="#3b82f6" />
+                    <span>Enlace de Google Maps (Opcional):</span>
+                  </label>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.7rem', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      onClick={() => handleSearchMapsNow('new')}
+                      title="Buscar este negocio en Google Maps al momento"
+                    >
+                      <Search size={11} />
+                      <span>Buscar al momento</span>
+                    </button>
+
+                    {newLeadForm.googleMapsUrl && newLeadForm.isMapsVerified && (
+                      <span 
+                        style={{
+                          fontSize: '0.68rem',
+                          padding: '2px 6px',
+                          borderRadius: '10px',
+                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                          color: '#10b981',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}
+                      >
+                        <Check size={10} strokeWidth={3} />
+                        <span>Link Verificado</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input 
+                    type="url" 
+                    className="form-control"
+                    placeholder="https://maps.app.goo.gl/... o https://goo.gl/maps/..."
+                    value={newLeadForm.googleMapsUrl}
+                    onChange={(e) => setNewLeadForm({ 
+                      ...newLeadForm, 
+                      googleMapsUrl: e.target.value,
+                      isMapsVerified: false 
+                    })}
+                    style={{ flex: 1 }}
+                  />
+                  
+                  <button
+                    type="button"
+                    className={newLeadForm.isMapsVerified ? "btn btn-success" : "btn btn-primary"}
+                    style={{
+                      padding: '0 14px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      backgroundColor: newLeadForm.isMapsVerified ? '#10b981' : undefined
+                    }}
+                    onClick={() => handleCheckMapsUrl('new')}
+                    title="Dar check para validar el enlace y buscarlo en Google Maps al momento"
+                  >
+                    <Check size={14} strokeWidth={3} />
+                    <span>{newLeadForm.isMapsVerified ? 'Verificado ✓' : 'Dar Check'}</span>
+                  </button>
+                </div>
+
+                {newLeadForm.googleMapsUrl && (
+                  <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.73rem', flexWrap: 'wrap', gap: '4px' }}>
+                    <a 
+                      href={newLeadForm.googleMapsUrl.startsWith('http') ? newLeadForm.googleMapsUrl : `https://${newLeadForm.googleMapsUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: '#3b82f6',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        textDecoration: 'underline',
+                        maxWidth: '80%',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="Abrir ubicación en Google Maps"
+                    >
+                      <ExternalLink size={11} />
+                      <span>Abrir en Google Maps: {newLeadForm.googleMapsUrl}</span>
+                    </a>
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      {newLeadForm.isMapsVerified ? '✓ Listo para guardar' : 'Pendiente dar check'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="form-row">
@@ -838,6 +1057,112 @@ export default function KanbanView({
                   value={editLeadForm.address}
                   onChange={(e) => setEditLeadForm({ ...editLeadForm, address: e.target.value })}
                 />
+              </div>
+
+              {/* Enlace de Google Maps con Check y Búsqueda al momento */}
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                    <MapPin size={13} color="#3b82f6" />
+                    <span>Enlace de Google Maps (Opcional):</span>
+                  </label>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.7rem', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      onClick={() => handleSearchMapsNow('edit')}
+                      title="Buscar este negocio en Google Maps al momento"
+                    >
+                      <Search size={11} />
+                      <span>Buscar al momento</span>
+                    </button>
+
+                    {editLeadForm.googleMapsUrl && editLeadForm.isMapsVerified && (
+                      <span 
+                        style={{
+                          fontSize: '0.68rem',
+                          padding: '2px 6px',
+                          borderRadius: '10px',
+                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                          color: '#10b981',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}
+                      >
+                        <Check size={10} strokeWidth={3} />
+                        <span>Link Verificado</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input 
+                    type="url" 
+                    className="form-control"
+                    placeholder="https://maps.app.goo.gl/... o https://goo.gl/maps/..."
+                    value={editLeadForm.googleMapsUrl}
+                    onChange={(e) => setEditLeadForm({ 
+                      ...editLeadForm, 
+                      googleMapsUrl: e.target.value,
+                      isMapsVerified: false 
+                    })}
+                    style={{ flex: 1 }}
+                  />
+                  
+                  <button
+                    type="button"
+                    className={editLeadForm.isMapsVerified ? "btn btn-success" : "btn btn-primary"}
+                    style={{
+                      padding: '0 14px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      backgroundColor: editLeadForm.isMapsVerified ? '#10b981' : undefined
+                    }}
+                    onClick={() => handleCheckMapsUrl('edit')}
+                    title="Dar check para validar el enlace y buscarlo en Google Maps al momento"
+                  >
+                    <Check size={14} strokeWidth={3} />
+                    <span>{editLeadForm.isMapsVerified ? 'Verificado ✓' : 'Dar Check'}</span>
+                  </button>
+                </div>
+
+                {editLeadForm.googleMapsUrl && (
+                  <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.73rem', flexWrap: 'wrap', gap: '4px' }}>
+                    <a 
+                      href={editLeadForm.googleMapsUrl.startsWith('http') ? editLeadForm.googleMapsUrl : `https://${editLeadForm.googleMapsUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: '#3b82f6',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        textDecoration: 'underline',
+                        maxWidth: '80%',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="Abrir ubicación en Google Maps"
+                    >
+                      <ExternalLink size={11} />
+                      <span>Abrir en Google Maps: {editLeadForm.googleMapsUrl}</span>
+                    </a>
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      {editLeadForm.isMapsVerified ? '✓ Listo para guardar' : 'Pendiente dar check'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="form-row">

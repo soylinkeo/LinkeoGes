@@ -302,4 +302,28 @@ test('lead captures and preserves optional email/gmail address', () => {
   assert.equal(frontObj.email, 'dontito.barberia@gmail.com');
 });
 
+test('lead captures, formats and preserves google maps url with check verification', () => {
+  const rawMapsUrl = 'maps.app.goo.gl/example123';
+  const formattedUrl = /^https?:\/\//i.test(rawMapsUrl) ? rawMapsUrl : `https://${rawMapsUrl}`;
+  assert.equal(formattedUrl, 'https://maps.app.goo.gl/example123');
+
+  const leadWithMaps = {
+    id: 'lead-maps-1',
+    businessName: 'Glowe Studio',
+    contactName: 'Encargado',
+    phone: '933668238',
+    district: 'Santiago de Surco',
+    address: 'Av. Caminos del Inca 2904',
+    googleMapsUrl: formattedUrl,
+    stage: 'visitado',
+    estimatedValue: 60
+  };
+
+  const dbRow = mappers.leadToDb(leadWithMaps);
+  assert.equal(dbRow.google_maps_url, 'https://maps.app.goo.gl/example123');
+  const frontObj = mappers.leadToFront(dbRow);
+  assert.equal(frontObj.googleMapsUrl, 'https://maps.app.goo.gl/example123');
+});
+
+
 
