@@ -14,7 +14,8 @@ import {
   RotateCcw,
   Sparkles,
   UserCheck,
-  Tag
+  Tag,
+  ArrowUpDown
 } from 'lucide-react';
 
 export { DEFAULT_PROTOCOL_BLOCKS };
@@ -90,8 +91,35 @@ export default function CalendarView({
   const appointments = events.filter(e => !e.isDailyTask && e.type !== 'daily_task' && e.type !== 'task');
   const allTasks = events.filter(e => e.isDailyTask || e.type === 'daily_task' || e.type === 'task');
 
-  // Filtrado de Citas
-  const filteredAppointments = appointments.filter(evt => {
+  // Ordenamiento de Citas por fecha y hora: de las más próximas a las más lejanas
+  const [appointmentSortOrder, setAppointmentSortOrder] = useState('asc'); // 'asc': más próximas primero, 'desc': más lejanas primero
+
+  const getRelativeDateLabel = (dateStr) => {
+    if (!dateStr) return null;
+    const todayStr = localDate();
+    if (dateStr === todayStr) return 'Hoy';
+    try {
+      const today = new Date(todayStr + 'T00:00:00');
+      const target = new Date(dateStr + 'T00:00:00');
+      const diffTime = target.getTime() - today.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) return 'Mañana';
+      if (diffDays === -1) return 'Ayer';
+      if (diffDays > 1) return `En ${diffDays} días`;
+      if (diffDays < -1) return `Hace ${Math.abs(diffDays)} días`;
+    } catch (e) {}
+    return null;
+  };
+
+  const sortedAppointments = [...appointments].sort((a, b) => {
+    const dateTimeA = `${a.date || '9999-12-31'} ${a.startTime || '00:00'}`;
+    const dateTimeB = `${b.date || '9999-12-31'} ${b.startTime || '00:00'}`;
+    const diff = dateTimeA.localeCompare(dateTimeB);
+    return appointmentSortOrder === 'asc' ? diff : -diff;
+  });
+
+  // Filtrado de Citas ordenadas por fecha
+  const filteredAppointments = sortedAppointments.filter(evt => {
     const isCompleted = evt.status === 'realizada' || evt.completed;
     if (appointmentFilter === 'pending') return !isCompleted;
     if (appointmentFilter === 'completed') return isCompleted;
@@ -510,28 +538,41 @@ export default function CalendarView({
             <span className="badge badge-blue">{appointments.length} Citas</span>
           </div>
 
-          {/* Filtros de Citas */}
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+          {/* Filtros de Citas y Ordenamiento por Fecha */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <button 
+                className={`btn btn-sm ${appointmentFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.75rem', padding: '3px 10px' }}
+                onClick={() => setAppointmentFilter('all')}
+              >
+                Todas ({appointments.length})
+              </button>
+              <button 
+                className={`btn btn-sm ${appointmentFilter === 'pending' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.75rem', padding: '3px 10px' }}
+                onClick={() => setAppointmentFilter('pending')}
+              >
+                ⏳ Pendientes ({pendingAppointmentsCount})
+              </button>
+              <button 
+                className={`btn btn-sm ${appointmentFilter === 'completed' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontSize: '0.75rem', padding: '3px 10px' }}
+                onClick={() => setAppointmentFilter('completed')}
+              >
+                ✓ Realizadas ({completedAppointmentsCount})
+              </button>
+            </div>
+
             <button 
-              className={`btn btn-sm ${appointmentFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ fontSize: '0.75rem', padding: '3px 10px' }}
-              onClick={() => setAppointmentFilter('all')}
+              type="button"
+              className="btn btn-secondary btn-sm"
+              style={{ fontSize: '0.73rem', padding: '3px 9px', display: 'inline-flex', alignItems: 'center', gap: '5px', marginLeft: 'auto' }}
+              onClick={() => setAppointmentSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+              title={appointmentSortOrder === 'asc' ? 'Orden actual: Más próximas a más lejanas. Clic para invertir.' : 'Orden actual: Más lejanas a más próximas. Clic para invertir.'}
             >
-              Todas ({appointments.length})
-            </button>
-            <button 
-              className={`btn btn-sm ${appointmentFilter === 'pending' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ fontSize: '0.75rem', padding: '3px 10px' }}
-              onClick={() => setAppointmentFilter('pending')}
-            >
-              ⏳ Pendientes ({pendingAppointmentsCount})
-            </button>
-            <button 
-              className={`btn btn-sm ${appointmentFilter === 'completed' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ fontSize: '0.75rem', padding: '3px 10px' }}
-              onClick={() => setAppointmentFilter('completed')}
-            >
-              ✓ Realizadas ({completedAppointmentsCount})
+              <ArrowUpDown size={12} />
+              <span>{appointmentSortOrder === 'asc' ? '📅 Más próximas primero' : '📅 Más lejanas primero'}</span>
             </button>
           </div>
 
@@ -611,9 +652,29 @@ export default function CalendarView({
                       </div>
                     </div>
 
-                    {/* Metadata de fecha, hora y lugar */}
-                    <div style={{ display: 'flex', gap: '12px', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '8px', flexWrap: 'wrap' }}>
-                      <span>📅 {evt.date}</span>
+                    {/* Metadata de fecha, hora y lugar con etiqueta de proximidad */}
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        📅 <strong style={{ color: 'var(--text-main)' }}>{evt.date}</strong>
+                        {(() => {
+                          const rel = getRelativeDateLabel(evt.date);
+                          if (!rel) return null;
+                          const isToday = rel === 'Hoy';
+                          const isTomorrow = rel === 'Mañana';
+                          return (
+                            <span style={{
+                              fontSize: '0.68rem',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontWeight: 700,
+                              backgroundColor: isToday ? 'rgba(16, 185, 129, 0.15)' : isTomorrow ? 'rgba(0, 102, 255, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+                              color: isToday ? '#10b981' : isTomorrow ? '#60a5fa' : 'var(--text-muted)'
+                            }}>
+                              {rel}
+                            </span>
+                          );
+                        })()}
+                      </span>
                       <span>⏰ {evt.startTime} - {evt.endTime}</span>
                       {evt.district && <span>📍 {evt.district}</span>}
                       {evt.client && <span>🏢 {evt.client}</span>}
