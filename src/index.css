@@ -1902,3 +1902,39 @@ button, input, select, textarea {
     border-radius: var(--radius-md);
   }
 }
+
+/* Scroll independiente y estético para columnas de Agenda & Tareas (ajustado a la altura de pantalla) */
+.agenda-scroll-container {
+  max-height: calc(100vh - 430px);
+  min-height: 380px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.agenda-scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.agenda-scroll-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+
+.agenda-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+}
+
+.agenda-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+@media (max-width: 1024px) {
+  .agenda-scroll-container {
+    max-height: 520px;
+  }
+}
+

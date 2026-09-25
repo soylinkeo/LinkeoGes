@@ -230,6 +230,58 @@ export const INITIAL_SUPPLIERS = [
 export const EXCEL_PLAN_30_DAYS_TEMPLATE = [];
 export const INITIAL_PLAN_30_DAYS = [];
 
+// Protocolo Operativo Diario de 4 Bloques (Estratégico & Personalizable)
+export const DEFAULT_PROTOCOL_BLOCKS = [
+  {
+    id: 'bloque-1',
+    blockNumber: 1,
+    title: 'Bloque 1: CRM & Backoffice',
+    schedule: '15:00 - 16:00',
+    description: 'Asegurar el dinero en mesa: 8 prospectos en Respuestas + cierre al lead caliente en Negociación (Maps gratis).',
+    themeColor: '#3b82f6',
+    borderColor: 'rgba(59, 130, 246, 0.25)',
+    bgColor: 'rgba(59, 130, 246, 0.08)',
+    startTime: '15:00',
+    endTime: '16:00'
+  },
+  {
+    id: 'bloque-2',
+    blockNumber: 2,
+    title: 'Bloque 2: Creación Contenido',
+    schedule: '16:00 - 17:00',
+    description: '3-4 videos POV mostrando lectura rápida con las 3 tarjetas en stock + 1 video diario TikTok/Reels con CTA al perfil.',
+    themeColor: '#a855f7',
+    borderColor: 'rgba(168, 85, 247, 0.25)',
+    bgColor: 'rgba(168, 85, 247, 0.08)',
+    startTime: '16:00',
+    endTime: '17:00'
+  },
+  {
+    id: 'bloque-3',
+    blockNumber: 3,
+    title: 'Bloque 3: Campo & Preventas',
+    schedule: '17:00 - 18:30',
+    description: 'Ruta Este/Centro (Mar/Jue) y Corredores (Lun/Mié/Vie). Tap & Wow en vivo + preventa 50% de anticipo por QR.',
+    themeColor: '#10b981',
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    bgColor: 'rgba(16, 185, 129, 0.08)',
+    startTime: '17:00',
+    endTime: '18:30'
+  },
+  {
+    id: 'bloque-4',
+    blockNumber: 4,
+    title: 'Bloque 4: Inversión Flujo (S/ 160)',
+    schedule: 'Inversión & Ads',
+    description: 'Packaging Kraft (S/ 40) + Meta Ads S/ 10/día por 12 días (S/ 120) dirigidos a WhatsApp Business y web.',
+    themeColor: '#f59e0b',
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    bgColor: 'rgba(245, 158, 11, 0.08)',
+    startTime: '18:30',
+    endTime: '20:30'
+  }
+];
+
 // Rutina Operativa Estratégica Linkeo (Bloques 1 al 4) para la Agenda de Citas y Tareas
 export const OPERATIONAL_ROUTINE_EVENTS = [
   // --- CITAS Y VISITAS PRESENCIALES (SALIDAS A CAMPO) ---

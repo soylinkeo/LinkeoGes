@@ -1,5 +1,5 @@
 import { localDate } from '../utils/dateUtils.js';
-import { OPERATIONAL_ROUTINE_EVENTS } from '../data/initialData.js';
+import { OPERATIONAL_ROUTINE_EVENTS, DEFAULT_PROTOCOL_BLOCKS } from '../data/initialData.js';
 import React, { useState } from 'react';
 import { 
   Calendar as CalendarIcon, 
@@ -17,6 +17,8 @@ import {
   Tag
 } from 'lucide-react';
 
+export { DEFAULT_PROTOCOL_BLOCKS };
+
 export default function CalendarView({
   events = [],
   onAddNewEvent,
@@ -26,19 +28,34 @@ export default function CalendarView({
   districts = [],
   showToast
 }) {
+  // Protocolo Operativo Diario (4 Bloques) editable con persistencia
+  const [protocolBlocks, setProtocolBlocks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('linkeo_operational_protocol_blocks');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 4) return parsed;
+      }
+    } catch (e) {}
+    return DEFAULT_PROTOCOL_BLOCKS;
+  });
+  const [isEditProtocolModalOpen, setIsEditProtocolModalOpen] = useState(false);
+  const [protocolEditForm, setProtocolEditForm] = useState(DEFAULT_PROTOCOL_BLOCKS);
+
   // Modales de Citas / Visitas
   const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false);
   const [isEditEventModalOpen, setIsEditEventModalOpen] = useState(false);
   const [completingEvent, setCompletingEvent] = useState(null);
   const [completionSummary, setCompletionSummary] = useState('');
 
-  // Modales de Tareas Diarias
+  // Modales de Tareas
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
 
   // Filtros de visualización
   const [appointmentFilter, setAppointmentFilter] = useState('all'); // 'all', 'pending', 'completed'
   const [taskPartnerFilter, setTaskPartnerFilter] = useState('all'); // 'all', 'luis', 'kevin', 'both'
+  const [taskTypeFilter, setTaskTypeFilter] = useState('all'); // 'all', 'diarias', 'eventuales', 'completadas'
 
   // Formulario de nueva cita o visita
   const [eventForm, setEventForm] = useState({
@@ -56,18 +73,22 @@ export default function CalendarView({
   // Formulario edición evento
   const [editingEvent, setEditingEvent] = useState(null);
 
-  // Formulario de nueva tarea diaria
+  // Formulario de nueva tarea operativa
   const [taskForm, setTaskForm] = useState({
     title: '',
     partner: 'both', // 'both', 'luis', 'kevin'
     category: 'Prospección', // Prospección, Ventas, Operaciones, Finanzas, Postventa
     priority: 'alta', // alta, media, normal
+    taskType: 'diaria', // 'diaria', 'eventual'
+    protocolBlock: '', // '', 'bloque-1', 'bloque-2', 'bloque-3', 'bloque-4', 'custom'
+    startTime: '09:00',
+    endTime: '18:00',
     description: ''
   });
 
-  // Separación clara entre Citas/Visitas y Tareas Diarias
-  const appointments = events.filter(e => !e.isDailyTask && e.type !== 'daily_task');
-  const dailyTasks = events.filter(e => e.isDailyTask || e.type === 'daily_task');
+  // Separación clara entre Citas/Visitas y Tareas Operativas
+  const appointments = events.filter(e => !e.isDailyTask && e.type !== 'daily_task' && e.type !== 'task');
+  const allTasks = events.filter(e => e.isDailyTask || e.type === 'daily_task' || e.type === 'task');
 
   // Filtrado de Citas
   const filteredAppointments = appointments.filter(evt => {
@@ -80,18 +101,34 @@ export default function CalendarView({
   const pendingAppointmentsCount = appointments.filter(e => e.status !== 'realizada' && !e.completed).length;
   const completedAppointmentsCount = appointments.filter(e => e.status === 'realizada' || e.completed).length;
 
-  // Filtrado de Tareas Diarias
-  const filteredDailyTasks = dailyTasks.filter(task => {
+  // Filtrado de Tareas por Socio
+  const filteredTasksByPartner = allTasks.filter(task => {
     if (taskPartnerFilter === 'all') return true;
     return task.partner === taskPartnerFilter;
   });
 
-  const completedDailyTasksCount = dailyTasks.filter(t => t.completed || t.status === 'completada').length;
-  const luisTasksCount = dailyTasks.filter(t => t.partner === 'luis').length;
-  const kevinTasksCount = dailyTasks.filter(t => t.partner === 'kevin').length;
-  const bothTasksCount = dailyTasks.filter(t => t.partner === 'both').length;
+  // Clasificación de Tareas en 3 secciones solicitadas:
+  // 1. Tareas Diarias Operativas (pendientes rutinarias)
+  const pendingDailyTasks = filteredTasksByPartner.filter(t => 
+    (!t.completed && t.status !== 'completada') && (t.taskType !== 'eventual')
+  );
 
-  const taskProgressPct = dailyTasks.length > 0 ? Math.round((completedDailyTasksCount / dailyTasks.length) * 100) : 0;
+  // 2. Tareas Eventuales (pendientes puntuales o extraordinarias)
+  const pendingEventualTasks = filteredTasksByPartner.filter(t => 
+    (!t.completed && t.status !== 'completada') && (t.taskType === 'eventual')
+  );
+
+  // 3. Tareas Completadas (colocadas estrictamente abajo)
+  const completedTasksList = filteredTasksByPartner.filter(t => 
+    t.completed || t.status === 'completada'
+  );
+
+  const completedDailyTasksCount = allTasks.filter(t => t.completed || t.status === 'completada').length;
+  const luisTasksCount = allTasks.filter(t => t.partner === 'luis').length;
+  const kevinTasksCount = allTasks.filter(t => t.partner === 'kevin').length;
+  const bothTasksCount = allTasks.filter(t => t.partner === 'both').length;
+
+  const taskProgressPct = allTasks.length > 0 ? Math.round((completedDailyTasksCount / allTasks.length) * 100) : 0;
 
   // Lógica de asignación equitativa Co-CEOs para Citas
   const determineAssignedPartner = (dateStr, startTimeStr, userChoice) => {
@@ -209,16 +246,39 @@ export default function CalendarView({
     }
   };
 
-  // Handlers para Tareas Diarias
+  // Handlers para Tareas
   const handleCloseNewTaskModal = () => {
     setTaskForm({
       title: '',
       partner: 'both',
       category: 'Prospección',
       priority: 'alta',
+      taskType: 'diaria',
+      protocolBlock: '',
+      startTime: '09:00',
+      endTime: '18:00',
       description: ''
     });
     setIsNewTaskModalOpen(false);
+  };
+
+  const handleProtocolBlockChange = (selectedBlockId, isEditing = false) => {
+    const block = protocolBlocks.find(b => b.id === selectedBlockId);
+    if (isEditing) {
+      setEditingTask(prev => ({
+        ...prev,
+        protocolBlock: selectedBlockId,
+        startTime: block?.startTime || prev.startTime || '09:00',
+        endTime: block?.endTime || prev.endTime || '18:00'
+      }));
+    } else {
+      setTaskForm(prev => ({
+        ...prev,
+        protocolBlock: selectedBlockId,
+        startTime: block?.startTime || prev.startTime || '09:00',
+        endTime: block?.endTime || prev.endTime || '18:00'
+      }));
+    }
   };
 
   const handleSaveNewTask = (e) => {
@@ -230,20 +290,22 @@ export default function CalendarView({
       title: taskForm.title.trim(),
       type: 'daily_task',
       isDailyTask: true,
+      taskType: taskForm.taskType || 'diaria',
+      protocolBlock: taskForm.protocolBlock || '',
       partner: taskForm.partner,
       category: taskForm.category,
       priority: taskForm.priority,
       status: 'pendiente',
       completed: false,
       date: localDate(),
-      startTime: '09:00',
-      endTime: '18:00',
+      startTime: taskForm.startTime || '09:00',
+      endTime: taskForm.endTime || '18:00',
       description: taskForm.description.trim()
     };
 
     onAddNewEvent(newTask);
     if (showToast) {
-      showToast(`✓ Tarea diaria asignada a ${taskForm.partner === 'luis' ? 'Luis Romero' : taskForm.partner === 'kevin' ? 'Kevin Servat' : 'Ambos Co-CEOs'}`, 'success');
+      showToast(`✓ Tarea asignada a ${taskForm.partner === 'luis' ? 'Luis Romero' : taskForm.partner === 'kevin' ? 'Kevin Servat' : 'Ambos Co-CEOs'}`, 'success');
     }
     handleCloseNewTaskModal();
   };
@@ -264,7 +326,13 @@ export default function CalendarView({
   };
 
   const handleOpenEditTask = (task) => {
-    setEditingTask({ ...task });
+    setEditingTask({ 
+      ...task,
+      taskType: task.taskType || 'diaria',
+      protocolBlock: task.protocolBlock || '',
+      startTime: task.startTime || '09:00',
+      endTime: task.endTime || '18:00'
+    });
   };
 
   const handleCloseEditTask = () => {
@@ -282,29 +350,41 @@ export default function CalendarView({
     handleCloseEditTask();
   };
 
-  // Cargar / Restaurar la Rutina Estratégica de 4 Bloques (Citas en campo y Tareas diarias)
-  const handleLoadOperationalRoutine = () => {
-    let addedCount = 0;
-    OPERATIONAL_ROUTINE_EVENTS.forEach((item, idx) => {
-      const exists = events.some(e => e.id === item.id || e.title === item.title);
-      if (!exists) {
-        addedCount++;
-        setTimeout(() => {
-          onAddNewEvent({
-            ...item,
-            date: localDate()
-          });
-        }, idx * 30);
-      }
-    });
+  // Handlers para Edición del Protocolo Operativo
+  const handleOpenEditProtocol = () => {
+    setProtocolEditForm(JSON.parse(JSON.stringify(protocolBlocks)));
+    setIsEditProtocolModalOpen(true);
+  };
 
+  const handleCloseEditProtocol = () => {
+    setIsEditProtocolModalOpen(false);
+  };
+
+  const handleUpdateBlockField = (index, field, value) => {
+    setProtocolEditForm(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handleResetProtocolDefaults = () => {
+    setProtocolEditForm(JSON.parse(JSON.stringify(DEFAULT_PROTOCOL_BLOCKS)));
     if (showToast) {
-      if (addedCount > 0) {
-        showToast(`✓ Se sincronizaron ${addedCount} actividades de la Rutina de 4 Bloques en la Agenda`, 'success');
-      } else {
-        showToast('Las 9 actividades de la Rutina de 4 Bloques ya están presentes en la Agenda', 'info');
-      }
+      showToast('Campos restablecidos a la rutina original recomendada', 'info');
     }
+  };
+
+  const handleSaveProtocol = (e) => {
+    e.preventDefault();
+    setProtocolBlocks(protocolEditForm);
+    try {
+      localStorage.setItem('linkeo_operational_protocol_blocks', JSON.stringify(protocolEditForm));
+    } catch (err) {}
+    if (showToast) {
+      showToast('✓ Protocolo operativo actualizado exitosamente', 'success');
+    }
+    setIsEditProtocolModalOpen(false);
   };
 
   return (
@@ -326,18 +406,9 @@ export default function CalendarView({
         </div>
 
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button 
-            className="btn btn-secondary" 
-            onClick={handleLoadOperationalRoutine} 
-            title="Carga o sincroniza las actividades de los 4 bloques operativos"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-          >
-            <Sparkles size={16} color="var(--primary-600)" />
-            <span>⚡ Rutina 4 Bloques</span>
-          </button>
           <button className="btn btn-secondary" onClick={() => setIsNewTaskModalOpen(true)}>
             <CheckSquare size={16} />
-            <span>+ Nueva Tarea Diaria</span>
+            <span>+ Nueva Tarea</span>
           </button>
           <button className="btn btn-primary" onClick={() => setIsNewEventModalOpen(true)}>
             <Plus size={16} />
@@ -373,7 +444,7 @@ export default function CalendarView({
         </span>
       </div>
 
-      {/* Guía Visual Rápida de la Rutina Operativa por Bloques */}
+      {/* Guía Visual Rápida de la Rutina Operativa por Bloques (Editable) */}
       <div 
         className="card"
         style={{
@@ -392,32 +463,35 @@ export default function CalendarView({
             </span>
           </div>
           <button 
-            className="btn btn-sm btn-primary"
-            style={{ fontSize: '0.74rem', padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            onClick={handleLoadOperationalRoutine}
+            className="btn btn-sm btn-secondary"
+            style={{ fontSize: '0.76rem', padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            onClick={handleOpenEditProtocol}
+            title="Editar los 4 bloques del protocolo operativo diario"
           >
-            <Sparkles size={13} />
-            <span>Sincronizar las 9 Tareas & Citas</span>
+            <Edit3 size={13} color="var(--primary-600)" />
+            <span>Editar Protocolo</span>
           </button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px', fontSize: '0.78rem' }}>
-          <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.22)' }}>
-            <strong style={{ color: '#60a5fa', display: 'block', marginBottom: '4px' }}>Bloque 1: CRM & Backoffice (15:00 - 16:00)</strong>
-            <span>Asegurar el dinero en mesa: 8 prospectos en Respuestas + cierre al lead caliente en Negociación (Maps gratis).</span>
-          </div>
-          <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.22)' }}>
-            <strong style={{ color: '#c084fc', display: 'block', marginBottom: '4px' }}>Bloque 2: Creación Contenido (16:00 - 17:00)</strong>
-            <span>3-4 videos POV mostrando lectura rápida con las 3 tarjetas en stock + 1 video diario TikTok/Reels con CTA al perfil.</span>
-          </div>
-          <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.22)' }}>
-            <strong style={{ color: '#34d399', display: 'block', marginBottom: '4px' }}>Bloque 3: Campo & Preventas (17:00 - 18:30)</strong>
-            <span>Ruta Este/Centro (Mar/Jue) y Corredores (Lun/Mié/Vie). Tap & Wow en vivo + preventa 50% de anticipo por QR.</span>
-          </div>
-          <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.22)' }}>
-            <strong style={{ color: '#fbbf24', display: 'block', marginBottom: '4px' }}>Bloque 4: Inversión Flujo (S/ 160)</strong>
-            <span>Packaging Kraft (S/ 40) + Meta Ads S/ 10/día por 12 días (S/ 120) dirigidos a WhatsApp Business y web.</span>
-          </div>
+          {protocolBlocks.map((block) => (
+            <div 
+              key={block.id}
+              style={{ 
+                padding: '10px 12px', 
+                borderRadius: 'var(--radius-sm)', 
+                backgroundColor: block.bgColor || 'rgba(59, 130, 246, 0.08)', 
+                border: `1px solid ${block.borderColor || 'rgba(59, 130, 246, 0.22)'}` 
+              }}
+            >
+              <strong style={{ color: block.themeColor || '#60a5fa', display: 'block', marginBottom: '4px' }}>
+                {block.title} {block.schedule ? `(${block.schedule})` : ''}
+              </strong>
+              <span style={{ color: 'var(--text-main)', lineHeight: 1.45, display: 'block' }}>
+                {block.description}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -461,7 +535,7 @@ export default function CalendarView({
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className="agenda-scroll-container" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {filteredAppointments.length === 0 ? (
               <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <Clock size={32} style={{ opacity: 0.35, marginBottom: '8px' }} />
@@ -622,12 +696,12 @@ export default function CalendarView({
             <div>
               <h3 className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CheckSquare size={18} color="var(--primary-600)" />
-                <span>Tareas Diarias Operativas</span>
+                <span>Tareas Operativas</span>
               </h3>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="badge badge-green" style={{ fontSize: '0.75rem' }}>
-                {completedDailyTasksCount} de {dailyTasks.length} hechas
+                {completedDailyTasksCount} de {allTasks.length} hechas
               </span>
               <button 
                 className="btn btn-sm btn-primary" 
@@ -641,11 +715,11 @@ export default function CalendarView({
           </div>
 
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 12px 0' }}>
-            Checklist diario de operaciones para <strong>Luis Romero</strong> y <strong>Kevin Servat</strong>. Marca las tareas concluidas conforme avanza la jornada.
+            Checklist operativo para <strong>Luis Romero</strong> y <strong>Kevin Servat</strong>. Tareas diarias de rutina, eventuales y tareas concluidas.
           </p>
 
           {/* Barra de Progreso de Tareas */}
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '4px', fontWeight: 600 }}>
               <span style={{ color: 'var(--text-muted)' }}>Progreso de la jornada</span>
               <span style={{ color: taskProgressPct === 100 ? '#10b981' : 'var(--primary-600)' }}>{taskProgressPct}%</span>
@@ -662,13 +736,13 @@ export default function CalendarView({
           </div>
 
           {/* Filtros de Asignación por Socio */}
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
             <button 
               className={`btn btn-sm ${taskPartnerFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ fontSize: '0.74rem', padding: '3px 9px' }}
               onClick={() => setTaskPartnerFilter('all')}
             >
-              Todas ({dailyTasks.length})
+              Todos ({allTasks.length})
             </button>
             <button 
               className={`btn btn-sm ${taskPartnerFilter === 'luis' ? 'btn-primary' : 'btn-secondary'}`}
@@ -693,150 +767,494 @@ export default function CalendarView({
             </button>
           </div>
 
-          {/* Lista de Tareas Diarias */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {filteredDailyTasks.length === 0 ? (
-              <div style={{ padding: '24px 16px', textAlign: 'center', backgroundColor: 'var(--bg-input)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+          {/* Filtros por Tipo de Tarea */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+            <button 
+              className={`btn btn-sm ${taskTypeFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+              onClick={() => setTaskTypeFilter('all')}
+            >
+              Todas ({filteredTasksByPartner.length})
+            </button>
+            <button 
+              className={`btn btn-sm ${taskTypeFilter === 'diarias' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+              onClick={() => setTaskTypeFilter('diarias')}
+            >
+              ☀️ Diarias ({pendingDailyTasks.length})
+            </button>
+            <button 
+              className={`btn btn-sm ${taskTypeFilter === 'eventuales' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+              onClick={() => setTaskTypeFilter('eventuales')}
+            >
+              📌 Eventuales ({pendingEventualTasks.length})
+            </button>
+            <button 
+              className={`btn btn-sm ${taskTypeFilter === 'completadas' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+              onClick={() => setTaskTypeFilter('completadas')}
+            >
+              ✅ Completadas ({completedTasksList.length})
+            </button>
+          </div>
+
+          {/* Lista de Tareas con Scroll Independiente hasta la línea base */}
+          <div className="agenda-scroll-container" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {filteredTasksByPartner.length === 0 ? (
+              <div style={{ padding: '28px 16px', textAlign: 'center', backgroundColor: 'var(--bg-input)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
                 <CheckSquare size={32} style={{ opacity: 0.35, marginBottom: '8px' }} />
                 <p style={{ margin: '0 0 10px 0', fontSize: '0.84rem', color: 'var(--text-muted)' }}>
                   {taskPartnerFilter !== 'all' 
                     ? `No hay tareas asignadas para este filtro.` 
-                    : 'Aún no has registrado tareas diarias para el equipo.'}
+                    : 'Aún no has registrado tareas operativas.'}
                 </p>
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button 
-                    className="btn btn-sm btn-primary"
-                    style={{ fontSize: '0.76rem', padding: '4px 12px' }}
-                    onClick={() => setIsNewTaskModalOpen(true)}
-                  >
-                    <Plus size={13} />
-                    <span>Crear Primera Tarea</span>
-                  </button>
-                  {dailyTasks.length === 0 && (
-                    <button 
-                      className="btn btn-sm btn-secondary"
-                      style={{ fontSize: '0.76rem', padding: '4px 12px' }}
-                      onClick={handleLoadOperationalRoutine}
-                    >
-                      <Sparkles size={13} />
-                      <span>Cargar Rutina de 4 Bloques</span>
-                    </button>
-                  )}
-                </div>
+                <button 
+                  className="btn btn-sm btn-primary"
+                  style={{ fontSize: '0.76rem', padding: '4px 14px' }}
+                  onClick={() => setIsNewTaskModalOpen(true)}
+                >
+                  <Plus size={13} />
+                  <span>Crear Primera Tarea</span>
+                </button>
               </div>
             ) : (
-              filteredDailyTasks.map(task => {
-                const isCompleted = task.completed || task.status === 'completada';
+              <>
+                {/* 1. SECCIÓN: TAREAS DIARIAS */}
+                {(taskTypeFilter === 'all' || taskTypeFilter === 'diarias') && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 2px', borderBottom: '1px solid rgba(59, 130, 246, 0.25)' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>☀️</span> Tareas Diarias ({pendingDailyTasks.length})
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Rutina y operaciones de hoy</span>
+                    </div>
 
-                return (
-                  <div 
-                    key={task.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      backgroundColor: isCompleted ? 'rgba(16, 185, 129, 0.05)' : 'var(--bg-input)',
-                      border: isCompleted ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid var(--border-subtle)',
-                      transition: 'all var(--transition-fast)',
-                      opacity: isCompleted ? 0.75 : 1
-                    }}
-                  >
-                    {/* Checkbox y Contenido de la Tarea */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minWidth: 0, marginRight: '10px' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={isCompleted}
-                        onChange={() => handleToggleDailyTask(task)}
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          marginTop: '2px',
-                          cursor: 'pointer',
-                          accentColor: '#10b981'
-                        }}
-                        title={isCompleted ? 'Marcar como pendiente' : 'Marcar como completada'}
-                      />
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize: '0.88rem',
-                          fontWeight: 600,
-                          color: isCompleted ? 'var(--text-muted)' : 'var(--text-main)',
-                          textDecoration: isCompleted ? 'line-through' : 'none',
-                          wordBreak: 'break-word'
-                        }}>
-                          {task.title}
-                        </div>
-
-                        {task.description && (
-                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            {task.description}
-                          </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
-                          {/* Badge de Socio Asignado */}
-                          <span 
-                            className={`badge ${task.partner === 'luis' ? 'badge-blue' : task.partner === 'kevin' ? 'badge-yellow' : 'badge-purple'}`}
-                            style={{ fontSize: '0.7rem', padding: '2px 7px' }}
-                          >
-                            {task.partner === 'luis' ? '👨‍💼 Luis' : task.partner === 'kevin' ? '🚀 Kevin' : '🤝 Ambos'}
-                          </span>
-
-                          {/* Horario si está definido */}
-                          {task.startTime && (
-                            <span 
-                              className="badge badge-secondary" 
-                              style={{ fontSize: '0.7rem', padding: '2px 7px', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa' }}
-                            >
-                              ⏰ {task.startTime}{task.endTime ? ` - ${task.endTime}` : ''}
-                            </span>
-                          )}
-
-                          {/* Categoría / Área */}
-                          {task.category && (
-                            <span 
-                              className="badge badge-secondary" 
-                              style={{ fontSize: '0.7rem', padding: '2px 7px', backgroundColor: 'rgba(255,255,255,0.06)' }}
-                            >
-                              {task.category}
-                            </span>
-                          )}
-
-                          {/* Prioridad Alta */}
-                          {task.priority === 'alta' && (
-                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ef4444' }}>
-                              ⚡ Alta
-                            </span>
-                          )}
-                        </div>
+                    {pendingDailyTasks.length === 0 ? (
+                      <div style={{ padding: '10px 12px', fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)' }}>
+                        No hay tareas diarias pendientes.
                       </div>
+                    ) : (
+                      pendingDailyTasks.map(task => {
+                        const isCompleted = task.completed || task.status === 'completada';
+                        const matchedBlock = task.protocolBlock ? protocolBlocks.find(b => b.id === task.protocolBlock) : null;
+
+                        return (
+                          <div 
+                            key={task.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 12px',
+                              borderRadius: 'var(--radius-md)',
+                              backgroundColor: 'var(--bg-input)',
+                              border: '1px solid var(--border-subtle)',
+                              transition: 'all var(--transition-fast)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minWidth: 0, marginRight: '10px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={isCompleted}
+                                onChange={() => handleToggleDailyTask(task)}
+                                style={{
+                                  width: '18px',
+                                  height: '18px',
+                                  marginTop: '2px',
+                                  cursor: 'pointer',
+                                  accentColor: '#10b981'
+                                }}
+                                title="Marcar como completada"
+                              />
+
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', wordBreak: 'break-word' }}>
+                                  {task.title}
+                                </div>
+
+                                {task.description && (
+                                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                    {task.description}
+                                  </div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
+                                  <span 
+                                    className="badge" 
+                                    style={{ fontSize: '0.68rem', padding: '2px 7px', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.25)' }}
+                                  >
+                                    ☀️ Diaria
+                                  </span>
+
+                                  <span 
+                                    className={`badge ${task.partner === 'luis' ? 'badge-blue' : task.partner === 'kevin' ? 'badge-yellow' : 'badge-purple'}`}
+                                    style={{ fontSize: '0.68rem', padding: '2px 7px' }}
+                                  >
+                                    {task.partner === 'luis' ? '👨‍💼 Luis' : task.partner === 'kevin' ? '🚀 Kevin' : '🤝 Ambos'}
+                                  </span>
+
+                                  {matchedBlock ? (
+                                    <span 
+                                      className="badge" 
+                                      style={{ 
+                                        fontSize: '0.68rem', 
+                                        padding: '2px 7px', 
+                                        backgroundColor: matchedBlock.bgColor, 
+                                        color: matchedBlock.themeColor,
+                                        border: `1px solid ${matchedBlock.borderColor}`
+                                      }}
+                                      title={matchedBlock.title}
+                                    >
+                                      🎯 B{matchedBlock.blockNumber}: {matchedBlock.schedule}
+                                    </span>
+                                  ) : task.startTime ? (
+                                    <span 
+                                      className="badge badge-secondary" 
+                                      style={{ fontSize: '0.68rem', padding: '2px 7px', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa' }}
+                                    >
+                                      ⏰ {task.startTime}{task.endTime ? ` - ${task.endTime}` : ''}
+                                    </span>
+                                  ) : null}
+
+                                  {task.category && (
+                                    <span 
+                                      className="badge badge-secondary" 
+                                      style={{ fontSize: '0.68rem', padding: '2px 7px', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                                    >
+                                      {task.category}
+                                    </span>
+                                  )}
+
+                                  {task.priority === 'alta' && (
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ef4444' }}>
+                                      ⚡ Alta
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                              <button 
+                                className="btn-icon" 
+                                style={{ width: '24px', height: '24px' }}
+                                onClick={() => handleOpenEditTask(task)}
+                                title="Editar tarea"
+                              >
+                                <Edit3 size={12} />
+                              </button>
+                              <button 
+                                className="btn-icon" 
+                                style={{ width: '24px', height: '24px', color: '#ef4444' }}
+                                onClick={() => onRequestDelete && onRequestDelete(task, 'Evento')}
+                                title="Eliminar tarea"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* 2. SECCIÓN: TAREAS EVENTUALES */}
+                {(taskTypeFilter === 'all' || taskTypeFilter === 'eventuales') && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 2px', borderBottom: '1px solid rgba(236, 72, 153, 0.25)' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#f472b6', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>📌</span> Tareas Eventuales ({pendingEventualTasks.length})
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Puntuales o extraordinarias</span>
                     </div>
 
-                    {/* Botones Editar y Eliminar Tarea */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                      <button 
-                        className="btn-icon" 
-                        style={{ width: '24px', height: '24px' }}
-                        onClick={() => handleOpenEditTask(task)}
-                        title="Editar tarea diaria"
-                      >
-                        <Edit3 size={12} />
-                      </button>
-                      <button 
-                        className="btn-icon" 
-                        style={{ width: '24px', height: '24px', color: '#ef4444' }}
-                        onClick={() => onRequestDelete && onRequestDelete(task, 'Evento')}
-                        title="Eliminar tarea diaria"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+                    {pendingEventualTasks.length === 0 ? (
+                      <div style={{ padding: '10px 12px', fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)' }}>
+                        No hay tareas eventuales pendientes.
+                      </div>
+                    ) : (
+                      pendingEventualTasks.map(task => {
+                        const isCompleted = task.completed || task.status === 'completada';
+                        const matchedBlock = task.protocolBlock ? protocolBlocks.find(b => b.id === task.protocolBlock) : null;
+
+                        return (
+                          <div 
+                            key={task.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 12px',
+                              borderRadius: 'var(--radius-md)',
+                              backgroundColor: 'var(--bg-input)',
+                              border: '1px solid rgba(236, 72, 153, 0.22)',
+                              transition: 'all var(--transition-fast)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minWidth: 0, marginRight: '10px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={isCompleted}
+                                onChange={() => handleToggleDailyTask(task)}
+                                style={{
+                                  width: '18px',
+                                  height: '18px',
+                                  marginTop: '2px',
+                                  cursor: 'pointer',
+                                  accentColor: '#10b981'
+                                }}
+                                title="Marcar como completada"
+                              />
+
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)', wordBreak: 'break-word' }}>
+                                  {task.title}
+                                </div>
+
+                                {task.description && (
+                                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                    {task.description}
+                                  </div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
+                                  <span 
+                                    className="badge" 
+                                    style={{ fontSize: '0.68rem', padding: '2px 7px', backgroundColor: 'rgba(236, 72, 153, 0.12)', color: '#f472b6', border: '1px solid rgba(236, 72, 153, 0.25)' }}
+                                  >
+                                    📌 Eventual
+                                  </span>
+
+                                  <span 
+                                    className={`badge ${task.partner === 'luis' ? 'badge-blue' : task.partner === 'kevin' ? 'badge-yellow' : 'badge-purple'}`}
+                                    style={{ fontSize: '0.68rem', padding: '2px 7px' }}
+                                  >
+                                    {task.partner === 'luis' ? '👨‍💼 Luis' : task.partner === 'kevin' ? '🚀 Kevin' : '🤝 Ambos'}
+                                  </span>
+
+                                  {matchedBlock ? (
+                                    <span 
+                                      className="badge" 
+                                      style={{ 
+                                        fontSize: '0.68rem', 
+                                        padding: '2px 7px', 
+                                        backgroundColor: matchedBlock.bgColor, 
+                                        color: matchedBlock.themeColor,
+                                        border: `1px solid ${matchedBlock.borderColor}`
+                                      }}
+                                      title={matchedBlock.title}
+                                    >
+                                      🎯 B{matchedBlock.blockNumber}: {matchedBlock.schedule}
+                                    </span>
+                                  ) : task.startTime ? (
+                                    <span 
+                                      className="badge badge-secondary" 
+                                      style={{ fontSize: '0.68rem', padding: '2px 7px', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa' }}
+                                    >
+                                      ⏰ {task.startTime}{task.endTime ? ` - ${task.endTime}` : ''}
+                                    </span>
+                                  ) : null}
+
+                                  {task.category && (
+                                    <span 
+                                      className="badge badge-secondary" 
+                                      style={{ fontSize: '0.68rem', padding: '2px 7px', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                                    >
+                                      {task.category}
+                                    </span>
+                                  )}
+
+                                  {task.priority === 'alta' && (
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#ef4444' }}>
+                                      ⚡ Alta
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                              <button 
+                                className="btn-icon" 
+                                style={{ width: '24px', height: '24px' }}
+                                onClick={() => handleOpenEditTask(task)}
+                                title="Editar tarea"
+                              >
+                                <Edit3 size={12} />
+                              </button>
+                              <button 
+                                className="btn-icon" 
+                                style={{ width: '24px', height: '24px', color: '#ef4444' }}
+                                onClick={() => onRequestDelete && onRequestDelete(task, 'Evento')}
+                                title="Eliminar tarea"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
-                );
-              })
+                )}
+
+                {/* 3. SECCIÓN: TAREAS COMPLETADAS (ESTRICTAMENTE ABAJO) */}
+                {(taskTypeFilter === 'all' || taskTypeFilter === 'completadas') && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 2px', borderBottom: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>✅</span> Tareas Completadas ({completedTasksList.length})
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Concluidas</span>
+                    </div>
+
+                    {completedTasksList.length === 0 ? (
+                      <div style={{ padding: '10px 12px', fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)' }}>
+                        Aún no hay tareas marcadas como completadas.
+                      </div>
+                    ) : (
+                      completedTasksList.map(task => {
+                        const isEventual = task.taskType === 'eventual';
+                        const matchedBlock = task.protocolBlock ? protocolBlocks.find(b => b.id === task.protocolBlock) : null;
+
+                        return (
+                          <div 
+                            key={task.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 12px',
+                              borderRadius: 'var(--radius-md)',
+                              backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                              border: '1px solid rgba(16, 185, 129, 0.25)',
+                              transition: 'all var(--transition-fast)',
+                              opacity: 0.78
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minWidth: 0, marginRight: '10px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={true}
+                                onChange={() => handleToggleDailyTask(task)}
+                                style={{
+                                  width: '18px',
+                                  height: '18px',
+                                  marginTop: '2px',
+                                  cursor: 'pointer',
+                                  accentColor: '#10b981'
+                                }}
+                                title="Reabrir tarea a pendiente"
+                              />
+
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                  fontSize: '0.88rem',
+                                  fontWeight: 600,
+                                  color: 'var(--text-muted)',
+                                  textDecoration: 'line-through',
+                                  wordBreak: 'break-word'
+                                }}>
+                                  {task.title}
+                                </div>
+
+                                {task.description && (
+                                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                    {task.description}
+                                  </div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap' }}>
+                                  <span 
+                                    className="badge badge-green" 
+                                    style={{ fontSize: '0.68rem', padding: '2px 7px' }}
+                                  >
+                                    ✓ Hecha
+                                  </span>
+
+                                  {isEventual ? (
+                                    <span 
+                                      className="badge" 
+                                      style={{ fontSize: '0.68rem', padding: '2px 7px', backgroundColor: 'rgba(236, 72, 153, 0.12)', color: '#f472b6' }}
+                                    >
+                                      📌 Eventual
+                                    </span>
+                                  ) : (
+                                    <span 
+                                      className="badge" 
+                                      style={{ fontSize: '0.68rem', padding: '2px 7px', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa' }}
+                                    >
+                                      ☀️ Diaria
+                                    </span>
+                                  )}
+
+                                  <span 
+                                    className={`badge ${task.partner === 'luis' ? 'badge-blue' : task.partner === 'kevin' ? 'badge-yellow' : 'badge-purple'}`}
+                                    style={{ fontSize: '0.68rem', padding: '2px 7px' }}
+                                  >
+                                    {task.partner === 'luis' ? '👨‍💼 Luis' : task.partner === 'kevin' ? '🚀 Kevin' : '🤝 Ambos'}
+                                  </span>
+
+                                  {matchedBlock ? (
+                                    <span 
+                                      className="badge" 
+                                      style={{ 
+                                        fontSize: '0.68rem', 
+                                        padding: '2px 7px', 
+                                        backgroundColor: matchedBlock.bgColor, 
+                                        color: matchedBlock.themeColor 
+                                      }}
+                                    >
+                                      🎯 B{matchedBlock.blockNumber}: {matchedBlock.schedule}
+                                    </span>
+                                  ) : task.startTime ? (
+                                    <span 
+                                      className="badge badge-secondary" 
+                                      style={{ fontSize: '0.68rem', padding: '2px 7px' }}
+                                    >
+                                      ⏰ {task.startTime}{task.endTime ? ` - ${task.endTime}` : ''}
+                                    </span>
+                                  ) : null}
+
+                                  {task.category && (
+                                    <span 
+                                      className="badge badge-secondary" 
+                                      style={{ fontSize: '0.68rem', padding: '2px 7px', backgroundColor: 'rgba(255,255,255,0.06)' }}
+                                    >
+                                      {task.category}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                              <button 
+                                className="btn-icon" 
+                                style={{ width: '24px', height: '24px' }}
+                                onClick={() => handleOpenEditTask(task)}
+                                title="Editar tarea"
+                              >
+                                <Edit3 size={12} />
+                              </button>
+                              <button 
+                                className="btn-icon" 
+                                style={{ width: '24px', height: '24px', color: '#ef4444' }}
+                                onClick={() => onRequestDelete && onRequestDelete(task, 'Evento')}
+                                title="Eliminar tarea"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -1191,7 +1609,7 @@ export default function CalendarView({
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: Nueva Tarea Diaria (Asignada a Socio)                              */}
+      {/* MODAL: Nueva Tarea Operativa (Diaria o Eventual)                          */}
       {/* ========================================================================= */}
       {isNewTaskModalOpen && (
         <div className="modal-overlay">
@@ -1199,7 +1617,7 @@ export default function CalendarView({
             <div className="modal-header">
               <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <CheckSquare size={20} color="var(--primary-600)" />
-                <span>Crear Nueva Tarea Diaria</span>
+                <span>Crear Nueva Tarea Operativa</span>
               </h3>
               <button className="close-btn" onClick={handleCloseNewTaskModal}>✕</button>
             </div>
@@ -1220,6 +1638,18 @@ export default function CalendarView({
 
               <div className="form-row">
                 <div className="form-group">
+                  <label className="form-label">Tipo de Tarea:</label>
+                  <select 
+                    className="form-control"
+                    value={taskForm.taskType}
+                    onChange={(e) => setTaskForm({ ...taskForm, taskType: e.target.value })}
+                  >
+                    <option value="diaria">☀️ Tarea Diaria (Rutina / Checklist del Día)</option>
+                    <option value="eventual">📌 Tarea Eventual (Puntual / Extraordinaria)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
                   <label className="form-label">Asignar a Socio:</label>
                   <select 
                     className="form-control"
@@ -1231,7 +1661,51 @@ export default function CalendarView({
                     <option value="kevin">🚀 Kevin Servat (Co-CEO)</option>
                   </select>
                 </div>
+              </div>
 
+              {/* Rango del Protocolo Operativo */}
+              <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🎯 Rango del Protocolo Operativo:</span>
+                  <small style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>(Opcional)</small>
+                </label>
+                <select 
+                  className="form-control"
+                  value={taskForm.protocolBlock}
+                  onChange={(e) => handleProtocolBlockChange(e.target.value, false)}
+                >
+                  <option value="">⚪ Sin Bloque / Horario Libre</option>
+                  {protocolBlocks.map(block => (
+                    <option key={block.id} value={block.id}>
+                      🎯 {block.title} ({block.schedule})
+                    </option>
+                  ))}
+                  <option value="custom">⚙️ Horario Personalizado</option>
+                </select>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Hora Inicio:</label>
+                  <input 
+                    type="time" 
+                    className="form-control" 
+                    value={taskForm.startTime} 
+                    onChange={(e) => setTaskForm({ ...taskForm, startTime: e.target.value })} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Hora Fin:</label>
+                  <input 
+                    type="time" 
+                    className="form-control" 
+                    value={taskForm.endTime} 
+                    onChange={(e) => setTaskForm({ ...taskForm, endTime: e.target.value })} 
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Área / Categoría:</label>
                   <select 
@@ -1247,19 +1721,19 @@ export default function CalendarView({
                     <option value="Contenido">📱 Redes & Video Marketing</option>
                   </select>
                 </div>
-              </div>
 
-              <div className="form-group">
-                <label className="form-label">Prioridad:</label>
-                <select 
-                  className="form-control"
-                  value={taskForm.priority}
-                  onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value })}
-                >
-                  <option value="alta">⚡ Alta (Ineludible para hoy)</option>
-                  <option value="media">🔹 Media (Importante)</option>
-                  <option value="normal">⚪ Normal (Rutinaria)</option>
-                </select>
+                <div className="form-group">
+                  <label className="form-label">Prioridad:</label>
+                  <select 
+                    className="form-control"
+                    value={taskForm.priority}
+                    onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value })}
+                  >
+                    <option value="alta">⚡ Alta (Ineludible para hoy)</option>
+                    <option value="media">🔹 Media (Importante)</option>
+                    <option value="normal">⚪ Normal (Rutinaria)</option>
+                  </select>
+                </div>
               </div>
 
               <div className="form-group">
@@ -1287,13 +1761,13 @@ export default function CalendarView({
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL: Editar Tarea Diaria                                                */}
+      {/* MODAL: Editar Tarea Operativa                                             */}
       {/* ========================================================================= */}
       {editingTask && (
         <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">Editar Tarea Diaria</h3>
+              <h3 className="modal-title">Editar Tarea Operativa</h3>
               <button className="close-btn" onClick={handleCloseEditTask}>✕</button>
             </div>
 
@@ -1311,6 +1785,18 @@ export default function CalendarView({
 
               <div className="form-row">
                 <div className="form-group">
+                  <label className="form-label">Tipo de Tarea:</label>
+                  <select 
+                    className="form-control"
+                    value={editingTask.taskType || 'diaria'}
+                    onChange={(e) => setEditingTask({ ...editingTask, taskType: e.target.value })}
+                  >
+                    <option value="diaria">☀️ Tarea Diaria (Rutina / Checklist del Día)</option>
+                    <option value="eventual">📌 Tarea Eventual (Puntual / Extraordinaria)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
                   <label className="form-label">Socio Asignado:</label>
                   <select 
                     className="form-control"
@@ -1322,21 +1808,47 @@ export default function CalendarView({
                     <option value="kevin">🚀 Kevin Servat</option>
                   </select>
                 </div>
+              </div>
 
+              {/* Rango del Protocolo Operativo */}
+              <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🎯 Rango del Protocolo Operativo:</span>
+                  <small style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>(Opcional)</small>
+                </label>
+                <select 
+                  className="form-control"
+                  value={editingTask.protocolBlock || ''}
+                  onChange={(e) => handleProtocolBlockChange(e.target.value, true)}
+                >
+                  <option value="">⚪ Sin Bloque / Horario Libre</option>
+                  {protocolBlocks.map(block => (
+                    <option key={block.id} value={block.id}>
+                      🎯 {block.title} ({block.schedule})
+                    </option>
+                  ))}
+                  <option value="custom">⚙️ Horario Personalizado</option>
+                </select>
+              </div>
+
+              <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Área / Categoría:</label>
-                  <select 
-                    className="form-control"
-                    value={editingTask.category || 'Prospección'}
-                    onChange={(e) => setEditingTask({ ...editingTask, category: e.target.value })}
-                  >
-                    <option value="Prospección">🎯 Prospección Comercial</option>
-                    <option value="Ventas">🤝 Ventas & Demostraciones</option>
-                    <option value="Operaciones">🔧 Operaciones & Chips NFC</option>
-                    <option value="Postventa">📦 Entregas & Postventa</option>
-                    <option value="Finanzas">💰 Finanzas & Cuadre 50/50</option>
-                    <option value="Contenido">📱 Redes & Video Marketing</option>
-                  </select>
+                  <label className="form-label">Hora Inicio:</label>
+                  <input 
+                    type="time" 
+                    className="form-control" 
+                    value={editingTask.startTime || '09:00'} 
+                    onChange={(e) => setEditingTask({ ...editingTask, startTime: e.target.value })} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Hora Fin:</label>
+                  <input 
+                    type="time" 
+                    className="form-control" 
+                    value={editingTask.endTime || '18:00'} 
+                    onChange={(e) => setEditingTask({ ...editingTask, endTime: e.target.value })} 
+                  />
                 </div>
               </div>
 
@@ -1375,6 +1887,22 @@ export default function CalendarView({
               </div>
 
               <div className="form-group">
+                <label className="form-label">Área / Categoría:</label>
+                <select 
+                  className="form-control"
+                  value={editingTask.category || 'Prospección'}
+                  onChange={(e) => setEditingTask({ ...editingTask, category: e.target.value })}
+                >
+                  <option value="Prospección">🎯 Prospección Comercial</option>
+                  <option value="Ventas">🤝 Ventas & Demostraciones</option>
+                  <option value="Operaciones">🔧 Operaciones & Chips NFC</option>
+                  <option value="Postventa">📦 Entregas & Postventa</option>
+                  <option value="Finanzas">💰 Finanzas & Cuadre 50/50</option>
+                  <option value="Contenido">📱 Redes & Video Marketing</option>
+                </select>
+              </div>
+
+              <div className="form-group">
                 <label className="form-label">Notas Adicionales:</label>
                 <textarea 
                   className="form-control"
@@ -1391,6 +1919,142 @@ export default function CalendarView({
                 <button type="submit" className="btn btn-primary">
                   Guardar Cambios
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: Editar Protocolo Operativo Diario (Rutina de 4 Bloques)            */}
+      {/* ========================================================================= */}
+      {isEditProtocolModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '820px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ background: 'rgba(59, 130, 246, 0.15)', padding: '6px', borderRadius: 'var(--radius-sm)', color: 'var(--primary-600)' }}>
+                  <Edit3 size={18} />
+                </div>
+                <div>
+                  <h3 className="modal-title" style={{ margin: 0, fontSize: '1.15rem' }}>
+                    Editar Protocolo Operativo Diario (4 Bloques)
+                  </h3>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Personaliza los nombres, rangos de horario y tareas estratégicas de cada bloque.
+                  </span>
+                </div>
+              </div>
+              <button className="close-btn" onClick={handleCloseEditProtocol}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveProtocol}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '14px', margin: '16px 0' }}>
+                {protocolEditForm.map((block, idx) => (
+                  <div 
+                    key={block.id}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                      border: `1px solid ${block.borderColor || 'var(--border-subtle)'}`,
+                      borderLeft: `4px solid ${block.themeColor || 'var(--primary-600)'}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.84rem', color: block.themeColor }}>
+                        Bloque {block.blockNumber || idx + 1}
+                      </span>
+                      <span className="badge badge-secondary" style={{ fontSize: '0.68rem' }}>
+                        {block.schedule}
+                      </span>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.74rem' }}>Título / Nombre del Bloque:</label>
+                      <input 
+                        type="text"
+                        className="form-control"
+                        style={{ fontSize: '0.82rem', padding: '5px 8px' }}
+                        value={block.title}
+                        onChange={(e) => handleUpdateBlockField(idx, 'title', e.target.value)}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-row" style={{ marginBottom: 0 }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ fontSize: '0.74rem' }}>Horario Visible:</label>
+                        <input 
+                          type="text"
+                          className="form-control"
+                          style={{ fontSize: '0.82rem', padding: '5px 8px' }}
+                          placeholder="Ej: 15:00 - 16:00"
+                          value={block.schedule}
+                          onChange={(e) => handleUpdateBlockField(idx, 'schedule', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ fontSize: '0.74rem' }}>Horas (Inicio - Fin):</label>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <input 
+                            type="time" 
+                            className="form-control" 
+                            style={{ fontSize: '0.76rem', padding: '4px 6px' }}
+                            value={block.startTime || ''} 
+                            onChange={(e) => handleUpdateBlockField(idx, 'startTime', e.target.value)} 
+                          />
+                          <input 
+                            type="time" 
+                            className="form-control" 
+                            style={{ fontSize: '0.76rem', padding: '4px 6px' }}
+                            value={block.endTime || ''} 
+                            onChange={(e) => handleUpdateBlockField(idx, 'endTime', e.target.value)} 
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.74rem' }}>Descripción / Plan de Acción:</label>
+                      <textarea 
+                        className="form-control"
+                        rows="3"
+                        style={{ fontSize: '0.8rem', padding: '6px 8px', resize: 'vertical' }}
+                        value={block.description}
+                        onChange={(e) => handleUpdateBlockField(idx, 'description', e.target.value)}
+                        required
+                      ></textarea>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={handleResetProtocolDefaults}
+                  title="Restablece los textos originales del protocolo de 4 bloques"
+                  style={{ fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <RotateCcw size={13} />
+                  <span>Restablecer Rutina Original</span>
+                </button>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="button" className="btn btn-secondary" onClick={handleCloseEditProtocol}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Check size={14} />
+                    <span>Guardar Protocolo</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

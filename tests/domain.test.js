@@ -1160,6 +1160,39 @@ test('operational routine 4 blocks integrates into calendar events with appointm
   assert.ok(b4Ads && b4Ads.description.includes('120'));
 });
 
+test('operational protocol blocks editing and task classification (diarias, eventuales, completadas abajo)', async () => {
+  const { DEFAULT_PROTOCOL_BLOCKS } = await import('../src/data/initialData.js');
+  assert.equal(DEFAULT_PROTOCOL_BLOCKS.length, 4);
+  assert.equal(DEFAULT_PROTOCOL_BLOCKS[0].id, 'bloque-1');
+  assert.equal(DEFAULT_PROTOCOL_BLOCKS[0].schedule, '15:00 - 16:00');
+  assert.equal(DEFAULT_PROTOCOL_BLOCKS[1].id, 'bloque-2');
+  assert.equal(DEFAULT_PROTOCOL_BLOCKS[2].id, 'bloque-3');
+  assert.equal(DEFAULT_PROTOCOL_BLOCKS[3].id, 'bloque-4');
+
+  // Clasificación de tareas:
+  const tasks = [
+    { id: 't1', title: 'Tarea rutina diaria', taskType: 'diaria', completed: false, status: 'pendiente', protocolBlock: 'bloque-1' },
+    { id: 't2', title: 'Tarea puntual eventual', taskType: 'eventual', completed: false, status: 'pendiente', protocolBlock: '' },
+    { id: 't3', title: 'Tarea diaria ya hecha', taskType: 'diaria', completed: true, status: 'completada', protocolBlock: 'bloque-2' },
+    { id: 't4', title: 'Tarea eventual ya hecha', taskType: 'eventual', completed: true, status: 'completada', protocolBlock: '' }
+  ];
+
+  const pendingDaily = tasks.filter(t => (!t.completed && t.status !== 'completada') && t.taskType !== 'eventual');
+  const pendingEventual = tasks.filter(t => (!t.completed && t.status !== 'completada') && t.taskType === 'eventual');
+  const completedList = tasks.filter(t => t.completed || t.status === 'completada');
+
+  assert.equal(pendingDaily.length, 1);
+  assert.equal(pendingDaily[0].id, 't1');
+  assert.equal(pendingDaily[0].protocolBlock, 'bloque-1');
+
+  assert.equal(pendingEventual.length, 1);
+  assert.equal(pendingEventual[0].id, 't2');
+
+  assert.equal(completedList.length, 2);
+  assert.deepEqual(completedList.map(t => t.id), ['t3', 't4']);
+});
+
+
 
 
 
