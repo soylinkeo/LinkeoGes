@@ -1285,6 +1285,58 @@ button, input, select, textarea {
   gap: 10px;
 }
 
+.kanban-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.kanban-header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.kanban-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.kanban-title-desktop {
+  display: inline;
+}
+
+.kanban-title-mobile {
+  display: none;
+}
+
+.kanban-subtitle {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.kanban-stats-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.kanban-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .kanban-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1296,6 +1348,34 @@ button, input, select, textarea {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   flex-shrink: 0;
+}
+
+.kanban-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 240px;
+}
+
+.kanban-filter-toggle-btn {
+  display: none;
+}
+
+.kanban-filters-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kanban-count-summary {
+  margin-left: auto;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .kanban-search-box {
@@ -2052,11 +2132,20 @@ button, input, select, textarea {
     height: 100dvh;
     padding-top: max(16px, env(safe-area-inset-top, 16px)) !important;
     padding-bottom: max(20px, env(safe-area-inset-bottom, 20px)) !important;
+    padding-left: max(10px, env(safe-area-inset-left, 10px)) !important;
     box-sizing: border-box;
     transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: none;
     display: flex;
     flex-direction: column;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .sidebar-header,
+  .sidebar-partners-section,
+  .sidebar-footer {
+    flex-shrink: 0;
   }
 
   .sidebar.mobile-open {
@@ -2551,29 +2640,137 @@ button, input, select, textarea {
 }
 
 @media (max-width: 900px) {
-  /* Safe Area Insets para Dynamic Island y Home Indicator Bar */
+  /* Navbar superior fijo nativo (App Bar fija que nunca se oculta bajo el reloj de iOS) */
   .top-navbar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 1000 !important;
     padding-top: max(8px, env(safe-area-inset-top, 8px)) !important;
     height: calc(58px + max(8px, env(safe-area-inset-top, 8px))) !important;
     padding-left: max(12px, env(safe-area-inset-left, 12px)) !important;
     padding-right: max(12px, env(safe-area-inset-right, 12px)) !important;
     box-sizing: border-box;
+    background-color: rgba(11, 17, 32, 0.94) !important;
+    backdrop-filter: blur(24px) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
   }
 
+  .main-content {
+    height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Padding superior para que las vistas comiencen nítidamente bajo el navbar fijo */
   .content-body {
-    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    padding-top: calc(58px + max(8px, env(safe-area-inset-top, 8px)) + 14px) !important;
     padding-bottom: calc(96px + env(safe-area-inset-bottom, 16px)) !important;
-    padding-left: calc(12px + env(safe-area-inset-left, 0px));
-    padding-right: calc(12px + env(safe-area-inset-right, 0px));
+    padding-left: max(12px, env(safe-area-inset-left, 12px)) !important;
+    padding-right: max(12px, env(safe-area-inset-right, 12px)) !important;
   }
 
-  .sync-status {
-    bottom: calc(76px + env(safe-area-inset-bottom, 12px)) !important;
-    right: 12px !important;
-    left: auto;
-    font-size: 0.76rem;
-    padding: 6px 12px;
+  /* Kanban Móvil: calza perfecto entre el header fijo y el bottom tab bar */
+  .main-content-kanban {
+    overflow: hidden !important;
+    height: 100dvh !important;
+  }
+
+  .content-body-kanban {
+    height: calc(100dvh - 58px - max(8px, env(safe-area-inset-top, 8px)) - 64px - env(safe-area-inset-bottom, 12px)) !important;
+    max-height: calc(100dvh - 58px - max(8px, env(safe-area-inset-top, 8px)) - 64px - env(safe-area-inset-bottom, 12px)) !important;
+    margin-top: calc(58px + max(8px, env(safe-area-inset-top, 8px))) !important;
+    margin-bottom: calc(64px + env(safe-area-inset-bottom, 12px)) !important;
+    padding: 8px 10px 4px 10px !important;
+    overflow-y: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Adaptación de títulos y filtros de Kanban en Smartphone */
+  .kanban-title-desktop {
+    display: none;
+  }
+  .kanban-title-mobile {
+    display: inline;
+  }
+  .kanban-header-bar {
+    margin-bottom: 4px;
+    gap: 6px;
+  }
+  .kanban-title {
+    font-size: 1.05rem;
+  }
+  .kanban-search-row {
+    width: 100%;
+    min-width: 0;
+  }
+  .kanban-filter-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 38px;
+    padding: 0 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    touch-action: manipulation;
+  }
+  .kanban-filter-toggle-btn.active {
+    background: rgba(0, 102, 255, 0.18);
+    border-color: #0066ff;
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(0, 102, 255, 0.3);
+  }
+  .kanban-filter-badge-count {
+    background: #0066ff;
+    color: #ffffff;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 1px 6px;
     border-radius: 999px;
+    line-height: 1.2;
+  }
+  .kanban-filters-group {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 4px;
+    animation: fadeIn 0.2s ease-out;
+  }
+  .kanban-filters-group.mobile-open {
+    display: flex;
+  }
+  .kanban-filters-group .kanban-filter-select {
+    width: 100%;
+    height: 38px;
+    font-size: 0.84rem;
+  }
+  .kanban-count-summary {
+    width: 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+    font-size: 0.72rem;
+  }
+
+  /* Toast de Sincronización Superior (Dynamic Island / App Style) */
+  .sync-status {
+    top: calc(58px + max(8px, env(safe-area-inset-top, 8px)) + 8px) !important;
+    bottom: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    font-size: 0.76rem;
+    padding: 6px 14px;
+    border-radius: 999px;
+    z-index: 1060 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
   }
 
   .mobile-bottom-nav {

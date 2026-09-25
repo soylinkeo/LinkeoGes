@@ -184,6 +184,17 @@ export default function KanbanView({
   const [filterDistrict, setFilterDistrict] = useState('all');
   const [filterContacted, setFilterContacted] = useState('all');
   const [filterAge, setFilterAge] = useState('all');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filterSeller !== 'all') count++;
+    if (filterRubro !== 'all') count++;
+    if (filterDistrict !== 'all') count++;
+    if (filterContacted !== 'all') count++;
+    if (filterAge !== 'all') count++;
+    return count;
+  }, [filterSeller, filterRubro, filterDistrict, filterContacted, filterAge]);
 
   // Leads con más de 1 semana sin concretar en etapas activas
   const leadsOverOneWeek = useMemo(() => {
@@ -614,19 +625,20 @@ export default function KanbanView({
   return (
     <div className="kanban-view">
       {/* Header Compacto para maximizar espacio vertical */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="kanban-header-bar">
+        <div className="kanban-header-info">
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <h2 className="kanban-title">
               <Kanban size={22} color="var(--primary-600)" />
-              <span>Pipeline B2B | Embudo de Ventas Linkeo</span>
+              <span className="kanban-title-desktop">Pipeline B2B | Embudo de Ventas Linkeo</span>
+              <span className="kanban-title-mobile">Pipeline B2B</span>
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: 0 }}>
+            <p className="kanban-subtitle">
               7 fases comerciales • Prospectos y cuentas Linkeo B2B
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div className="kanban-stats-badges">
             <span className="badge badge-green" style={{ fontSize: '0.72rem' }}>
               Pipeline: S/ {totalPipelineValue.toFixed(2)}
             </span>
@@ -636,7 +648,7 @@ export default function KanbanView({
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="kanban-header-actions">
           <button className="btn btn-primary btn-sm" onClick={() => setIsNewLeadModalOpen(true)}>
             <Plus size={15} />
             <span>+ Nuevo Prospecto / Lead</span>
@@ -646,103 +658,122 @@ export default function KanbanView({
 
       {/* Barra de Búsqueda y Filtros Multicriterio */}
       <div className="kanban-toolbar">
-        {/* Buscador por Texto */}
-        <div className="kanban-search-box">
-          <Search size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-          <input 
-            type="text"
-            placeholder="Buscar por negocio, contacto, distrito, teléfono..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
+        <div className="kanban-search-row">
+          {/* Buscador por Texto */}
+          <div className="kanban-search-box">
+            <Search size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <input 
+              type="text"
+              placeholder="Buscar por negocio, contacto, distrito, teléfono..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button 
+                type="button" 
+                onClick={() => setSearchTerm('')} 
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
+                title="Borrar búsqueda"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Botón Toggle Filtros en Móvil */}
+          <button
+            type="button"
+            className={`btn btn-secondary btn-sm kanban-filter-toggle-btn ${activeFiltersCount > 0 ? 'active' : ''}`}
+            onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+            title="Mostrar u ocultar filtros avanzados"
+          >
+            <SlidersHorizontal size={15} />
+            <span>Filtros</span>
+            {activeFiltersCount > 0 && (
+              <span className="kanban-filter-badge-count">{activeFiltersCount}</span>
+            )}
+          </button>
+        </div>
+
+        {/* Grupo de Filtros (Collapsible en móvil, inline en desktop) */}
+        <div className={`kanban-filters-group ${mobileFiltersOpen ? 'mobile-open' : ''}`}>
+          {/* Filtro Vendedor */}
+          <select 
+            className="kanban-filter-select"
+            value={filterSeller}
+            onChange={(e) => setFilterSeller(e.target.value)}
+            title="Filtrar por vendedor asignado"
+          >
+            <option value="all">👤 Todos los vendedores</option>
+            <option value="luis">👨‍💼 Luis Romero</option>
+            <option value="kevin">🚀 Kevin Servat</option>
+          </select>
+
+          {/* Filtro Rubro */}
+          <select 
+            className="kanban-filter-select"
+            value={filterRubro}
+            onChange={(e) => setFilterRubro(e.target.value)}
+            title="Filtrar por tipo de negocio / rubro"
+          >
+            <option value="all">🏢 Todos los rubros</option>
+            {availableRubros.map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+
+          {/* Filtro Distrito */}
+          <select 
+            className="kanban-filter-select"
+            value={filterDistrict}
+            onChange={(e) => setFilterDistrict(e.target.value)}
+            title="Filtrar por distrito"
+          >
+            <option value="all">📍 Todos los distritos</option>
+            {availableDistricts.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+
+          {/* Filtro Contactado */}
+          <select 
+            className="kanban-filter-select"
+            value={filterContacted}
+            onChange={(e) => setFilterContacted(e.target.value)}
+            title="Filtrar por estado de contacto"
+          >
+            <option value="all">🔔 Contacto: Todos</option>
+            <option value="contacted">✅ Contactados</option>
+            <option value="not_contacted">⏳ Sin contactar</option>
+          </select>
+
+          {/* Filtro Antigüedad */}
+          <select 
+            className="kanban-filter-select"
+            value={filterAge}
+            onChange={(e) => setFilterAge(e.target.value)}
+            title="Filtrar por antigüedad del prospecto"
+          >
+            <option value="all">📅 Antigüedad: Todos</option>
+            <option value="over_7d">⚠️ Inactivos (+1 semana)</option>
+            <option value="under_7d">⚡ Recientes (&lt;1 semana)</option>
+          </select>
+
+          {/* Botón Limpiar Filtros */}
+          {hasActiveFilters && (
             <button 
               type="button" 
-              onClick={() => setSearchTerm('')} 
-              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
-              title="Borrar búsqueda"
+              className="btn btn-secondary btn-sm"
+              onClick={handleClearFilters}
+              style={{ fontSize: '0.75rem', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
             >
-              <X size={14} />
+              <RotateCcw size={12} />
+              <span>Limpiar filtros</span>
             </button>
           )}
         </div>
 
-        {/* Filtro Vendedor */}
-        <select 
-          className="kanban-filter-select"
-          value={filterSeller}
-          onChange={(e) => setFilterSeller(e.target.value)}
-          title="Filtrar por vendedor asignado"
-        >
-          <option value="all">👤 Todos los vendedores</option>
-          <option value="luis">👨‍💼 Luis Romero</option>
-          <option value="kevin">🚀 Kevin Servat</option>
-        </select>
-
-        {/* Filtro Rubro */}
-        <select 
-          className="kanban-filter-select"
-          value={filterRubro}
-          onChange={(e) => setFilterRubro(e.target.value)}
-          title="Filtrar por tipo de negocio / rubro"
-        >
-          <option value="all">🏢 Todos los rubros</option>
-          {availableRubros.map(r => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
-
-        {/* Filtro Distrito */}
-        <select 
-          className="kanban-filter-select"
-          value={filterDistrict}
-          onChange={(e) => setFilterDistrict(e.target.value)}
-          title="Filtrar por distrito"
-        >
-          <option value="all">📍 Todos los distritos</option>
-          {availableDistricts.map(d => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
-
-        {/* Filtro Contactado */}
-        <select 
-          className="kanban-filter-select"
-          value={filterContacted}
-          onChange={(e) => setFilterContacted(e.target.value)}
-          title="Filtrar por estado de contacto"
-        >
-          <option value="all">🔔 Contacto: Todos</option>
-          <option value="contacted">✅ Contactados</option>
-          <option value="not_contacted">⏳ Sin contactar</option>
-        </select>
-
-        {/* Filtro Antigüedad */}
-        <select 
-          className="kanban-filter-select"
-          value={filterAge}
-          onChange={(e) => setFilterAge(e.target.value)}
-          title="Filtrar por antigüedad del prospecto"
-        >
-          <option value="all">📅 Antigüedad: Todos</option>
-          <option value="over_7d">⚠️ Inactivos (+1 semana)</option>
-          <option value="under_7d">⚡ Recientes (&lt;1 semana)</option>
-        </select>
-
-        {/* Botón Limpiar Filtros */}
-        {hasActiveFilters && (
-          <button 
-            type="button" 
-            className="btn btn-secondary btn-sm"
-            onClick={handleClearFilters}
-            style={{ fontSize: '0.75rem', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-          >
-            <RotateCcw size={12} />
-            <span>Limpiar filtros</span>
-          </button>
-        )}
-
-        <div style={{ marginLeft: 'auto', fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="kanban-count-summary">
           <span>Mostrando <strong>{filteredLeads.length}</strong> de <strong>{leads.length}</strong> leads</span>
         </div>
       </div>
