@@ -24,10 +24,33 @@ import {
   SlidersHorizontal,
   AlertTriangle,
   X,
-  ArrowRight
+  ArrowRight,
+  User,
+  CreditCard,
+  Zap
 } from 'lucide-react';
 import DistrictCombobox from './DistrictCombobox.jsx';
 import { INITIAL_PRODUCTS } from '../data/initialData.js';
+
+export const getRubroStyle = (rubro) => {
+  const r = String(rubro || '').toLowerCase().trim();
+  if (r.includes('restaurante') || r.includes('cafeter') || r.includes('comida') || r.includes('bar') || r.includes('gastronom')) {
+    return { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24', border: 'rgba(245, 158, 11, 0.35)' };
+  }
+  if (r.includes('barber') || r.includes('estét') || r.includes('peluquer') || r.includes('belleza') || r.includes('spa')) {
+    return { bg: 'rgba(168, 85, 247, 0.15)', text: '#c084fc', border: 'rgba(168, 85, 247, 0.35)' };
+  }
+  if (r.includes('salud') || r.includes('clínic') || r.includes('dental') || r.includes('médic') || r.includes('odontolog')) {
+    return { bg: 'rgba(6, 182, 212, 0.15)', text: '#22d3ee', border: 'rgba(6, 182, 212, 0.35)' };
+  }
+  if (r.includes('lavander')) {
+    return { bg: 'rgba(56, 189, 248, 0.15)', text: '#38bdf8', border: 'rgba(56, 189, 248, 0.35)' };
+  }
+  if (r.includes('auto') || r.includes('conduc') || r.includes('taller') || r.includes('mecánic')) {
+    return { bg: 'rgba(244, 63, 94, 0.15)', text: '#fb7185', border: 'rgba(244, 63, 94, 0.35)' };
+  }
+  return { bg: 'rgba(148, 163, 184, 0.15)', text: '#cbd5e1', border: 'rgba(148, 163, 184, 0.28)' };
+};
 
 export const STAGES = [
   { id: 'prospecto', label: '1. Prospecto', color: '#64748b' },
@@ -770,18 +793,8 @@ export default function KanbanView({
         </div>
       )}
 
-      {/* Selector Táctil de Fases en Móvil */}
-      <div 
-        style={{ 
-          display: 'flex', 
-          gap: '6px', 
-          overflowX: 'auto', 
-          whiteSpace: 'nowrap',
-          paddingBottom: '8px', 
-          marginBottom: '6px',
-          WebkitOverflowScrolling: 'touch'
-        }}
-      >
+      {/* Selector Táctil de Fases en Móvil y Desktop */}
+      <div className="kanban-stage-tabs">
         <button 
           type="button"
           className={`btn btn-sm ${mobileStageFilter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
@@ -808,277 +821,286 @@ export default function KanbanView({
         })}
       </div>
 
-      {/* Tablero Kanban Full Width */}
+      {/* Tablero Kanban Full Width con Scroll Independiente por Columna */}
       <div className="kanban-board">
         {(mobileStageFilter === 'all' ? STAGES : STAGES.filter(s => s.id === mobileStageFilter)).map(stage => {
           const stageLeads = filteredLeads.filter(l => normalizeLeadStage(l.stage) === stage.id);
           const totalValue = stageLeads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
+          const isSingleStage = mobileStageFilter !== 'all';
 
           return (
-            <div key={stage.id} className="kanban-column">
+            <div key={stage.id} className={`kanban-column ${isSingleStage ? 'single-stage-view' : ''}`}>
               <div className="kanban-col-header">
                 <div className="kanban-col-title">
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: stage.color, flexShrink: 0 }} />
+                  <div style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: stage.color, flexShrink: 0, boxShadow: `0 0 8px ${stage.color}88` }} />
                   <span>{stage.label}</span>
                 </div>
                 <span className="kanban-col-count">{stageLeads.length}</span>
               </div>
 
-              <div style={{ padding: '4px 10px', fontSize: '0.7rem', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Total:</span>
-                <strong style={{ color: 'var(--text-main)' }}>S/ {totalValue.toFixed(2)}</strong>
+              <div className="kanban-col-subtotal">
+                <span>Subtotal Fase:</span>
+                <strong style={{ color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>S/ {totalValue.toFixed(2)}</strong>
               </div>
 
               <div className="kanban-col-body">
                 {stageLeads.length === 0 ? (
-                  <div style={{ padding: '28px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.74rem' }}>
-                    Sin prospectos en esta fase
+                  <div className="kanban-empty-state">
+                    <div className="kanban-empty-icon">
+                      <Sparkles size={18} />
+                    </div>
+                    <span style={{ fontWeight: 600, fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
+                      Sin prospectos en esta fase
+                    </span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                      {stage.id === 'entregado' ? 'Aquí figurarán las ventas concretadas' : 'Usa el selector o añade un nuevo lead'}
+                    </span>
                   </div>
                 ) : (
                   stageLeads.map(lead => {
-                  const associatedSale = sales.find(s => 
-                    (s.leadId && s.leadId === lead.id) || 
-                    (s.clientName && lead.businessName && s.clientName.trim().toLowerCase() === lead.businessName.trim().toLowerCase())
-                  );
-                  const isDelivered = normalizeLeadStage(lead.stage) === 'entregado';
+                    const associatedSale = sales.find(s => 
+                      (s.leadId && s.leadId === lead.id) || 
+                      (s.clientName && lead.businessName && s.clientName.trim().toLowerCase() === lead.businessName.trim().toLowerCase())
+                    );
+                    const rubroStyle = getRubroStyle(lead.rubro);
+                    const mapsUrl = formatGoogleMapsUrl(lead.googleMapsUrl, {
+                      businessName: lead.businessName,
+                      address: lead.address,
+                      district: lead.district
+                    });
 
-                  return (
-                  <div 
-                    key={lead.id} 
-                    className="kanban-card"
-                    onClick={() => handleOpenEditLead(lead)}
-                    title="Clic para ver o editar información del prospecto"
-                  >
-                    {/* Fila 1: Rubro, Estado Contactado y Monto */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px', gap: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span className="badge badge-blue" style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
-                          {lead.rubro || 'General'}
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const nextContacted = !lead.contacted;
-                            const updated = { ...lead, contacted: nextContacted };
-                            if (onUpdateLead) onUpdateLead(updated);
-                            if (showToast) {
-                              showToast(
-                                nextContacted 
-                                  ? `✅ "${lead.businessName}" marcado como contactado` 
-                                  : `⏳ "${lead.businessName}" marcado como pendiente de contacto`, 
-                                'info', 
-                                1400
-                              );
-                            }
-                          }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '2px',
-                            padding: '1px 5px',
-                            borderRadius: '10px',
-                            fontSize: '0.62rem',
-                            fontWeight: 600,
-                            border: lead.contacted ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(239, 68, 68, 0.35)',
-                            backgroundColor: lead.contacted ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.1)',
-                            color: lead.contacted ? '#10b981' : '#f87171',
-                            cursor: 'pointer'
-                          }}
-                          title="Clic para alternar si se contactó o no"
-                        >
-                          {lead.contacted ? <CheckCircle2 size={9} color="#10b981" /> : <XCircle size={9} color="#f87171" />}
-                          <span>{lead.contacted ? 'Contactado' : 'Sin contactar'}</span>
-                        </button>
-                      </div>
-
-                      <span style={{ fontWeight: 800, color: '#10b981', fontSize: '0.8rem' }}>
-                        S/ {lead.estimatedValue}
-                      </span>
-                    </div>
-
-                    {/* Fila 2: Nombre del Negocio / Cliente */}
-                    <div className="kanban-card-title">{lead.businessName}</div>
-
-                    {/* Fila 3: Ubicación y Contacto relevante */}
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      <MapPin size={10} color="#3b82f6" style={{ flexShrink: 0 }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{lead.district || 'Lima'}</span>
-                      {lead.contactName && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>• {lead.contactName.split(' ')[0]}</span>}
-                      {lead.googleMapsUrl && (
-                        <a 
-                          href={formatGoogleMapsUrl(lead.googleMapsUrl, { businessName: lead.businessName, address: lead.address, district: lead.district })}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          style={{ color: '#3b82f6', display: 'inline-flex', alignItems: 'center' }}
-                          title="Abrir en Maps"
-                        >
-                          <ExternalLink size={9} />
-                        </a>
-                      )}
-                    </div>
-
-                    {/* Fila 4: Producto / Nota relevante (solo si existe y no es genérico) */}
-                    {( (lead.interestedProduct && lead.interestedProduct !== 'Por definir') || (lead.nextStepNote && lead.nextStepNote !== 'Seguimiento comercial') ) && (
-                      <div style={{ fontSize: '0.67rem', color: 'var(--text-subtle)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {lead.interestedProduct && lead.interestedProduct !== 'Por definir' ? `📦 ${lead.interestedProduct}` : `👉 ${lead.nextStepNote}`}
-                      </div>
-                    )}
-
-                    {/* Alerta compacta si lleva +7 días */}
-                    {isLeadOverOneWeek(lead) && normalizeLeadStage(lead.stage) !== 'no_hecha_o_espera' && (
+                    return (
                       <div 
-                        style={{
-                          marginTop: '3px',
-                          padding: '2px 5px',
-                          borderRadius: 'var(--radius-xs)',
-                          backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                          border: '1px solid rgba(244, 63, 94, 0.25)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          fontSize: '0.64rem',
-                          color: '#fda4af',
-                          fontWeight: 600
-                        }}
+                        key={lead.id} 
+                        className="kanban-card"
+                        onClick={() => handleOpenEditLead(lead)}
+                        title="Clic para ver o editar información del prospecto"
                       >
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <Clock size={9} color="#f43f5e" /> +7 días
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStageChange(lead.id, 'no_hecha_o_espera');
-                          }}
-                          style={{
-                            background: 'rgba(244, 63, 94, 0.25)',
-                            border: 'none',
-                            borderRadius: '3px',
-                            color: '#fff',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            padding: '1px 4px',
-                            fontSize: '0.62rem'
-                          }}
-                          title="Enviar a 7. Venta no hecha o cliente en espera"
-                        >
-                          A Espera →
-                        </button>
-                      </div>
-                    )}
+                        {/* Fila 1: Rubro específico, Estado de Contacto y Monto Estimado */}
+                        <div className="kanban-card-top">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflow: 'hidden' }}>
+                            <span 
+                              className="kanban-rubro-badge"
+                              style={{ 
+                                backgroundColor: rubroStyle.bg, 
+                                color: rubroStyle.text, 
+                                border: `1px solid ${rubroStyle.border}` 
+                              }}
+                              title={`Rubro: ${lead.rubro || 'General'}`}
+                            >
+                              {lead.rubro || 'General'}
+                            </span>
 
-                    {/* Footer compacto con vendedor y acciones clave */}
-                    <div className="kanban-card-footer">
-                      <span style={{ fontSize: '0.67rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                        {lead.assignedTo === 'luis' ? '👨‍💼 Luis' : '🚀 Kevin'}
-                      </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const nextContacted = !lead.contacted;
+                                const updated = { ...lead, contacted: nextContacted };
+                                if (onUpdateLead) onUpdateLead(updated);
+                                if (showToast) {
+                                  showToast(
+                                    nextContacted 
+                                      ? `✅ "${lead.businessName}" marcado como contactado` 
+                                      : `⏳ "${lead.businessName}" marcado como pendiente de contacto`, 
+                                    'info', 
+                                    1400
+                                  );
+                                }
+                              }}
+                              className={`kanban-contact-pill ${lead.contacted ? 'contacted' : 'pending'}`}
+                              title="Clic para alternar si se contactó o no"
+                            >
+                              {lead.contacted ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                              <span>{lead.contacted ? 'Contactado' : 'Sin contactar'}</span>
+                            </button>
+                          </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        {/* WhatsApp directo */}
-                        {lead.phone && (
-                          <a 
-                            href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + lead.phone.replace(/[^0-9]/g, '') : lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildLeadWhatsAppMessage(lead, 'vendible'))}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn-icon"
-                            style={{ width: '22px', height: '22px', color: '#10b981', padding: 0 }}
-                            onClick={(e) => e.stopPropagation()}
-                            title="Chat WhatsApp"
-                          >
-                            <Phone size={11} />
-                          </a>
+                          <span className="kanban-card-price">
+                            S/ {Number(lead.estimatedValue || 0).toFixed(2)}
+                          </span>
+                        </div>
+
+                        {/* Fila 2: Nombre del Negocio / Cliente en tipografía destacada */}
+                        <h4 className="kanban-card-title" title={lead.businessName}>
+                          {lead.businessName}
+                        </h4>
+
+                        {/* Fila 3: Ubicación específica con Distrito, Dirección y Enlace a Maps */}
+                        <div className="kanban-info-row">
+                          <MapPin size={12} className="kanban-info-icon" style={{ color: '#38bdf8' }} />
+                          <span className="kanban-info-district">{lead.district || 'Lima'}</span>
+                          {lead.address && (
+                            <span className="kanban-info-address" title={lead.address}>
+                              • {lead.address}
+                            </span>
+                          )}
+                          {mapsUrl && (
+                            <a 
+                              href={mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="kanban-maps-badge"
+                              title="Abrir ubicación exacta en Google Maps"
+                            >
+                              <span>Mapa</span>
+                              <ExternalLink size={9} />
+                            </a>
+                          )}
+                        </div>
+
+                        {/* Fila 4: Contacto / Encargado y Teléfono si existen */}
+                        {(lead.contactName || lead.phone) && (
+                          <div className="kanban-info-row">
+                            <User size={12} className="kanban-info-icon" style={{ color: '#94a3b8' }} />
+                            {lead.contactName && (
+                              <span className="kanban-info-contact" title={`Contacto: ${lead.contactName}`}>
+                                {lead.contactName}
+                              </span>
+                            )}
+                            {lead.contactName && lead.phone && <span style={{ opacity: 0.4 }}>•</span>}
+                            {lead.phone && (
+                              <span className="kanban-info-phone" title={`Teléfono: ${lead.phone}`}>
+                                {lead.phone}
+                              </span>
+                            )}
+                          </div>
                         )}
 
-                        {/* Speech modal */}
-                        <button 
-                          type="button"
-                          className="btn-icon"
-                          style={{ width: '22px', height: '22px', color: '#3b82f6', padding: 0 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenSpeechModal(lead);
-                          }}
-                          title="Speech de ventas"
-                        >
-                          <MessageSquare size={11} />
-                        </button>
+                        {/* Fila 5: Producto de Interés (si existe y no es genérico) */}
+                        {lead.interestedProduct && lead.interestedProduct !== 'Por definir' && (
+                          <div className="kanban-product-badge" title={`Producto solicitado: ${lead.interestedProduct}`}>
+                            <CreditCard size={11} style={{ flexShrink: 0, color: '#a78bfa' }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {lead.interestedProduct}
+                            </span>
+                          </div>
+                        )}
 
-                        {/* Botón / Estado de Venta */}
-                        {associatedSale ? (
-                          <span 
-                            style={{ fontSize: '0.63rem', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: 700 }}
-                            title={`Venta registrada #${associatedSale.saleNumber || associatedSale.id}`}
-                          >
-                            ✓ Venta
-                          </span>
-                        ) : normalizeLeadStage(lead.stage) !== 'postventa' ? (
-                          <button 
-                            type="button"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '2px',
-                              fontSize: '0.63rem',
-                              padding: '1px 5px',
-                              borderRadius: '4px',
-                              backgroundColor: '#10b981',
-                              color: '#fff',
-                              border: 'none',
-                              fontWeight: 700,
-                              cursor: 'pointer'
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenConvert(lead);
-                            }}
-                            title="Convertir en Venta Directa"
-                          >
-                            <Sparkles size={9} />
-                            <span>Venta</span>
-                          </button>
-                        ) : null}
+                        {/* Fila 6: Próximo Paso Comercial / Nota de Seguimiento */}
+                        {lead.nextStepNote && lead.nextStepNote !== 'Seguimiento comercial' && (
+                          <div className="kanban-nextstep-badge" title={`Próximo paso: ${lead.nextStepNote}`}>
+                            <Zap size={11} style={{ flexShrink: 0, color: '#fbbf24' }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {lead.nextStepNote}
+                            </span>
+                          </div>
+                        )}
 
-                        {/* Selector de fase */}
-                        <select 
-                          style={{
-                            fontSize: '0.64rem',
-                            padding: '1px 2px',
-                            borderRadius: 'var(--radius-xs)',
-                            background: 'var(--bg-input)',
-                            color: 'var(--text-main)',
-                            border: '1px solid var(--border-subtle)',
-                            maxWidth: '72px'
-                          }}
-                          value={normalizeLeadStage(lead.stage)}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => handleStageChange(lead.id, e.target.value)}
-                        >
-                          {STAGES.map(s => (
-                            <option key={s.id} value={s.id}>{s.label.split('.')[1] || s.label}</option>
-                          ))}
-                        </select>
+                        {/* Alerta de Inactividad (+7 días) */}
+                        {isLeadOverOneWeek(lead) && normalizeLeadStage(lead.stage) !== 'no_hecha_o_espera' && (
+                          <div className="kanban-alert-overdue">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <AlertTriangle size={11} color="#f43f5e" />
+                              <span>+7 días sin avance</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStageChange(lead.id, 'no_hecha_o_espera');
+                              }}
+                              className="kanban-alert-btn"
+                              title="Trasladar a 7. Venta no hecha o cliente en espera"
+                            >
+                              A Espera →
+                            </button>
+                          </div>
+                        )}
 
-                        {/* Eliminar lead */}
-                        <button 
-                          type="button"
-                          className="btn-icon"
-                          style={{ width: '22px', height: '22px', color: '#ef4444', padding: 0 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRequestDelete && onRequestDelete(lead, 'Lead');
-                          }}
-                          title="Eliminar prospecto"
-                        >
-                          <Trash2 size={11} />
-                        </button>
+                        {/* Footer con Vendedor, Acciones Rápidas y Selector de Fase Completo */}
+                        <div className="kanban-card-footer">
+                          <div className="kanban-card-footer-top">
+                            <span className="kanban-seller-tag">
+                              {lead.assignedTo === 'luis' ? '👨‍💼 Luis' : '🚀 Kevin'}
+                            </span>
+
+                            <div className="kanban-card-actions">
+                              {/* WhatsApp directo */}
+                              {lead.phone && (
+                                <a 
+                                  href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '').length === 9 ? '51' + lead.phone.replace(/[^0-9]/g, '') : lead.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildLeadWhatsAppMessage(lead, 'vendible'))}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="kanban-action-btn whatsapp"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="Abrir chat de WhatsApp con speech de ventas"
+                                >
+                                  <Phone size={12} />
+                                </a>
+                              )}
+
+                              {/* Speech modal */}
+                              <button 
+                                type="button"
+                                className="kanban-action-btn speech"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenSpeechModal(lead);
+                                }}
+                                title="Abrir generador de Speech de Ventas"
+                              >
+                                <MessageSquare size={12} />
+                              </button>
+
+                              {/* Botón o Estado de Venta */}
+                              {associatedSale ? (
+                                <span 
+                                  className="kanban-sale-badge"
+                                  title={`Venta registrada #${associatedSale.saleNumber || associatedSale.id}`}
+                                >
+                                  ✓ Venta
+                                </span>
+                              ) : normalizeLeadStage(lead.stage) !== 'postventa' ? (
+                                <button 
+                                  type="button"
+                                  className="kanban-sale-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenConvert(lead);
+                                  }}
+                                  title="Convertir este prospecto en Venta Directa"
+                                >
+                                  <Sparkles size={10} />
+                                  <span>+ Venta</span>
+                                </button>
+                              ) : null}
+
+                              {/* Eliminar lead */}
+                              <button 
+                                type="button"
+                                className="kanban-action-btn delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRequestDelete && onRequestDelete(lead, 'Lead');
+                                }}
+                                title="Eliminar prospecto"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Selector de Fase a Ancho Completo sin Cortes */}
+                          <div className="kanban-card-stage-row" onClick={(e) => e.stopPropagation()}>
+                            <span className="kanban-stage-row-label">Fase:</span>
+                            <select 
+                              className="kanban-card-stage-select"
+                              value={normalizeLeadStage(lead.stage)}
+                              onChange={(e) => handleStageChange(lead.id, e.target.value)}
+                              title="Cambiar fase de este prospecto"
+                            >
+                              {STAGES.map(s => (
+                                <option key={s.id} value={s.id}>{s.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              }))}
+                    );
+                  })
+                )}
               </div>
             </div>
           );

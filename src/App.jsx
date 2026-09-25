@@ -1891,7 +1891,7 @@ export default function App() {
       <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} nfcCardsCount={nfcCards.length} leadsCount={leads.filter(l => l.stage !== 'entregado' && l.stage !== 'postventa').length} inventoryAlertsCount={inventory.filter(i => i.quantity <= i.minThreshold).length} auditLogsCount={auditLogs.length} productsCount={products.length} partnerBalance={partnerBalance} expenses={expenses} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} mobileOpen={mobileMenuOpen} onCloseMobileMenu={() => setMobileMenuOpen(false)} onOpenMasterData={() => setIsMasterDataModalOpen(true)} partnersState={partnersState} currentUser={currentUser} onOpenProfile={() => setIsProfileModalOpen(true)} isCloudReady={isSupabaseConfigured} onOpenNewSale={handleOpenNewSaleModal} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onExportExcel={handleExportExcel} />
 
       {/* Contenido Principal */}
-      <div className="main-content">
+      <div className={`main-content ${currentTab === 'pipeline' ? 'main-content-kanban' : ''}`}>
         <Navbar currentTheme={theme} toggleTheme={toggleTheme} partnersState={partnersState} currentTab={currentTab} setCurrentTab={setCurrentTab} sidebarCollapsed={sidebarCollapsed} toggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)} onPartnerStatusChange={(pId, status) => {
         setPartnersState(prev => ({
           ...prev,
@@ -1902,7 +1902,7 @@ export default function App() {
         }));
       }} onOpenNewSale={handleOpenNewSaleModal} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onOpenNewNfc={() => setCurrentTab('nfc-traceability')} onExportExcel={handleExportExcel} toggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)} currentUser={currentUser} onOpenProfile={() => setIsProfileModalOpen(true)} onOpenMasterData={() => setIsMasterDataModalOpen(true)} onResetToZero={handleResetToZero} onLoadDemoData={handleLoadDemoData} isCloudReady={isSupabaseConfigured} onSyncCloud={() => loadCloudData(true)} isSyncing={isSyncing} />
 
-        <main className="content-body" inert={cloud.status === "loading" || cloud.status === "error" ? true : undefined}>
+        <main className={`content-body ${currentTab === 'pipeline' ? 'content-body-kanban' : ''}`} inert={cloud.status === "loading" || cloud.status === "error" ? true : undefined}>
 <Suspense fallback={<p>Cargando módulo…</p>}>
           {/* MÓDULO 1: Dashboard General */}
           {currentTab === 'dashboard' && <DashboardView sales={sales} expenses={expenses} nfcCards={nfcCards} inventory={inventory} leads={leads} targets={dynamicTargets} partnerBalance={partnerBalance} setCurrentTab={setCurrentTab} onOpenCardDetails={card => {
