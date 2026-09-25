@@ -223,11 +223,13 @@ export default function App() {
       );
 
       if (!existing) {
-        const cost = Number(item.unitCost) || 13.00;
+        const cost = Number(item.unitCost) || 12.96;
         let price = 60.00;
-        if (item.sku === 'SKU-LNK-9972' || normName.includes('formato l') || normName.includes(' l esp')) {
+        if (item.sku === 'SKU-LNK-9972' || normName.includes('formato l') || normName.includes(' l esp') || normName.includes('display')) {
           price = 80.00;
-        } else if (item.sku === 'SKU-LNK-1367' || item.sku === 'SKU-LNK-6781') {
+        } else if (item.sku === 'SKU-LNK-4951' || normName.includes('carnet') || normName.includes('vertical')) {
+          price = 40.00;
+        } else if (item.sku === 'SKU-LNK-1367' || item.sku === 'SKU-LNK-6781' || normName.includes('cuadrad') || normName.includes('horizontal')) {
           price = 60.00;
         } else if (cost > 0) {
           price = Number((cost * 2.5).toFixed(2));
@@ -248,7 +250,8 @@ export default function App() {
           margin: Number(margin.toFixed(2)),
           marginPct,
           stock: Number(item.quantity) || 0,
-          badge: item.sku === 'SKU-LNK-9972' ? 'Premium' : 'Popular',
+          badge: (item.sku === 'SKU-LNK-9972' || normName.includes('display')) ? 'Premium' :
+                 (item.sku === 'SKU-LNK-4951' || normName.includes('carnet')) ? 'Portátil' : 'Popular',
           description: item.notes || `Producto oficial configurado con chip NFC para Google Reviews.`,
           bundleItems: []
         });
@@ -259,7 +262,7 @@ export default function App() {
       } else {
         existing.stock = Number(item.quantity) || 0;
         if (!existing.inventoryId) existing.inventoryId = item.id;
-        if (item.unitCost && (!existing.cost || existing.cost === 13)) {
+        if (item.unitCost && (!existing.cost || existing.cost === 13 || existing.cost === 60)) {
           existing.cost = Number(item.unitCost);
           existing.margin = Math.max(0, Number((existing.price - existing.cost).toFixed(2)));
           existing.marginPct = existing.price > 0 ? Number(((existing.margin / existing.price) * 100).toFixed(1)) : 0;
@@ -267,10 +270,13 @@ export default function App() {
       }
     });
 
-    // 3. Garantizar cálculo de stock en tiempo real para todos los productos y packs
+    // 3. Garantizar cálculo de stock y recálculo limpio de costos de insumos para packs
     list.forEach(p => {
       if (p.bundleItems && Array.isArray(p.bundleItems) && p.bundleItems.length > 0) {
         let minPack = Infinity;
+        let packCost = 0;
+        let packRegularPrice = 0;
+
         p.bundleItems.forEach(b => {
           const invItem = inventory.find(i => 
             i.id === b.id || i.sku === b.sku || 
@@ -280,8 +286,37 @@ export default function App() {
           const reqQty = Number(b.quantity) || 1;
           const packs = Math.floor(invQty / reqQty);
           if (packs < minPack) minPack = packs;
+
+          const unitCost = invItem ? (Number(invItem.unitCost) || 12.96) : (Number(b.unitCost) || 12.96);
+          packCost += unitCost * reqQty;
+
+          // Precio de venta por separado
+          const matchedProd = list.find(prod => 
+            (!prod.bundleItems || prod.bundleItems.length === 0) &&
+            ((invItem && prod.inventoryId === invItem.id) || (b.sku && prod.sku === b.sku) || (b.name && prod.name && prod.name.toLowerCase().includes(b.name.toLowerCase())))
+          );
+          if (matchedProd && Number(matchedProd.price) > 0) {
+            packRegularPrice += Number(matchedProd.price) * reqQty;
+          } else {
+            const bNorm = (b.name || '').toLowerCase();
+            const bSku = (b.sku || '').toUpperCase();
+            if (bSku.includes('9972') || bNorm.includes('display') || bNorm.includes('formato l')) {
+              packRegularPrice += 80.00 * reqQty;
+            } else if (bSku.includes('4951') || bNorm.includes('carnet') || bNorm.includes('vertical')) {
+              packRegularPrice += 40.00 * reqQty;
+            } else {
+              packRegularPrice += 60.00 * reqQty;
+            }
+          }
         });
+
         p.stock = minPack === Infinity ? 0 : Math.max(0, minPack);
+        p.cost = Number(packCost.toFixed(2));
+        if (!p.regularPrice || p.regularPrice < p.price) {
+          p.regularPrice = Number(packRegularPrice.toFixed(2));
+        }
+        p.margin = Math.max(0, Number((p.price - p.cost).toFixed(2)));
+        p.marginPct = p.price > 0 ? Number(((p.margin / p.price) * 100).toFixed(1)) : 0;
       } else {
         const invItem = inventory.find(i => 
           (p.inventoryId && i.id === p.inventoryId) || 
@@ -290,6 +325,11 @@ export default function App() {
         );
         if (invItem) {
           p.stock = Math.max(0, Number(invItem.quantity) || 0);
+          if (invItem.unitCost && (!p.cost || p.cost === 60 || p.cost === 13)) {
+            p.cost = Number(invItem.unitCost);
+            p.margin = Math.max(0, Number((p.price - p.cost).toFixed(2)));
+            p.marginPct = p.price > 0 ? Number(((p.margin / p.price) * 100).toFixed(1)) : 0;
+          }
         } else if (p.stock === undefined) {
           p.stock = 0;
         }

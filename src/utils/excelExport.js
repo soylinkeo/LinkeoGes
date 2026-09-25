@@ -111,20 +111,37 @@ export function exportLinkeoGesToExcel({
 
   // 5. HOJA: CONTROL DE INVENTARIO Y STOCK
   const invHeaders = [
-    ['SKU', 'Nombre de Insumo / Producto', 'Categoría', 'Stock Actual', 'Mínimo de Alerta', 'Costo Unitario (S/)', 'Valor Total en Stock (S/)', 'Proveedor Principal', 'Tiempo Reposición (Días)', 'Estado']
+    ['SKU', 'Nombre de Insumo / Producto', 'Categoría', 'Stock Actual', 'Mínimo de Alerta', 'Costo Unit. Compra (S/)', 'Valor Total Compra (S/)', 'Precio Venta Unit. (S/)', 'Valor Total Venta (S/)', 'Ganancia Bruta Potencial (S/)', 'Proveedor Principal', 'Tiempo Reposición (Días)', 'Estado']
   ];
-  const invRows = inventory.map(i => [
-    i.sku,
-    i.name,
-    i.category,
-    i.quantity,
-    i.minThreshold,
-    i.unitCost,
-    (i.quantity * i.unitCost).toFixed(2),
-    i.supplier,
-    i.leadTimeDays,
-    i.quantity <= i.minThreshold ? 'ALERTA REPOSICIÓN' : 'ÓPTIMO'
-  ]);
+  const invRows = inventory.map(i => {
+    const cost = Number(i.unitCost) || 0;
+    const qty = Number(i.quantity) || 0;
+    const totalCost = qty * cost;
+    const norm = (i.name || '').toLowerCase();
+    const sku = (i.sku || '').toUpperCase();
+    let retailPrice = 60.00;
+    if (sku.includes('9972') || norm.includes('display') || norm.includes('formato l')) retailPrice = 80.00;
+    else if (sku.includes('4951') || norm.includes('carnet') || norm.includes('vertical')) retailPrice = 40.00;
+    else if (cost > 0) retailPrice = Number((cost * 2.5).toFixed(2));
+    const totalRetail = qty * retailPrice;
+    const profit = Math.max(0, totalRetail - totalCost);
+
+    return [
+      i.sku,
+      i.name,
+      i.category,
+      qty,
+      i.minThreshold,
+      cost.toFixed(2),
+      totalCost.toFixed(2),
+      retailPrice.toFixed(2),
+      totalRetail.toFixed(2),
+      profit.toFixed(2),
+      i.supplier,
+      i.leadTimeDays,
+      qty <= i.minThreshold ? 'ALERTA REPOSICIÓN' : 'ÓPTIMO'
+    ];
+  });
   const wsInv = XLSX.utils.aoa_to_sheet([...invHeaders, ...invRows]);
   XLSX.utils.book_append_sheet(wb, wsInv, 'Inventario');
 

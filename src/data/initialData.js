@@ -34,7 +34,7 @@ export const INITIAL_INVENTORY = [
     category: 'CHIPS / INSUMOS',
     quantity: 1,
     minThreshold: 10,
-    unitCost: 60.00,
+    unitCost: 12.93,
     supplier: 'HACHANI_UN Official Store',
     leadTimeDays: 13,
     status: 'bajo',
@@ -68,6 +68,20 @@ export const INITIAL_INVENTORY = [
     status: 'optimo',
     reorderUrl: 'https://es.aliexpress.com/',
     notes: 'Insumo formato vertical L para mostrador y mesa con chip NTAG215. Lote inicial fabricado (15 uds).'
+  },
+  {
+    id: 'inv-carnet',
+    sku: 'SKU-LNK-4951',
+    name: 'Tarjeta Google NFC Carnet ESP',
+    category: 'CHIPS / INSUMOS',
+    quantity: 10,
+    minThreshold: 5,
+    unitCost: 12.93,
+    supplier: 'HACHANI_UN Official Store',
+    leadTimeDays: 13,
+    status: 'optimo',
+    reorderUrl: 'https://es.aliexpress.com/',
+    notes: 'Insumo tarjeta vertical formato carnet portátil con chip NTAG215.'
   },
   {
     id: 'inv-4',
@@ -112,7 +126,7 @@ export const INITIAL_PRODUCTS = [
     margin: 47.07,
     marginPct: 78.45,
     badge: 'Popular',
-    description: 'Tarjeta inteligente con chip NTAG215 para reseñas de Google en español. Diseñada para mostrador y barras de restaurantes.',
+    description: 'Tarjeta inteligente horizontal con chip NTAG215 para reseñas de Google en español. Diseñada para mostrador y barras de restaurantes.',
     bundleItems: []
   },
   {
@@ -138,11 +152,26 @@ export const INITIAL_PRODUCTS = [
     category: 'Individual',
     type: 'individual',
     price: 60.00,
-    cost: 60.00,
-    margin: 0.00,
-    marginPct: 0.00,
+    cost: 12.93,
+    margin: 47.07,
+    marginPct: 78.45,
     badge: 'Inglés',
     description: 'Tarjeta inteligente con chip NTAG215 para reseñas de Google versión en inglés para hoteles y turismo.',
+    bundleItems: []
+  },
+  {
+    id: 'prod-ind-4',
+    inventoryId: 'inv-carnet',
+    name: 'Tarjeta Google NFC Carnet ESP',
+    sku: 'SKU-LNK-4951',
+    category: 'Individual',
+    type: 'individual',
+    price: 40.00,
+    cost: 12.93,
+    margin: 27.07,
+    marginPct: 67.68,
+    badge: 'Portátil',
+    description: 'Tarjeta vertical formato carnet portátil, práctica y elegante para llevar la conexión consigo.',
     bundleItems: []
   },
   {
@@ -152,13 +181,14 @@ export const INITIAL_PRODUCTS = [
     category: 'Pack',
     type: 'pack',
     price: 100.00,
-    cost: 120.00,
-    margin: 0.00,
-    marginPct: 0.00,
+    cost: 25.86,
+    regularPrice: 120.00,
+    margin: 74.14,
+    marginPct: 74.14,
     badge: 'Ahorro S/ 20',
     description: 'Promoción especial para locales con dos puntos de contacto (Caja + Barra). Incluye 2 tarjetas inteligentes configuradas.',
     bundleItems: [
-      { id: 'inv-2', sku: 'SKU-LNK-6781', name: 'Tarjeta Google NFC Cuadrado ESP', quantity: 2 }
+      { id: 'inv-2', sku: 'SKU-LNK-6781', name: 'Tarjeta Google NFC Cuadrado ESP', quantity: 2, unitCost: 12.93 }
     ]
   },
   {
@@ -168,15 +198,88 @@ export const INITIAL_PRODUCTS = [
     category: 'Pack',
     type: 'pack',
     price: 160.00,
-    cost: 150.00,
-    margin: 10.00,
-    marginPct: 6.25,
+    cost: 38.79,
+    regularPrice: 200.00,
+    margin: 121.21,
+    marginPct: 75.76,
     badge: 'Más Vendido',
     description: 'Combo empresarial: 2 Tarjetas Cuadradas + 1 Tarjeta Formato L + 1 Base acrílica para locales gastronómicos o retail.',
     bundleItems: [
-      { id: 'inv-2', sku: 'SKU-LNK-6781', name: 'Tarjeta Google NFC Cuadrado ESP', quantity: 2 },
-      { id: 'inv-3', sku: 'SKU-LNK-9972', name: 'Tarjeta Google NFC L ESP', quantity: 1 },
-      { id: 'inv-4', sku: 'SKU-LNK-BASE', name: 'Base Acrílica Display de Mesa', quantity: 1 }
+      { id: 'inv-2', sku: 'SKU-LNK-6781', name: 'Tarjeta Google NFC Cuadrado ESP', quantity: 2, unitCost: 12.93 },
+      { id: 'inv-3', sku: 'SKU-LNK-9972', name: 'Tarjeta Google NFC L ESP', quantity: 1, unitCost: 12.93 }
+    ]
+  },
+  {
+    id: 'prod-pack-emprendedor',
+    name: 'Pack Emprendedor (Horizontal + Vertical)',
+    sku: 'SKU-PACK-EMPRENDEDOR',
+    category: 'Pack',
+    type: 'pack',
+    price: 80.00,
+    cost: 25.86,
+    regularPrice: 100.00,
+    margin: 54.14,
+    marginPct: 67.68,
+    badge: '🔥 Oferta Web',
+    description: 'Pack Emprendedor oficial de la web: 1 Tarjeta Horizontal (PVP S/ 60) + 1 Tarjeta Vertical (PVP S/ 40). Precio regular S/ 100.',
+    bundleItems: [
+      { id: 'inv-2', sku: 'SKU-LNK-6781', name: 'Tarjeta Google NFC Cuadrado ESP', quantity: 1, unitCost: 12.93 },
+      { id: 'inv-carnet', sku: 'SKU-LNK-4951', name: 'Tarjeta Google NFC Carnet ESP', quantity: 1, unitCost: 12.93 }
+    ]
+  },
+  {
+    id: 'prod-pack-negocio',
+    name: 'Pack Negocio (Display de Mesa + Vertical)',
+    sku: 'SKU-PACK-NEGOCIO',
+    category: 'Pack',
+    type: 'pack',
+    price: 100.00,
+    cost: 25.86,
+    regularPrice: 120.00,
+    margin: 74.14,
+    marginPct: 74.14,
+    badge: 'Mostrador + Tarjeta',
+    description: 'Display de Mesa (PVP S/ 80) + Tarjeta Vertical (PVP S/ 40). Precio regular por separado S/ 120.',
+    bundleItems: [
+      { id: 'inv-3', sku: 'SKU-LNK-9972', name: 'Tarjeta Google NFC L ESP', quantity: 1, unitCost: 12.93 },
+      { id: 'inv-carnet', sku: 'SKU-LNK-4951', name: 'Tarjeta Google NFC Carnet ESP', quantity: 1, unitCost: 12.93 }
+    ]
+  },
+  {
+    id: 'prod-pack-duo-premium',
+    name: 'Pack Dúo Premium (Display de Mesa + Horizontal)',
+    sku: 'SKU-PACK-DUO-PREMIUM',
+    category: 'Pack',
+    type: 'pack',
+    price: 120.00,
+    cost: 25.86,
+    regularPrice: 140.00,
+    margin: 94.14,
+    marginPct: 78.45,
+    badge: 'Mayor Presencia',
+    description: 'Display de Mesa (PVP S/ 80) + Tarjeta Horizontal (PVP S/ 60). Precio regular por separado S/ 140.',
+    bundleItems: [
+      { id: 'inv-3', sku: 'SKU-LNK-9972', name: 'Tarjeta Google NFC L ESP', quantity: 1, unitCost: 12.93 },
+      { id: 'inv-2', sku: 'SKU-LNK-6781', name: 'Tarjeta Google NFC Cuadrado ESP', quantity: 1, unitCost: 12.93 }
+    ]
+  },
+  {
+    id: 'prod-pack-full',
+    name: 'Pack Full (Display de Mesa + Horizontal + Vertical)',
+    sku: 'SKU-PACK-FULL',
+    category: 'Pack',
+    type: 'pack',
+    price: 150.00,
+    cost: 38.79,
+    regularPrice: 180.00,
+    margin: 111.21,
+    marginPct: 74.14,
+    badge: '👑 Los 3 Modelos',
+    description: 'Los tres modelos en un solo pack: Display de Mesa + Tarjeta Horizontal + Tarjeta Vertical. Precio regular S/ 180.',
+    bundleItems: [
+      { id: 'inv-3', sku: 'SKU-LNK-9972', name: 'Tarjeta Google NFC L ESP', quantity: 1, unitCost: 12.93 },
+      { id: 'inv-2', sku: 'SKU-LNK-6781', name: 'Tarjeta Google NFC Cuadrado ESP', quantity: 1, unitCost: 12.93 },
+      { id: 'inv-carnet', sku: 'SKU-LNK-4951', name: 'Tarjeta Google NFC Carnet ESP', quantity: 1, unitCost: 12.93 }
     ]
   }
 ];

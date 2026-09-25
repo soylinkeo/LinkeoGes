@@ -24,6 +24,7 @@ import {
   Gift,
   Percent,
   Tag,
+  TrendingUp,
   Info,
   ArrowRight,
   SlidersHorizontal
@@ -253,6 +254,35 @@ export default function InventoryView({
   }, [suppliers, inventory]);
 
   // -------------------------------------------------------------
+  // HELPER: PRECIO OFICIAL DE VENTA (PVP) DE UN INSUMO FÍSICO
+  // -------------------------------------------------------------
+  const getItemRetailPrice = (item) => {
+    if (!item) return 60.00;
+    const matched = products.find(p => 
+      (!p.bundleItems || p.bundleItems.length === 0) && (
+        (item.id && p.inventoryId === item.id) ||
+        (item.sku && p.sku && p.sku.toLowerCase() === item.sku.toLowerCase()) ||
+        (p.name && item.name && p.name.toLowerCase().trim() === item.name.toLowerCase().trim())
+      )
+    );
+    if (matched && Number(matched.price) > 0) return Number(matched.price);
+    const norm = (item.name || '').toLowerCase();
+    const sku = (item.sku || '').toUpperCase();
+    if (sku.includes('9972') || norm.includes('formato l') || norm.includes(' l esp') || norm.includes('display')) {
+      return 80.00;
+    }
+    if (sku.includes('4951') || norm.includes('carnet') || norm.includes('vertical')) {
+      return 40.00;
+    }
+    if (sku.includes('1367') || sku.includes('6781') || norm.includes('cuadrad') || norm.includes('horizontal')) {
+      return 60.00;
+    }
+    if (item.salePrice && Number(item.salePrice) > 0) return Number(item.salePrice);
+    const cost = Number(item.unitCost) || 0;
+    return cost > 0 ? Number((cost * 2.5).toFixed(2)) : 60.00;
+  };
+
+  // -------------------------------------------------------------
   // FORMULARIO: PACK / PROMOCIÓN (UNIR PRODUCTOS)
   // -------------------------------------------------------------
   const [packForm, setPackForm] = useState({
@@ -265,13 +295,24 @@ export default function InventoryView({
   });
 
   const handleOpenPackModal = () => {
-    // Si hay insumos en inventario, pre-seleccionar uno para facilitar al usuario
-    const initialComponents = inventory.length > 0
-      ? [{ id: inventory[0].id, sku: inventory[0].sku, name: inventory[0].name, unitCost: Number(inventory[0].unitCost) || 0, quantity: 2 }]
-      : [];
+    // Si hay insumos en inventario, pre-seleccionar 2 piezas para facilitar el armado
+    let initialComponents = [];
+    if (inventory.length >= 2) {
+      initialComponents = [
+        { id: inventory[0].id, sku: inventory[0].sku, name: inventory[0].name, unitCost: Number(inventory[0].unitCost) || 12.96, quantity: 1 },
+        { id: inventory[1].id, sku: inventory[1].sku, name: inventory[1].name, unitCost: Number(inventory[1].unitCost) || 12.96, quantity: 1 }
+      ];
+    } else if (inventory.length === 1) {
+      initialComponents = [
+        { id: inventory[0].id, sku: inventory[0].sku, name: inventory[0].name, unitCost: Number(inventory[0].unitCost) || 12.96, quantity: 2 }
+      ];
+    }
 
-    const totalInitCost = initialComponents.reduce((sum, c) => sum + (c.unitCost * c.quantity), 0);
-    const suggestedPrice = totalInitCost > 0 ? (totalInitCost * 2.5).toFixed(2) : '99.00';
+    let regularSum = 0;
+    initialComponents.forEach(c => {
+      regularSum += getItemRetailPrice(c) * c.quantity;
+    });
+    const suggestedPrice = regularSum > 0 ? (Math.round((regularSum * 0.8) / 5) * 5).toFixed(2) : '80.00';
 
     setPackForm({
       name: '',
@@ -284,6 +325,68 @@ export default function InventoryView({
         : ''
     });
     setIsPackModalOpen(true);
+  };
+
+  const handleApplyPackPreset = (presetType) => {
+    const findItem = (query) => inventory.find(i => 
+      (i.sku && i.sku.toLowerCase().includes(query.toLowerCase())) ||
+      (i.name && i.name.toLowerCase().includes(query.toLowerCase()))
+    ) || { id: `preset-${query}`, sku: `SKU-${query.toUpperCase()}`, name: query, unitCost: 12.96 };
+
+    const horiz = findItem('cuadrado');
+    const vert = findItem('carnet') || findItem('vertical') || inventory[1] || inventory[0];
+    const disp = findItem('9972') || findItem(' l esp') || findItem('display') || inventory[2] || inventory[0];
+
+    if (presetType === 'emprendedor') {
+      setPackForm({
+        name: 'Pack Emprendedor',
+        sku: 'SKU-PACK-EMPRENDEDOR',
+        badge: '🔥 Más Vendido',
+        promoPrice: '80.00',
+        bundleComponents: [
+          { id: horiz.id, sku: horiz.sku, name: horiz.name, unitCost: Number(horiz.unitCost) || 12.96, quantity: 1 },
+          { id: vert.id, sku: vert.sku, name: vert.name, unitCost: Number(vert.unitCost) || 12.96, quantity: 1 }
+        ],
+        description: 'Incluye: 1 Tarjeta Horizontal (PVP S/ 60) + 1 Tarjeta Vertical (PVP S/ 40). Ideal para empezar a captar reseñas.'
+      });
+    } else if (presetType === 'negocio') {
+      setPackForm({
+        name: 'Pack Negocio',
+        sku: 'SKU-PACK-NEGOCIO',
+        badge: 'Mostrador + Tarjeta',
+        promoPrice: '100.00',
+        bundleComponents: [
+          { id: disp.id, sku: disp.sku, name: disp.name, unitCost: Number(disp.unitCost) || 12.96, quantity: 1 },
+          { id: vert.id, sku: vert.sku, name: vert.name, unitCost: Number(vert.unitCost) || 12.96, quantity: 1 }
+        ],
+        description: 'Incluye: 1 Display de Mesa en L (PVP S/ 80) + 1 Tarjeta Vertical portátil (PVP S/ 40). Para caja y atención en mesa.'
+      });
+    } else if (presetType === 'duo_premium') {
+      setPackForm({
+        name: 'Pack Dúo Premium',
+        sku: 'SKU-PACK-DUO-PREMIUM',
+        badge: 'Mayor Presencia',
+        promoPrice: '120.00',
+        bundleComponents: [
+          { id: disp.id, sku: disp.sku, name: disp.name, unitCost: Number(disp.unitCost) || 12.96, quantity: 1 },
+          { id: horiz.id, sku: horiz.sku, name: horiz.name, unitCost: Number(horiz.unitCost) || 12.96, quantity: 1 }
+        ],
+        description: 'Incluye: 1 Display de Mesa en L (PVP S/ 80) + 1 Tarjeta Horizontal (PVP S/ 60). Mayor presencia en tu local.'
+      });
+    } else if (presetType === 'full') {
+      setPackForm({
+        name: 'Pack Full',
+        sku: 'SKU-PACK-FULL',
+        badge: '👑 Los 3 Modelos',
+        promoPrice: '150.00',
+        bundleComponents: [
+          { id: disp.id, sku: disp.sku, name: disp.name, unitCost: Number(disp.unitCost) || 12.96, quantity: 1 },
+          { id: horiz.id, sku: horiz.sku, name: horiz.name, unitCost: Number(horiz.unitCost) || 12.96, quantity: 1 },
+          { id: vert.id, sku: vert.sku, name: vert.name, unitCost: Number(vert.unitCost) || 12.96, quantity: 1 }
+        ],
+        description: 'Incluye los 3 modelos oficiales: 1 Display de Mesa + 1 Tarjeta Horizontal + 1 Tarjeta Vertical.'
+      });
+    }
   };
 
   const handleAddComponentToPack = (invItem) => {
@@ -303,7 +406,7 @@ export default function InventoryView({
             id: invItem.id, 
             sku: invItem.sku, 
             name: invItem.name, 
-            unitCost: Number(invItem.unitCost) || 0, 
+            unitCost: Number(invItem.unitCost) || 12.96, 
             quantity: 1 
           }
         ];
@@ -336,19 +439,14 @@ export default function InventoryView({
     return packForm.bundleComponents.reduce((acc, c) => acc + (c.unitCost * c.quantity), 0);
   }, [packForm.bundleComponents]);
 
-  // Precio regular estimado: suma de precios estimados individuales (aprox costo * 2.8 o si coincide con producto)
+  // Precio regular por separado: suma real de precios de venta individuales (PVP) de cada insumo
   const packSuggestedRegularPrice = useMemo(() => {
     let regularSum = 0;
     packForm.bundleComponents.forEach(c => {
-      const matchedProd = products.find(p => p.sku === c.sku || p.name.toLowerCase().includes(c.name.toLowerCase()));
-      if (matchedProd && matchedProd.price) {
-        regularSum += Number(matchedProd.price) * c.quantity;
-      } else {
-        regularSum += (c.unitCost * 3) * c.quantity;
-      }
+      regularSum += getItemRetailPrice(c) * (Number(c.quantity) || 1);
     });
-    return Math.max(packTotalCost * 1.5, regularSum);
-  }, [packForm.bundleComponents, products, packTotalCost]);
+    return Number(regularSum.toFixed(2));
+  }, [packForm.bundleComponents, products]);
 
   const promoPriceNum = Number(packForm.promoPrice) || 0;
   const packSavings = Math.max(0, packSuggestedRegularPrice - promoPriceNum);
@@ -892,11 +990,15 @@ export default function InventoryView({
   };
 
   // -------------------------------------------------------------
-  // MÉTRICAS & ALERTAS DE STOCK FÍSICO
+  // MÉTRICAS & ALERTAS DE STOCK FÍSICO (COMPRA VS VENTA VS MARGEN)
   // -------------------------------------------------------------
   const lowStockItems = inventory.filter(i => (Number(i.quantity) || 0) <= (Number(i.minThreshold) || 10));
   const totalStockUnits = inventory.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0);
-  const totalStockValue = inventory.reduce((acc, i) => acc + ((Number(i.quantity) || 0) * (Number(i.unitCost) || 0)), 0);
+  const totalStockCostValue = inventory.reduce((acc, i) => acc + ((Number(i.quantity) || 0) * (Number(i.unitCost) || 0)), 0);
+  const totalStockRetailValue = inventory.reduce((acc, i) => acc + ((Number(i.quantity) || 0) * getItemRetailPrice(i)), 0);
+  const totalPotentialProfit = Math.max(0, totalStockRetailValue - totalStockCostValue);
+  const totalPotentialMarginPct = totalStockRetailValue > 0 ? Number(((totalPotentialProfit / totalStockRetailValue) * 100).toFixed(1)) : 0;
+  const totalStockValue = totalStockCostValue;
 
   // Filtrado de Productos del Catálogo
   const filteredProducts = products.filter(p => {
@@ -1439,28 +1541,50 @@ export default function InventoryView({
             </div>
           )}
 
-          {/* KPIs de Stock Físico */}
-          <div className="metrics-grid" style={{ marginBottom: '22px' }}>
+          {/* KPIs de Stock Físico: Compra vs Venta vs Ganancia */}
+          <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', marginBottom: '22px' }}>
             <div className="kpi-card">
               <div className="kpi-header">
-                <span className="kpi-label">Unidades Físicas en Bodega</span>
+                <span className="kpi-label">Unidades Físicas</span>
                 <div className="kpi-icon-wrapper">
                   <Package size={18} />
                 </div>
               </div>
               <div className="kpi-value">{totalStockUnits} uds</div>
-              <div className="kpi-subtext">Sumatoria de todos los insumos y materiales</div>
+              <div className="kpi-subtext">Sumatoria de insumos reales en bodega</div>
+            </div>
+
+            <div className="kpi-card" style={{ borderColor: 'rgba(245, 158, 11, 0.4)' }}>
+              <div className="kpi-header">
+                <span className="kpi-label" style={{ color: '#f59e0b', fontWeight: 700 }}>Valor Total (Costo Compra)</span>
+                <div className="kpi-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b' }}>
+                  <DollarSign size={18} />
+                </div>
+              </div>
+              <div className="kpi-value" style={{ color: '#f59e0b' }}>S/ {totalStockCostValue.toFixed(2)}</div>
+              <div className="kpi-subtext">Capital invertido en compras a proveedores</div>
+            </div>
+
+            <div className="kpi-card" style={{ borderColor: 'rgba(0, 102, 255, 0.4)' }}>
+              <div className="kpi-header">
+                <span className="kpi-label" style={{ color: 'var(--primary-400)', fontWeight: 700 }}>Valor Total (Precio Venta)</span>
+                <div className="kpi-icon-wrapper" style={{ background: 'rgba(0, 102, 255, 0.12)', color: 'var(--primary-600)' }}>
+                  <Tag size={18} />
+                </div>
+              </div>
+              <div className="kpi-value" style={{ color: 'var(--primary-400)' }}>S/ {totalStockRetailValue.toFixed(2)}</div>
+              <div className="kpi-subtext">Valor comercial proyectado si se vende todo</div>
             </div>
 
             <div className="kpi-card kpi-green">
               <div className="kpi-header">
-                <span className="kpi-label">Valor Total en Stock</span>
-                <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-                  <DollarSign size={18} />
+                <span className="kpi-label" style={{ color: '#10b981', fontWeight: 700 }}>Ganancia Bruta Potencial</span>
+                <div className="kpi-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>
+                  <TrendingUp size={18} />
                 </div>
               </div>
-              <div className="kpi-value">S/ {totalStockValue.toFixed(2)}</div>
-              <div className="kpi-subtext">Valorizado al costo unitario de compra</div>
+              <div className="kpi-value">S/ {totalPotentialProfit.toFixed(2)}</div>
+              <div className="kpi-subtext">Margen proyectado: <strong>+{totalPotentialMarginPct}%</strong> (Venta - Compra)</div>
             </div>
 
             <div className="kpi-card kpi-yellow">
@@ -1498,8 +1622,9 @@ export default function InventoryView({
                     <th>Nombre del Material</th>
                     <th>Categoría</th>
                     <th>Stock Actual</th>
-                    <th>Mínimo Alerta</th>
-                    <th>Costo Unit. (S/)</th>
+                    <th style={{ textAlign: 'right' }}>Costo Compra (S/)</th>
+                    <th style={{ textAlign: 'right' }}>Precio Venta (S/)</th>
+                    <th style={{ textAlign: 'right' }}>Margen / Ganancia</th>
                     <th>Proveedor</th>
                     <th>Días Envío</th>
                     <th>Estado</th>
@@ -1509,13 +1634,17 @@ export default function InventoryView({
                 <tbody>
                   {inventory.length === 0 ? (
                     <tr>
-                      <td colSpan="10" style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                      <td colSpan="11" style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
                         No hay insumos registrados en el inventario. Pulsa "Agregar Insumo / SKU" para comenzar.
                       </td>
                     </tr>
                   ) : (
                     inventory.map(item => {
                       const isLow = (Number(item.quantity) || 0) <= (Number(item.minThreshold) || 10);
+                      const unitCost = Number(item.unitCost) || 0;
+                      const retailPrice = getItemRetailPrice(item);
+                      const unitProfit = Math.max(0, retailPrice - unitCost);
+                      const unitMarginPct = retailPrice > 0 ? Number(((unitProfit / retailPrice) * 100).toFixed(1)) : 0;
                       return (
                         <tr key={item.id}>
                           <td>
@@ -1572,8 +1701,30 @@ export default function InventoryView({
                               </div>
                             </div>
                           </td>
-                          <td>{item.minThreshold} uds</td>
-                          <td>S/ {Number(item.unitCost).toFixed(2)}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 700, color: '#f59e0b' }}>
+                              S/ {unitCost.toFixed(2)}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
+                              Costo Compra
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 800, color: 'var(--primary-400)' }}>
+                              S/ {retailPrice.toFixed(2)}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
+                              PVP Venta
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: 800, color: '#10b981' }}>
+                              +S/ {unitProfit.toFixed(2)}
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: '#10b981' }}>
+                              ({unitMarginPct}%)
+                            </div>
+                          </td>
                           <td>{item.supplier}</td>
                           <td>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
@@ -1824,6 +1975,23 @@ export default function InventoryView({
                   </span>
                 </label>
 
+                {/* Combos Rápidos Oficiales de la Web */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 700 }}>Combos Web Oficiales:</span>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleApplyPackPreset('emprendedor')} style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                    🔥 Pack Emprendedor (S/ 80)
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleApplyPackPreset('negocio')} style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                    🏢 Pack Negocio (S/ 100)
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleApplyPackPreset('duo_premium')} style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                    ⭐ Pack Dúo Premium (S/ 120)
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleApplyPackPreset('full')} style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                    👑 Pack Full (S/ 150)
+                  </button>
+                </div>
+
                 {/* Lista de Insumos disponibles para agregar rápido */}
                 <div style={{ 
                   backgroundColor: 'var(--bg-input)', 
@@ -1838,32 +2006,38 @@ export default function InventoryView({
                     Haz clic en cualquier insumo de tu almacén para añadirlo al pack:
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {inventory.map(inv => (
-                      <button
-                        key={inv.id}
-                        type="button"
-                        onClick={() => handleAddComponentToPack(inv)}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-subtle)',
-                          borderRadius: 'var(--radius-sm)',
-                          padding: '4px 8px',
-                          fontSize: '0.76rem',
-                          color: 'var(--text-main)',
-                          cursor: 'pointer'
-                        }}
-                        title={`Costo: S/ ${Number(inv.unitCost || 0).toFixed(2)} | Stock: ${inv.quantity} uds`}
-                      >
-                        <Plus size={12} color="var(--primary-600)" />
-                        <span>{inv.name}</span>
-                        <span style={{ color: 'var(--text-subtle)', fontSize: '0.7rem' }}>
-                          (S/ {Number(inv.unitCost || 0).toFixed(2)})
-                        </span>
-                      </button>
-                    ))}
+                    {inventory.map(inv => {
+                      const retailP = getItemRetailPrice(inv);
+                      return (
+                        <button
+                          key={inv.id}
+                          type="button"
+                          onClick={() => handleAddComponentToPack(inv)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-subtle)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '5px 10px',
+                            fontSize: '0.76rem',
+                            color: 'var(--text-main)',
+                            cursor: 'pointer'
+                          }}
+                          title={`Costo Compra: S/ ${Number(inv.unitCost || 0).toFixed(2)} | PVP Venta: S/ ${retailP.toFixed(2)} | Stock: ${inv.quantity} uds`}
+                        >
+                          <Plus size={12} color="var(--primary-600)" />
+                          <strong>{inv.name}</strong>
+                          <span style={{ color: '#f59e0b', fontSize: '0.68rem', background: 'rgba(245, 158, 11, 0.1)', padding: '1px 5px', borderRadius: '3px' }}>
+                            Compra: S/ {Number(inv.unitCost || 0).toFixed(2)}
+                          </span>
+                          <span style={{ color: 'var(--primary-400)', fontSize: '0.68rem', background: 'rgba(0, 102, 255, 0.1)', padding: '1px 5px', borderRadius: '3px' }}>
+                            PVP: S/ {retailP.toFixed(2)}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1875,62 +2049,75 @@ export default function InventoryView({
                         <tr style={{ background: 'var(--bg-input)', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
                           <th style={{ padding: '8px 12px' }}>Insumo / Pieza</th>
                           <th style={{ padding: '8px 12px', textAlign: 'center' }}>Cantidad</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Costo Unit.</th>
-                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Subtotal Costo</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Costo Compra</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>PVP Venta</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Subtotal Compra</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Subtotal Venta</th>
                           <th style={{ padding: '8px 12px', textAlign: 'center' }}>Quitar</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {packForm.bundleComponents.map(c => (
-                          <tr key={c.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                            <td style={{ padding: '8px 12px' }}>
-                              <strong>{c.name}</strong>
-                              <div className="code-mono" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{c.sku}</div>
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        {packForm.bundleComponents.map(c => {
+                          const cRetail = getItemRetailPrice(c);
+                          const subCost = c.unitCost * c.quantity;
+                          const subRetail = cRetail * c.quantity;
+                          return (
+                            <tr key={c.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                              <td style={{ padding: '8px 12px' }}>
+                                <strong>{c.name}</strong>
+                                <div className="code-mono" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{c.sku}</div>
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateComponentQty(c.id, -1)}
+                                    className="btn-icon"
+                                    style={{ width: '22px', height: '22px' }}
+                                  >
+                                    <Minus size={11} />
+                                  </button>
+                                  <span style={{ fontWeight: 800, minWidth: '20px' }}>{c.quantity}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateComponentQty(c.id, 1)}
+                                    className="btn-icon"
+                                    style={{ width: '22px', height: '22px' }}
+                                  >
+                                    <Plus size={11} />
+                                  </button>
+                                </div>
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right', color: '#f59e0b' }}>
+                                S/ {c.unitCost.toFixed(2)}
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--primary-400)' }}>
+                                S/ {cRetail.toFixed(2)}
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#f59e0b' }}>
+                                S/ {subCost.toFixed(2)}
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--primary-400)' }}>
+                                S/ {subRetail.toFixed(2)}
+                              </td>
+                              <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                                 <button
                                   type="button"
-                                  onClick={() => handleUpdateComponentQty(c.id, -1)}
-                                  className="btn-icon"
-                                  style={{ width: '22px', height: '22px' }}
+                                  onClick={() => handleRemoveComponent(c.id)}
+                                  style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
                                 >
-                                  <Minus size={11} />
+                                  <Trash2 size={13} />
                                 </button>
-                                <span style={{ fontWeight: 800, minWidth: '20px' }}>{c.quantity}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateComponentQty(c.id, 1)}
-                                  className="btn-icon"
-                                  style={{ width: '22px', height: '22px' }}
-                                >
-                                  <Plus size={11} />
-                                </button>
-                              </div>
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>
-                              S/ {c.unitCost.toFixed(2)}
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700 }}>
-                              S/ {(c.unitCost * c.quantity).toFixed(2)}
-                            </td>
-                            <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveComponent(c.id)}
-                                style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 ) : (
                   <div style={{ padding: '16px', textAlign: 'center', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.08)', borderRadius: 'var(--radius-md)', fontSize: '0.84rem' }}>
-                    ⚠️ Haz clic en al menos 1 insumo arriba para unirlo a este pack.
+                    ⚠️ Haz clic en al menos 1 insumo arriba o selecciona uno de los combos rápidos para armar este pack.
                   </div>
                 )}
               </div>
@@ -1942,39 +2129,45 @@ export default function InventoryView({
                     <DollarSign size={16} color="var(--primary-600)" />
                     Estructura de Precios y Ganancia del Pack
                   </strong>
-                  <span className="badge badge-green" style={{ fontSize: '0.72rem' }}>
+                  <span className={`badge ${packProfit >= 0 ? 'badge-green' : 'badge-red'}`} style={{ fontSize: '0.72rem' }}>
                     Margen Estimado: {packMarginPct}%
                   </span>
                 </div>
 
                 <div className="form-row">
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label" style={{ fontSize: '0.78rem' }}>Costo Total Insumos:</label>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--google-red)' }}>
+                    <label className="form-label" style={{ fontSize: '0.78rem', color: '#f59e0b', fontWeight: 700 }}>
+                      📉 Costo Insumos (Compra):
+                    </label>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f59e0b' }}>
                       S/ {packTotalCost.toFixed(2)}
                     </div>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
-                      Suma de costos de las piezas
+                      Lo que cuesta comprar las piezas
                     </span>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label" style={{ fontSize: '0.78rem' }}>Precio Regular Sugerido:</label>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-muted)' }}>
+                    <label className="form-label" style={{ fontSize: '0.78rem', color: 'var(--primary-400)', fontWeight: 700 }}>
+                      🏷️ Suma por Separado (Venta):
+                    </label>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--primary-400)' }}>
                       S/ {packSuggestedRegularPrice.toFixed(2)}
                     </div>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)' }}>
-                      Suma si se vendieran por separado
+                      Si el cliente compra suelto
                     </span>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label" style={{ fontSize: '0.78rem' }}>Precio Promoción (S/):</label>
+                    <label className="form-label" style={{ fontSize: '0.78rem', color: 'var(--text-main)', fontWeight: 700 }}>
+                      🛍️ Precio Promoción (Venta Web):
+                    </label>
                     <input 
                       type="number"
                       step="0.01"
                       className="form-control"
-                      style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-main)' }}
+                      style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)', borderColor: packProfit < 0 ? '#ef4444' : 'var(--primary-500)' }}
                       value={packForm.promoPrice}
                       onChange={(e) => setPackForm({ ...packForm, promoPrice: e.target.value })}
                       required
@@ -1987,13 +2180,63 @@ export default function InventoryView({
 
                 {/* Resumen de Ahorro y Ganancia */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed var(--border-subtle)', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--google-green)', fontWeight: 700 }}>
+                  <div style={{ fontSize: '0.82rem', color: packSavings > 0 ? 'var(--google-green)' : 'var(--text-muted)', fontWeight: 700 }}>
                     🎉 Ahorro al cliente: S/ {packSavings.toFixed(2)} ({packDiscountPct}% OFF)
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: 800 }}>
-                    💰 Ganancia Neta por Pack: <span style={{ color: 'var(--primary-600)' }}>S/ {packProfit.toFixed(2)}</span>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 800 }}>
+                    💰 Ganancia Neta por Pack: <span style={{ color: packProfit >= 0 ? '#10b981' : '#ef4444' }}>S/ {packProfit.toFixed(2)}</span>
                   </div>
                 </div>
+
+                {/* Alertas didácticas financieras */}
+                {packProfit < 0 && (
+                  <div style={{ 
+                    padding: '10px 14px', 
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                    border: '1px solid #ef4444', 
+                    borderRadius: 'var(--radius-md)', 
+                    color: '#ef4444', 
+                    fontSize: '0.8rem', 
+                    marginTop: '10px',
+                    lineHeight: 1.4
+                  }}>
+                    🚨 <strong>¡Alerta de Pérdida Crítica!</strong> El precio de venta que ingresaste (S/ {promoPriceNum.toFixed(2)}) es menor que el costo de adquisición de los insumos (S/ {packTotalCost.toFixed(2)}). Perderías <strong>S/ {Math.abs(packProfit).toFixed(2)}</strong> por cada pack vendido. Aumenta el precio a más de S/ {packTotalCost.toFixed(2)}.
+                  </div>
+                )}
+
+                {promoPriceNum >= packSuggestedRegularPrice && packSuggestedRegularPrice > 0 && (
+                  <div style={{ 
+                    padding: '8px 12px', 
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)', 
+                    border: '1px solid rgba(245, 158, 11, 0.4)', 
+                    borderRadius: 'var(--radius-md)', 
+                    color: '#f59e0b', 
+                    fontSize: '0.78rem', 
+                    marginTop: '10px'
+                  }}>
+                    ℹ️ <strong>Nota comercial:</strong> El precio del pack (S/ {promoPriceNum.toFixed(2)}) es igual o mayor al precio si se compran las piezas por separado (S/ {packSuggestedRegularPrice.toFixed(2)}). Para que sea una oferta atractiva, fija un precio menor (ej. S/ {(packSuggestedRegularPrice * 0.8).toFixed(2)}).
+                  </div>
+                )}
+
+                {packProfit > 0 && packSavings > 0 && (
+                  <div style={{ 
+                    padding: '8px 12px', 
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+                    border: '1px solid rgba(16, 185, 129, 0.3)', 
+                    borderRadius: 'var(--radius-md)', 
+                    color: '#10b981', 
+                    fontSize: '0.78rem', 
+                    marginTop: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '6px'
+                  }}>
+                    <span>✓ <strong>Rentabilidad asegurada:</strong> Tu margen neto es del <strong>{packMarginPct}%</strong>.</span>
+                    <span>El cliente ahorra <strong>{packDiscountPct}%</strong>.</span>
+                  </div>
+                )}
               </div>
 
               {/* DESCRIPCIÓN COMERCIAL */}
