@@ -22,6 +22,7 @@ import UserProfileModal from './components/UserProfileModal';
 import MasterDataModal from './components/MasterDataModal';
 import DistrictCombobox from './components/DistrictCombobox.jsx';
 import NewSaleModal from './components/NewSaleModal.jsx';
+import NewExpenseModal from './components/NewExpenseModal.jsx';
 const ProjectLifecycleView = lazy(() => import('./components/ProjectLifecycleView'));
 import ToastNotification from './components/ToastNotification';
 import { isSupabaseConfigured, supabase } from './services/supabase';
@@ -1994,7 +1995,7 @@ export default function App() {
           )}
 
           {/* MÓDULO 7: Finanzas & Balances 50/50 */}
-          {currentTab === 'finances' && <FinanceView sales={sales} expenses={expenses} products={products} inventory={inventory} onAddNewExpense={handleAddNewExpense} onEditExpense={handleEditExpense} onReceiveExpenseStock={handleReceiveExpenseStock} onAddNewSale={handleOpenNewSaleModal} onExportExcel={handleExportExcel} partnerBalance={partnerBalance} onSettlePartnerDebt={handleSettlePartnerDebt} targets={dynamicTargets} onRequestDelete={handleRequestDelete} onAddNewProduct={handleAddNewProduct} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} />}
+          {currentTab === 'finances' && <FinanceView sales={sales} expenses={expenses} products={products} inventory={inventory} onAddNewExpense={handleAddNewExpense} onEditExpense={handleEditExpense} onReceiveExpenseStock={handleReceiveExpenseStock} onAddNewSale={handleOpenNewSaleModal} onExportExcel={handleExportExcel} partnerBalance={partnerBalance} onSettlePartnerDebt={handleSettlePartnerDebt} targets={dynamicTargets} onRequestDelete={handleRequestDelete} onAddNewProduct={handleAddNewProduct} onUpdateInventoryStock={handleUpdateInventoryStock} showToast={showToast} currentUser={currentUser} />}
 
           {/* MÓDULO 8: Proyecciones, Costos & Metas (Escenario Libre & Plan 30 Días) */}
           {currentTab === 'projections' && <ProjectionsView projectionsData={projectionsData} onUpdateProjectionsData={setProjectionsData} products={products} inventory={inventory} leads={leads} sales={sales} plan30Days={plan30Days} setPlan30Days={setPlan30Days} onTogglePlanTask={handleTogglePlanTask} onAddPlanTask={handleAddPlanTask} onEditPlanTask={handleEditPlanTask} onRequestDelete={handleRequestDelete} logAudit={logAudit} currentUser={currentUser} setCurrentTab={setCurrentTab} showToast={showToast} />}
@@ -2028,20 +2029,16 @@ export default function App() {
       />
 
       {/* MODAL GLOBAL: Nuevo Gasto */}
-      {isNewExpenseModalOpen && <div className="modal-overlay">
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Registrar Nuevo Gasto Operativo</h3>
-              <button className="close-btn" onClick={handleCloseNewExpenseModal}>✕</button>
-            </div>
-
-            <form onSubmit={e => {
+      <NewExpenseModal
+        isOpen={isNewExpenseModalOpen}
+        onClose={handleCloseNewExpenseModal}
+        onSubmit={e => {
           e.preventDefault();
           const finalAmount = Number(globalExpenseForm.amount) || 0;
           const saved = handleAddNewExpense({
             id: `exp-${Date.now()}`,
             date: globalExpenseForm.date,
-            type: globalExpenseForm.type,
+            type: globalExpenseForm.type || 'Gasto',
             category: globalExpenseForm.category,
             description: globalExpenseForm.description,
             amount: finalAmount,
@@ -2058,419 +2055,14 @@ export default function App() {
           if (saved === false) return;
           showToast(`✅ Gasto de S/ ${finalAmount.toFixed(2)} registrado exitosamente${globalExpenseForm.selectedProductId && globalExpenseForm.inventoryStatus === 'pending' ? ' (Estado: ⏳ Pendiente de ingreso a almacén)' : ''}`, 'success');
           handleCloseNewExpenseModal();
-        }}>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Fecha del Desembolso:</label>
-                  <input type="date" className="form-control" value={globalExpenseForm.date} onChange={e => {
-                const newDate = e.target.value;
-                setGlobalExpenseForm({
-                  ...globalExpenseForm,
-                  date: newDate,
-                  month: getAccountingMonth(newDate)
-                });
-              }} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Categoría:</label>
-                  <select className="form-control" value={globalExpenseForm.category} onChange={e => setGlobalExpenseForm({
-                ...globalExpenseForm,
-                category: e.target.value
-              })}>
-                    <option value="Compra de mercadería">Compra de mercadería (Chips / Acrílicos)</option>
-                    <option value="Publicidad">Publicidad y Pauta Digital</option>
-                    <option value="Movilidad">Movilidad / Visitas Comerciales</option>
-                    <option value="Teléfono/datos">Teléfono / Datos / Línea</option>
-                    <option value="Dominio/sistema">Dominio / Hosting / Software</option>
-                    <option value="Empaques y bolsas">Empaques, cajas y stickers</option>
-                    <option value="Otro">Otro gasto operativo</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Selector de Producto de Almacén para cargar costo por default */}
-              <div className="form-group">
-                <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '6px'
-            }}>
-                  <label className="form-label" style={{
-                marginBottom: 0
-              }}>
-                    📦 Cargar Producto / Insumo de Almacén (Opcional):
-                  </label>
-                  <span style={{
-                fontSize: '0.74rem',
-                color: 'var(--text-muted)'
-              }}>
-                    {products.length} productos en catálogo
-                  </span>
-                </div>
-                <select className="form-control" value={globalExpenseForm.selectedProductId} onChange={e => handleGlobalProductChange(e.target.value)}>
-                  <option value="">— Escribir gasto libre o seleccionar producto de Almacén —</option>
-                  {products.filter(p => p.category !== 'Pack' && p.type !== 'pack' && !p.bundleItems?.length).map(p => <option key={p.id} value={p.id}>
-                      📦 {p.name} — Costo por default: S/ {Number(p.cost).toFixed(2)} | Venta: S/ {Number(p.price).toFixed(2)}
-                    </option>)}
-                  {inventory.filter(i => !products.some(p => p.name === i.name)).map(i => <option key={i.id} value={i.id}>
-                      🏷️ {i.name} — Costo unitario: S/ {Number(i.unitCost).toFixed(2)}
-                    </option>)}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Descripción del Gasto:</label>
-                <input type="text" className="form-control" placeholder="Ej: Tarjeta Google NFC Cuadrado, Displays de Acrílico..." value={globalExpenseForm.description} onChange={e => setGlobalExpenseForm({
-              ...globalExpenseForm,
-              description: e.target.value
-            })} required />
-              </div>
-
-              {/* Panel de Costo Unitario y Opción de Modificar Costo */}
-              {globalExpenseForm.selectedProductId ? <div style={{
-            padding: '14px 16px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'rgba(0, 102, 255, 0.06)',
-            border: '1px solid rgba(0, 102, 255, 0.22)',
-            marginBottom: '16px'
-          }}>
-                  <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '10px'
-            }}>
-                    <span style={{
-                fontSize: '0.84rem',
-                fontWeight: 700,
-                color: 'var(--text-main)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                      🏷️ Costo por Defecto de Almacén: S/ {Number(globalExpenseForm.unitCost || 0).toFixed(2)}
-                    </span>
-                    <button type="button" className="btn btn-secondary btn-sm" style={{
-                fontSize: '0.75rem',
-                padding: '4px 10px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px'
-              }} onClick={() => setGlobalExpenseForm(prev => ({
-                ...prev,
-                isCustomCost: !prev.isCustomCost
-              }))}>
-                      <Edit3 size={13} />
-                      <span>{globalExpenseForm.isCustomCost ? 'Restablecer costo por defecto' : 'Modificar costo'}</span>
-                    </button>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group" style={{
-                marginBottom: 0
-              }}>
-                      <label className="form-label" style={{
-                  fontSize: '0.78rem'
-                }}>Cantidad de Unidades:</label>
-                      <input type="number" min="1" className="form-control" value={globalExpenseForm.quantity} onChange={e => {
-                  const qty = Math.max(1, parseInt(e.target.value) || 1);
-                  const unit = Number(globalExpenseForm.unitCost) || 0;
-                  setGlobalExpenseForm({
-                    ...globalExpenseForm,
-                    quantity: qty,
-                    amount: (qty * unit).toFixed(2)
-                  });
-                }} required />
-                    </div>
-
-                    <div className="form-group" style={{
-                marginBottom: 0
-              }}>
-                      <label className="form-label" style={{
-                  fontSize: '0.78rem'
-                }}>
-                        {globalExpenseForm.isCustomCost ? 'Costo Unitario Modificado (S/):' : 'Costo Unitario Aplicado (S/):'}
-                      </label>
-                      <input type="number" step="0.01" className="form-control" value={globalExpenseForm.unitCost} readOnly={!globalExpenseForm.isCustomCost} style={{
-                  backgroundColor: globalExpenseForm.isCustomCost ? 'var(--bg-input)' : 'rgba(255, 255, 255, 0.04)',
-                  borderColor: globalExpenseForm.isCustomCost ? 'var(--primary-600)' : 'var(--border-subtle)',
-                  fontWeight: 700
-                }} onChange={e => {
-                  const unit = e.target.value;
-                  const qty = Number(globalExpenseForm.quantity) || 1;
-                  setGlobalExpenseForm({
-                    ...globalExpenseForm,
-                    unitCost: unit,
-                    amount: (Number(unit) * qty).toFixed(2)
-                  });
-                }} required />
-                    </div>
-                  </div>
-
-                  <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginTop: '12px',
-              paddingTop: '10px',
-              borderTop: '1px solid var(--border-subtle)'
-            }}>
-                    <span style={{
-                fontSize: '0.8rem',
-                color: 'var(--text-muted)'
-              }}>
-                      Total del desembolso ({globalExpenseForm.quantity} uds × S/ {Number(globalExpenseForm.unitCost || 0).toFixed(2)}):
-                    </span>
-                    <strong style={{
-                fontSize: '1.05rem',
-                color: '#ef4444'
-              }}>
-                      S/ {globalExpenseForm.amount}
-                    </strong>
-                  </div>
-
-                  {globalExpenseForm.isCustomCost && <div style={{
-              fontSize: '0.74rem',
-              color: '#38bdf8',
-              marginTop: '6px'
-            }}>
-                      ✏️ Costo modificado exclusivamente para este registro de compra sin alterar el catálogo maestro.
-                    </div>}
-
-                  {/* Selector de Estado de Ingreso a Inventario */}
-                  <div style={{
-                    marginTop: '12px',
-                    paddingTop: '10px',
-                    borderTop: '1px solid var(--border-subtle)'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <label className="form-label" style={{ fontSize: '0.78rem', margin: 0, fontWeight: 700 }}>
-                        📦 Estado de Ingreso a Inventario:
-                      </label>
-                      <span style={{
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        color: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : '#10b981'
-                      }}>
-                        {globalExpenseForm.inventoryStatus === 'pending' ? '⏳ Mercadería Pendiente' : '✓ Ingresar Inmediatamente'}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <button
-                        type="button"
-                        style={{
-                          padding: '8px 10px',
-                          fontSize: '0.76rem',
-                          border: '1px solid',
-                          borderColor: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--border-subtle)',
-                          backgroundColor: globalExpenseForm.inventoryStatus === 'pending' ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-card)',
-                          color: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--text-muted)',
-                          fontWeight: globalExpenseForm.inventoryStatus === 'pending' ? 700 : 500,
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: '3px',
-                          textAlign: 'center'
-                        }}
-                        onClick={() => setGlobalExpenseForm(prev => ({ ...prev, inventoryStatus: 'pending' }))}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <Clock size={13} />
-                          <span>⏳ Pendiente (Por recibir)</span>
-                        </div>
-                        <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Se agregará al inventario cuando le des OK</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        style={{
-                          padding: '8px 10px',
-                          fontSize: '0.76rem',
-                          border: '1px solid',
-                          borderColor: globalExpenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--border-subtle)',
-                          backgroundColor: globalExpenseForm.inventoryStatus === 'received' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                          color: globalExpenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--text-muted)',
-                          fontWeight: globalExpenseForm.inventoryStatus === 'received' ? 700 : 500,
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: '3px',
-                          textAlign: 'center'
-                        }}
-                        onClick={() => setGlobalExpenseForm(prev => ({ ...prev, inventoryStatus: 'received' }))}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <Check size={13} />
-                          <span>✓ Ya Recibido en Almacén</span>
-                        </div>
-                        <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Sumar al stock disponible de inmediato</span>
-                      </button>
-                    </div>
-                  </div>
-                </div> : (
-                  <div>
-                    <div className="form-group">
-                      <label className="form-label">Monto del Desembolso (Soles S/):</label>
-                      <input type="number" step="0.01" className="form-control" placeholder="0.00" value={globalExpenseForm.amount} onChange={e => setGlobalExpenseForm({
-                        ...globalExpenseForm,
-                        amount: e.target.value
-                      })} required />
-                    </div>
-
-                    {/* Selector de Estado de Ingreso para compra libre de mercadería */}
-                    {globalExpenseForm.category === 'Compra de mercadería' && (
-                      <div style={{
-                        marginTop: '10px',
-                        marginBottom: '16px',
-                        padding: '12px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: 'rgba(245, 158, 11, 0.08)',
-                        border: '1px solid rgba(245, 158, 11, 0.3)'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                          <label className="form-label" style={{ fontSize: '0.78rem', margin: 0, fontWeight: 700 }}>
-                            📦 Estado de Recepción de la Mercadería:
-                          </label>
-                          <span style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            color: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : '#10b981'
-                          }}>
-                            {globalExpenseForm.inventoryStatus === 'pending' ? '⏳ Mercadería Pendiente' : '✓ Ya Recibido'}
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                          <button
-                            type="button"
-                            style={{
-                              padding: '8px 10px',
-                              fontSize: '0.76rem',
-                              border: '1px solid',
-                              borderColor: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--border-subtle)',
-                              backgroundColor: globalExpenseForm.inventoryStatus === 'pending' ? 'rgba(245, 158, 11, 0.18)' : 'var(--bg-card)',
-                              color: globalExpenseForm.inventoryStatus === 'pending' ? '#f59e0b' : 'var(--text-muted)',
-                              fontWeight: globalExpenseForm.inventoryStatus === 'pending' ? 700 : 500,
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              gap: '3px',
-                              textAlign: 'center'
-                            }}
-                            onClick={() => setGlobalExpenseForm(prev => ({ ...prev, inventoryStatus: 'pending' }))}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <Clock size={13} />
-                              <span>⏳ Pendiente (Por recibir)</span>
-                            </div>
-                            <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Se agregará al inventario cuando le des OK</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            style={{
-                              padding: '8px 10px',
-                              fontSize: '0.76rem',
-                              border: '1px solid',
-                              borderColor: globalExpenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--border-subtle)',
-                              backgroundColor: globalExpenseForm.inventoryStatus === 'received' ? 'rgba(16, 185, 129, 0.18)' : 'var(--bg-card)',
-                              color: globalExpenseForm.inventoryStatus === 'received' ? '#10b981' : 'var(--text-muted)',
-                              fontWeight: globalExpenseForm.inventoryStatus === 'received' ? 700 : 500,
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              gap: '3px',
-                              textAlign: 'center'
-                            }}
-                            onClick={() => setGlobalExpenseForm(prev => ({ ...prev, inventoryStatus: 'received' }))}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <Check size={13} />
-                              <span>✓ Ya Recibido en Almacén</span>
-                            </div>
-                            <span style={{ fontSize: '0.67rem', opacity: 0.85 }}>Sumar al stock disponible de inmediato</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">¿Quién pagó el gasto?:</label>
-                  <select className="form-control" value={globalExpenseForm.paidBy} onChange={e => setGlobalExpenseForm({
-                ...globalExpenseForm,
-                paidBy: e.target.value
-              })}>
-                    <option value="luis">👨‍💼 Luis Romero (Co-CEO)</option>
-                    <option value="kevin">🚀 Kevin Servat (Co-CEO)</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Método de Pago:</label>
-                  <select className="form-control" value={globalExpenseForm.paymentMethod} onChange={e => setGlobalExpenseForm({
-                ...globalExpenseForm,
-                paymentMethod: e.target.value
-              })}>
-                    <option value="Yape">💜 Yape</option>
-                    <option value="Plin">🔵 Plin</option>
-                    <option value="Transferencia">🏦 Transferencia Bancaria</option>
-                    <option value="Tarjeta">💳 Tarjeta de Crédito / Débito</option>
-                    <option value="Efectivo">💵 Efectivo</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Mes Contable Dinámico - Sincronizado automáticamente y nunca vacío */}
-              <div className="form-group">
-                <label className="form-label">Mes Contable:</label>
-                <select className="form-control" value={globalExpenseForm.month} onChange={e => setGlobalExpenseForm({
-              ...globalExpenseForm,
-              month: e.target.value
-            })} required>
-                  {ACCOUNTING_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-                <span style={{
-              fontSize: '0.74rem',
-              color: 'var(--text-subtle)',
-              marginTop: '4px',
-              display: 'block'
-            }}>
-                  ✓ Sincronizado automáticamente con la fecha de desembolso ({globalExpenseForm.date}).
-                </span>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Notas / Detalle de Cuadre:</label>
-                <textarea className="form-control" rows="2" placeholder="Detalles de liquidación, factura o comprobante..." value={globalExpenseForm.notes} onChange={e => setGlobalExpenseForm({
-              ...globalExpenseForm,
-              notes: e.target.value
-            })}></textarea>
-              </div>
-
-              <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '10px',
-            marginTop: '16px'
-          }}>
-                <button type="button" className="btn btn-secondary" onClick={handleCloseNewExpenseModal}>Cancelar</button>
-                <button type="submit" className="btn btn-primary">Guardar Gasto</button>
-              </div>
-            </form>
-          </div>
-        </div>}
+        }}
+        expenseForm={globalExpenseForm}
+        setExpenseForm={setGlobalExpenseForm}
+        products={products}
+        inventory={inventory}
+        currentUser={currentUser}
+        showToast={showToast}
+      />
 
       {/* MODAL GLOBAL: Confirmación y Justificación de Auditoría para Eliminaciones */}
       <DeleteConfirmModal isOpen={deleteModalConfig.isOpen} item={deleteModalConfig.item} entityType={deleteModalConfig.entityType} onConfirm={handleConfirmDelete} onClose={() => setDeleteModalConfig({
