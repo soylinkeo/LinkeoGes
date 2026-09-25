@@ -41,7 +41,8 @@ export default function Sidebar({
   isCloudReady = false,
   onOpenNewSale,
   onOpenNewExpense,
-  onExportExcel
+  onExportExcel,
+  onBackupJson
 }) {
   const navItems = [
     { 
@@ -176,16 +177,10 @@ export default function Sidebar({
           <button 
             className="btn-icon mobile-close-btn"
             onClick={() => onCloseMobileMenu && onCloseMobileMenu()}
-            style={{ 
-              display: 'none', 
-              marginLeft: 'auto', 
-              width: '32px', 
-              height: '32px',
-              borderRadius: 'var(--radius-md)'
-            }}
             title="Cerrar menú"
+            aria-label="Cerrar menú lateral"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
@@ -348,6 +343,30 @@ export default function Sidebar({
             >
               <Download size={15} color="var(--google-green)" />
               <span>Exportar Todo a Excel</span>
+            </button>
+          )}
+
+          {/* Botón Descargar Respaldo JSON */}
+          {onBackupJson && (
+            <button 
+              className="btn btn-secondary btn-sm"
+              onClick={onBackupJson}
+              title="Descargar copia de seguridad completa del sistema en JSON"
+              style={{ 
+                padding: '8px 12px', 
+                fontSize: '0.8rem', 
+                color: 'var(--text-main)',
+                backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.25)',
+                borderRadius: 'var(--radius-md)',
+                marginBottom: '6px',
+                cursor: 'pointer',
+                width: '100%',
+                justifyContent: 'flex-start'
+              }}
+            >
+              <Download size={15} color="#3b82f6" />
+              <span>Descargar Respaldo JSON</span>
             </button>
           )}
 

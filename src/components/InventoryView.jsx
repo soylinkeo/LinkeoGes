@@ -97,7 +97,7 @@ export default function InventoryView({
 }) {
   // Subpestaña activa: 'catalog' (Catálogo & Packs) | 'stock' (Stock Físico & Insumos) | 'suppliers' (Proveedores)
   const [activeSubTab, setActiveSubTab] = useState(initialSubTab);
-  const [showExplanation, setShowExplanation] = useState(true);
+  const [showExplanation, setShowExplanation] = useState(() => typeof window !== 'undefined' ? window.innerWidth > 768 : true);
 
   // Compras de mercadería en estado pendiente de ingreso a almacén
   const pendingExpenses = useMemo(() => {
@@ -1068,8 +1068,9 @@ export default function InventoryView({
       </div>
 
       {/* GUÍA DIDÁCTICA: DIFERENCIA ENTRE INVENTARIO Y ALMACÉN */}
-      {showExplanation && (
+      {showExplanation ? (
         <div 
+          className="inventory-guide-banner"
           style={{
             background: 'linear-gradient(135deg, rgba(0, 102, 255, 0.07) 0%, rgba(16, 185, 129, 0.05) 100%)',
             border: '1px solid rgba(0, 102, 255, 0.22)',
@@ -1121,6 +1122,18 @@ export default function InventoryView({
             </div>
           </div>
         </div>
+      ) : (
+        <div style={{ marginBottom: '14px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button 
+            className="btn btn-secondary btn-xs"
+            onClick={() => setShowExplanation(true)}
+            style={{ fontSize: '0.75rem', gap: '6px', color: 'var(--text-muted)' }}
+            title="Ver explicación de Stock Físico vs Catálogo Comercial"
+          >
+            <Info size={13} />
+            <span>💡 Ver guía: Inventario vs Almacén</span>
+          </button>
+        </div>
       )}
 
       {/* SUBTABS DE NAVEGACIÓN */}
@@ -1130,7 +1143,11 @@ export default function InventoryView({
           onClick={() => setActiveSubTab('catalog')}
         >
           <ShoppingBag size={18} />
-          <span>Catálogo Comercial & Packs Promocionales ({products.length})</span>
+          <span>
+            <span className="hide-on-mobile">Catálogo Comercial & Packs Promocionales</span>
+            <span className="show-on-mobile">Catálogo & Packs</span>
+            {` (${products.length})`}
+          </span>
         </button>
 
         <button 
@@ -1138,10 +1155,14 @@ export default function InventoryView({
           onClick={() => setActiveSubTab('stock')}
         >
           <Boxes size={18} />
-          <span>Stock Físico & Insumos ({inventory.length})</span>
+          <span>
+            <span className="hide-on-mobile">Stock Físico & Insumos</span>
+            <span className="show-on-mobile">Stock Físico</span>
+            {` (${inventory.length})`}
+          </span>
           {lowStockItems.length > 0 && (
             <span className="badge badge-yellow" style={{ fontSize: '0.68rem', padding: '1px 6px', marginLeft: '2px' }}>
-              ⚠️ {lowStockItems.length} alertas
+              ⚠️ {lowStockItems.length}
             </span>
           )}
         </button>
@@ -1151,7 +1172,11 @@ export default function InventoryView({
           onClick={() => setActiveSubTab('suppliers')}
         >
           <Truck size={18} />
-          <span>Proveedores & Logística ({suppliers.length})</span>
+          <span>
+            <span className="hide-on-mobile">Proveedores & Logística</span>
+            <span className="show-on-mobile">Proveedores</span>
+            {` (${suppliers.length})`}
+          </span>
         </button>
       </div>
 
@@ -1161,8 +1186,8 @@ export default function InventoryView({
       {activeSubTab === 'catalog' && (
         <div className="catalog-subtab">
           {/* Barra de Filtros y Búsqueda */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="catalog-filters-bar">
+            <div className="catalog-pills-row">
               <button 
                 className={`btn btn-sm ${catalogCategory === 'all' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setCatalogCategory('all')}
@@ -1173,28 +1198,30 @@ export default function InventoryView({
                 className={`btn btn-sm ${catalogCategory === 'Pack' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setCatalogCategory('Pack')}
               >
-                🎁 Packs Promocionales ({packsCount})
+                <span className="hide-on-mobile">🎁 Packs Promocionales ({packsCount})</span>
+                <span className="show-on-mobile">🎁 Packs ({packsCount})</span>
               </button>
               <button 
                 className={`btn btn-sm ${catalogCategory === 'Individual' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setCatalogCategory('Individual')}
               >
-                Modelos Individuales ({individualCount})
+                <span className="hide-on-mobile">Modelos Individuales ({individualCount})</span>
+                <span className="show-on-mobile">Individuales ({individualCount})</span>
               </button>
               <button 
                 className={`btn btn-sm ${catalogCategory === 'Innovacion' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setCatalogCategory('Innovacion')}
               >
-                Próximas Innovaciones ({innovationsCount})
+                <span className="hide-on-mobile">Próximas Innovaciones ({innovationsCount})</span>
+                <span className="show-on-mobile">Innovaciones ({innovationsCount})</span>
               </button>
             </div>
 
-            <div style={{ position: 'relative', minWidth: '220px' }}>
-              <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <div className="catalog-search-wrapper">
+              <Search size={15} className="catalog-search-icon" />
               <input 
                 type="text" 
                 className="form-control"
-                style={{ paddingLeft: '32px', fontSize: '0.84rem' }}
                 placeholder="Buscar por nombre, SKU..."
                 value={catalogSearch}
                 onChange={(e) => setCatalogSearch(e.target.value)}

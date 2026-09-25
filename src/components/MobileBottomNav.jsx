@@ -9,7 +9,8 @@ import {
   ShoppingBag,
   TrendingDown,
   UserPlus,
-  X
+  X,
+  ChevronRight
 } from 'lucide-react';
 
 export default function MobileBottomNav({
@@ -66,6 +67,7 @@ export default function MobileBottomNav({
                   <strong>+ Nueva Venta</strong>
                   <span>Descuenta stock y crea tarjeta</span>
                 </div>
+                <ChevronRight size={18} className="quick-chevron" />
               </button>
 
               <button 
@@ -79,6 +81,7 @@ export default function MobileBottomNav({
                   <strong>+ Registrar Gasto</strong>
                   <span>Compras de mercadería o cuadres</span>
                 </div>
+                <ChevronRight size={18} className="quick-chevron" />
               </button>
 
               <button 
@@ -92,6 +95,7 @@ export default function MobileBottomNav({
                   <strong>Gestionar Tarjetas</strong>
                   <span>UIDs, Google Place IDs y QR</span>
                 </div>
+                <ChevronRight size={18} className="quick-chevron" />
               </button>
 
               <button 
@@ -105,6 +109,7 @@ export default function MobileBottomNav({
                   <strong>Pipeline de Clientes</strong>
                   <span>Prospectos y citas comerciales</span>
                 </div>
+                <ChevronRight size={18} className="quick-chevron" />
               </button>
             </div>
           </div>

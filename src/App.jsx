@@ -32,7 +32,7 @@ import { calculateFinance, isSettlement, isInventoryPurchase } from './utils/fin
 import { getStockMovements, applyStockMovements, createSale } from './utils/operations.js';
 import { localDate } from './utils/dateUtils';
 import { parseDynamicCardRoute, areLeadAndCardLinked, buildGoogleReviewUrl } from './utils/dynamicRouter.js';
-import SyncStatus from './components/SyncStatus';
+import SyncStatus, { downloadJson } from './components/SyncStatus';
 import MobileBottomNav from './components/MobileBottomNav';
 export default function App() {
   // Tema (Dark por defecto para look tech profesional)
@@ -1897,6 +1897,19 @@ export default function App() {
         <LoginModal onLoginSuccess={handleLoginSuccess} />
       </div>;
   }
+
+  const handleBackupJson = () => {
+    const localBackups = {};
+    const legacyKeys = ['sales','expenses','leads','nfc_cards','inventory','suppliers','events','products','audit_logs','districts','plan_30','project_phases','projections'];
+    for (const key of Object.keys(localStorage)) {
+      if (legacyKeys.some(name => key === `linkeoges_${name}`) || key.startsWith('linkeoges_pending_')) {
+        try { localBackups[key] = JSON.parse(localStorage.getItem(key)); } catch { /* ignore malformed old entries */ }
+      }
+    }
+    downloadJson({ version: 2, exportedAt: new Date().toISOString(), revision: cloud.revision, data: cloud.data, localBackups }, 'LinkeoGes-respaldo-completo.json');
+    if (showToast) showToast('Copia de seguridad completa en JSON descargada', 'success');
+  };
+
   return <div className="app-container">
       <SyncStatus cloud={cloud} />
       {/* Modal de Perfil de Usuario */}
@@ -1921,7 +1934,7 @@ export default function App() {
       <MasterDataModal isOpen={isMasterDataModalOpen} onClose={() => setIsMasterDataModalOpen(false)} districts={districts} onAddDistrict={handleAddDistrict} onDeleteDistrict={handleDeleteDistrict} />
 
       {/* Sidebar de Navegación Lateral */}
-      <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} nfcCardsCount={nfcCards.length} leadsCount={leads.filter(l => l.stage !== 'entregado' && l.stage !== 'postventa').length} inventoryAlertsCount={inventory.filter(i => i.quantity <= i.minThreshold).length} auditLogsCount={auditLogs.length} productsCount={products.length} partnerBalance={partnerBalance} expenses={expenses} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} mobileOpen={mobileMenuOpen} onCloseMobileMenu={() => setMobileMenuOpen(false)} onOpenMasterData={() => setIsMasterDataModalOpen(true)} partnersState={partnersState} currentUser={currentUser} onOpenProfile={() => setIsProfileModalOpen(true)} isCloudReady={isSupabaseConfigured} onOpenNewSale={handleOpenNewSaleModal} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onExportExcel={handleExportExcel} />
+      <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} nfcCardsCount={nfcCards.length} leadsCount={leads.filter(l => l.stage !== 'entregado' && l.stage !== 'postventa').length} inventoryAlertsCount={inventory.filter(i => i.quantity <= i.minThreshold).length} auditLogsCount={auditLogs.length} productsCount={products.length} partnerBalance={partnerBalance} expenses={expenses} collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} mobileOpen={mobileMenuOpen} onCloseMobileMenu={() => setMobileMenuOpen(false)} onOpenMasterData={() => setIsMasterDataModalOpen(true)} partnersState={partnersState} currentUser={currentUser} onOpenProfile={() => setIsProfileModalOpen(true)} isCloudReady={isSupabaseConfigured} onOpenNewSale={handleOpenNewSaleModal} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onExportExcel={handleExportExcel} onBackupJson={handleBackupJson} />
 
       {/* Contenido Principal */}
       <div className={`main-content ${currentTab === 'pipeline' ? 'main-content-kanban' : ''}`}>
