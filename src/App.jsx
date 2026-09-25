@@ -1875,7 +1875,12 @@ export default function App() {
   if (dynamicCardRoute) {
     if (typeof window !== 'undefined') {
       const matchedCard = nfcCards.find(c => c.id === dynamicCardRoute.cardId);
-      const targetUrl = matchedCard?.reviewUrl?.trim() || (matchedCard?.placeId ? buildGoogleReviewUrl(matchedCard.placeId) : 'https://linkeocards.com/');
+      const targetUrl = 
+        matchedCard?.reviewUrl?.trim() || 
+        (matchedCard?.placeId ? buildGoogleReviewUrl(matchedCard.placeId) : '') ||
+        (dynamicCardRoute.dest ? dynamicCardRoute.dest.trim() : '') ||
+        (dynamicCardRoute.pid ? buildGoogleReviewUrl(dynamicCardRoute.pid) : '') ||
+        'https://linkeocards.com/';
       try {
         handleRecordCardBip(dynamicCardRoute.cardId, dynamicCardRoute.src);
       } catch (e) {}

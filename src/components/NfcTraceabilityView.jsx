@@ -26,7 +26,9 @@ import {
   AlertTriangle, 
   Link2,
   SlidersHorizontal,
-  FileText
+  FileText,
+  Download,
+  Sparkles
 } from 'lucide-react';
 
 export default function NfcTraceabilityView({
@@ -48,7 +50,18 @@ export default function NfcTraceabilityView({
   const [filterStatus, setFilterStatus] = useState('all');
   const [activeModalCard, setActiveModalCard] = useState(null);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [qrMode, setQrMode] = useState('smart'); // 'smart' (con analítica + pid) | 'direct' (Google Reviews nativo)
   const [copiedId, setCopiedId] = useState(null);
+
+  const handleDownloadQr = () => {
+    if (!qrDataUrl || !activeModalCard) return;
+    const link = document.createElement('a');
+    link.href = qrDataUrl;
+    const safeName = (activeModalCard.businessName || activeModalCard.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.download = `QR_${safeName}_${qrMode}.png`;
+    link.click();
+    if (showToast) showToast('Descargando imagen PNG del Código QR...', 'info');
+  };
 
   // Obtener stock disponible de un producto/modelo
   const getProductStock = (productOrName) => {
@@ -142,11 +155,17 @@ export default function NfcTraceabilityView({
     }
   }, [selectedCardModal]);
 
-  // Generar QR cuando se abre el modal 1
+  // Generar QR cuando se abre el modal 1 o cambia el modo o Place ID
   useEffect(() => {
     if (activeModalCard) {
-      const dynamicQrUrl = buildCardRedirectUrl(activeModalCard.id, 'qr');
-      QRCode.toDataURL(dynamicQrUrl, {
+      const resolvedPlaceId = activeModalCard.placeId || cleanGooglePlaceId(activeModalCard.reviewUrl);
+      const resolvedReviewUrl = activeModalCard.reviewUrl || (resolvedPlaceId ? buildGoogleReviewUrl(resolvedPlaceId) : '');
+      
+      const targetQrUrl = (qrMode === 'direct' && resolvedReviewUrl)
+        ? resolvedReviewUrl
+        : buildCardRedirectUrl(activeModalCard.id, 'qr', '', resolvedPlaceId, resolvedReviewUrl);
+
+      QRCode.toDataURL(targetQrUrl, {
         width: 250,
         margin: 2,
         color: {
@@ -157,7 +176,7 @@ export default function NfcTraceabilityView({
       .then(url => setQrDataUrl(url))
       .catch(err => console.error(err));
     }
-  }, [activeModalCard]);
+  }, [activeModalCard, qrMode]);
 
   // Mantener la tarjeta activa sincronizada si cambian sus propiedades
   useEffect(() => {
@@ -240,9 +259,11 @@ export default function NfcTraceabilityView({
         finalPlaceId = extracted;
       }
     }
-    // Si no puso URL pero sí Place ID, autoconstruir la URL
-    if (!finalReviewUrl && finalPlaceId) {
-      finalReviewUrl = buildGoogleReviewUrl(finalPlaceId);
+    // Si tiene Place ID y la URL estaba vacía, o es la genérica, o no coincide con el Place ID
+    if (finalPlaceId) {
+      if (!finalReviewUrl || finalReviewUrl === 'https://linkeocards.com/' || (finalReviewUrl.includes('writereview?placeid=') && !finalReviewUrl.includes(finalPlaceId))) {
+        finalReviewUrl = buildGoogleReviewUrl(finalPlaceId);
+      }
     }
 
     const newHistoryEntry = supportNote.trim() ? {
@@ -692,122 +713,284 @@ export default function NfcTraceabilityView({
       </div>
 
       {/* MODAL 1: Visor QR, Payload NFC y Bitácora de Soporte */}
-      {activeModalCard && (
-        <div className="modal-overlay" onClick={() => { setActiveModalCard(null); if (setSelectedCardModal) setSelectedCardModal(null); }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span className="code-mono" style={{ fontSize: '1rem' }}>{activeModalCard.id}</span>
-                <h3 className="modal-title">{activeModalCard.businessName || 'Tarjeta Linkeo'}</h3>
-              </div>
-              <button className="close-btn" onClick={() => { setActiveModalCard(null); if (setSelectedCardModal) setSelectedCardModal(null); }}>✕</button>
-            </div>
+      {activeModalCard && (() => {
+        const resolvedPlaceId = activeModalCard.placeId || cleanGooglePlaceId(activeModalCard.reviewUrl);
+        const resolvedReviewUrl = activeModalCard.reviewUrl || (resolvedPlaceId ? buildGoogleReviewUrl(resolvedPlaceId) : '');
+        const smartNfcUrl = buildCardRedirectUrl(activeModalCard.id, 'nfc', '', resolvedPlaceId, resolvedReviewUrl);
+        const smartQrUrl = buildCardRedirectUrl(activeModalCard.id, 'qr', '', resolvedPlaceId, resolvedReviewUrl);
+        const activeQrUrl = qrMode === 'direct' && resolvedReviewUrl ? resolvedReviewUrl : smartQrUrl;
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', alignItems: 'center', marginBottom: '20px' }}>
-              {/* Código QR Vectorial */}
-              <div style={{ textAlign: 'center', background: 'white', padding: '16px', borderRadius: 'var(--radius-lg)' }}>
-                {qrDataUrl ? (
-                  <img src={qrDataUrl} alt="QR Code" style={{ width: '100%', maxWidth: '200px', display: 'block', margin: '0 auto' }} />
-                ) : (
-                  <div>Generando QR...</div>
-                )}
-                <div style={{ color: '#002d9c', fontSize: '0.75rem', fontWeight: 700, marginTop: '8px' }}>
-                  Escanea para probar reseña Google
+        return (
+          <div className="modal-overlay" onClick={() => { setActiveModalCard(null); if (setSelectedCardModal) setSelectedCardModal(null); }}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
+              <div className="modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span className="code-mono" style={{ fontSize: '0.95rem' }}>{activeModalCard.id}</span>
+                  <h3 className="modal-title">{activeModalCard.businessName || 'Tarjeta Linkeo'}</h3>
                 </div>
+                <button className="close-btn" onClick={() => { setActiveModalCard(null); if (setSelectedCardModal) setSelectedCardModal(null); }}>✕</button>
               </div>
 
-              {/* Datos de Grabación NFC NDEF & Panel */}
-              <div>
-                <h4 style={{ fontSize: '0.95rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Smartphone size={16} color="var(--primary-600)" />
-                  <span>Configuración para Chip NFC & QR</span>
-                </h4>
+              {/* Banner de Vinculación de Google Place ID y Destino de Reseña */}
+              {resolvedPlaceId ? (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(0, 102, 255, 0.08))',
+                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px 14px',
+                  marginBottom: '16px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontWeight: 700, fontSize: '0.82rem' }}>
+                      <CheckCircle2 size={16} />
+                      <span>Google Place ID Vinculado al QR & Chip</span>
+                    </div>
+                    <span style={{ fontSize: '0.70rem', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                      ✓ Reflejado en QR
+                    </span>
+                  </div>
 
-                <div className="form-group" style={{ marginBottom: '10px' }}>
-                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
-                    URL Inteligente para Chip NFC (?src=nfc):
-                  </label>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <input 
-                      type="text" 
-                      className="form-control code-mono" 
-                      style={{ fontSize: '0.72rem' }} 
-                      value={buildCardRedirectUrl(activeModalCard.id, 'nfc')} 
-                      readOnly 
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <code className="code-mono" style={{ fontSize: '0.82rem', color: '#10b981', background: 'rgba(0,0,0,0.3)', padding: '4px 10px', borderRadius: 'var(--radius-sm)', flex: 1, wordBreak: 'break-all' }}>
+                      {resolvedPlaceId}
+                    </code>
                     <button 
+                      type="button"
                       className="btn btn-secondary btn-sm"
-                      onClick={() => handleCopy(buildCardRedirectUrl(activeModalCard.id, 'nfc'), 'modal-nfc-url')}
-                      title="Copiar URL para NFC Tools"
+                      style={{ padding: '4px 8px' }}
+                      onClick={() => handleCopy(resolvedPlaceId, 'modal-pid')}
+                      title="Copiar Place ID"
                     >
-                      {copiedId === 'modal-nfc-url' ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                      {copiedId === 'modal-pid' ? <Check size={13} color="#10b981" /> : <Copy size={13} />}
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={resolvedReviewUrl}>
+                      <strong style={{ color: 'var(--text-main)' }}>Destino Reseña: </strong> 
+                      <span className="code-mono" style={{ color: '#38bdf8' }}>{resolvedReviewUrl || 'Generando destino...'}</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      className="btn btn-link btn-sm" 
+                      style={{ padding: 0, fontSize: '0.72rem', color: 'var(--primary-400)', textDecoration: 'underline', whiteSpace: 'nowrap' }}
+                      onClick={() => handleOpenEdit(activeModalCard)}
+                    >
+                      Editar en Soporte ↗
                     </button>
                   </div>
                 </div>
-
-                <div className="form-group" style={{ marginBottom: '12px' }}>
-                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '4px' }}>
-                    URL Inteligente para Código QR (?src=qr):
-                  </label>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <input 
-                      type="text" 
-                      className="form-control code-mono" 
-                      style={{ fontSize: '0.72rem' }} 
-                      value={buildCardRedirectUrl(activeModalCard.id, 'qr')} 
-                      readOnly 
-                    />
-                    <button 
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => handleCopy(buildCardRedirectUrl(activeModalCard.id, 'qr'), 'modal-qr-url')}
-                      title="Copiar URL para QR"
-                    >
-                      {copiedId === 'modal-qr-url' ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
-                    </button>
+              ) : (
+                <div style={{
+                  background: 'rgba(245, 158, 11, 0.1)',
+                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px 14px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '8px'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#f59e0b', fontWeight: 700, fontSize: '0.82rem' }}>
+                      <AlertTriangle size={16} />
+                      <span>Sin Place ID configurado</span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Jala el Place ID en Gestión de Enlace para reflejar las 5 estrellas en este QR.
+                    </div>
                   </div>
+                  <button 
+                    type="button" 
+                    className="btn btn-warning btn-sm"
+                    style={{ fontSize: '0.75rem', fontWeight: 700 }}
+                    onClick={() => handleOpenEdit(activeModalCard)}
+                  >
+                    Jalar Place ID en Soporte
+                  </button>
                 </div>
+              )}
 
-                {activeModalCard.qrControlUrl && (
-                  <div style={{ marginBottom: '12px', padding: '8px 10px', backgroundColor: 'var(--bg-input)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      Enlace Panel de Control para Modificar QR:
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      <span className="code-mono" style={{ fontSize: '0.72rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {activeModalCard.qrControlUrl}
-                      </span>
-                      <a 
-                        href={activeModalCard.qrControlUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="btn btn-outline btn-sm"
-                        style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        <ExternalLink size={12} />
-                        <span>Abrir Panel</span>
-                      </a>
-                    </div>
-                  </div>
-                )}
-
-                <button 
+              {/* Selector de Modo de QR (Inteligente vs Directo) */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', background: 'var(--bg-input)', padding: '4px', borderRadius: 'var(--radius-md)' }}>
+                <button
                   type="button"
-                  className="btn btn-success btn-sm"
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                  onClick={() => {
-                    const url = activeModalCard.reviewUrl || (activeModalCard.placeId ? buildGoogleReviewUrl(activeModalCard.placeId) : '');
-                    if (!url) {
-                      if (showToast) showToast('Ingresa primero la URL de reseña en el soporte técnico', 'warning');
-                      return;
-                    }
-                    window.open(url, '_blank');
+                  onClick={() => setQrMode('smart')}
+                  style={{
+                    flex: 1,
+                    padding: '6px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: 'none',
+                    background: qrMode === 'smart' ? 'var(--primary-600)' : 'transparent',
+                    color: qrMode === 'smart' ? '#fff' : 'var(--text-muted)',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    transition: 'all 0.2s ease'
                   }}
                 >
-                  <ExternalLink size={14} />
-                  <span>Probar Destino Final en Google Reviews</span>
+                  <Sparkles size={13} />
+                  <span>QR Dinámico Linkeo (?src=qr)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrMode('direct')}
+                  style={{
+                    flex: 1,
+                    padding: '6px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: 'none',
+                    background: qrMode === 'direct' ? '#10b981' : 'transparent',
+                    color: qrMode === 'direct' ? '#fff' : 'var(--text-muted)',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <ExternalLink size={13} />
+                  <span>QR Directo Google Reviews</span>
                 </button>
               </div>
-            </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', alignItems: 'center', marginBottom: '20px' }}>
+                {/* Código QR Vectorial */}
+                <div style={{ textAlign: 'center', background: 'white', padding: '16px', borderRadius: 'var(--radius-lg)' }}>
+                  {qrDataUrl ? (
+                    <img src={qrDataUrl} alt="QR Code" style={{ width: '100%', maxWidth: '200px', display: 'block', margin: '0 auto' }} />
+                  ) : (
+                    <div style={{ padding: '40px 0', color: '#666' }}>Generando QR...</div>
+                  )}
+                  <div style={{ color: qrMode === 'direct' ? '#059669' : '#002d9c', fontSize: '0.74rem', fontWeight: 700, marginTop: '8px' }}>
+                    {qrMode === 'direct' ? '⭐ Escanea: Google Reviews Directo' : '⚡ Escanea: Linkeo con Place ID y Bip'}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginTop: '10px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '4px 8px', color: '#1e293b', borderColor: '#cbd5e1' }}
+                      onClick={handleDownloadQr}
+                      title="Descargar imagen PNG del QR para imprimir en tarjetas o stands"
+                    >
+                      <Download size={12} />
+                      <span>Descargar QR</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '4px 8px', color: '#1e293b', borderColor: '#cbd5e1' }}
+                      onClick={() => window.open(activeQrUrl, '_blank')}
+                      title="Probar apertura del enlace que contiene este QR"
+                    >
+                      <ExternalLink size={12} />
+                      <span>Probar QR</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Datos de Grabación NFC NDEF & Panel */}
+                <div>
+                  <h4 style={{ fontSize: '0.92rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Smartphone size={16} color="var(--primary-600)" />
+                    <span>Configuración para Chip NFC & QR</span>
+                  </h4>
+
+                  <div className="form-group" style={{ marginBottom: '10px' }}>
+                    <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: '4px' }}>
+                      URL Inteligente para Chip NFC (?src=nfc):
+                    </label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input 
+                        type="text" 
+                        className="form-control code-mono" 
+                        style={{ fontSize: '0.72rem' }} 
+                        value={smartNfcUrl} 
+                        readOnly 
+                      />
+                      <button 
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleCopy(smartNfcUrl, 'modal-nfc-url')}
+                        title="Copiar URL para NFC Tools"
+                      >
+                        {copiedId === 'modal-nfc-url' ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '12px' }}>
+                    <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{qrMode === 'direct' ? 'URL Directa Google Reviews (En QR):' : 'URL Inteligente para Código QR (?src=qr):'}</span>
+                      {resolvedPlaceId && <span style={{ color: '#10b981', fontWeight: 600 }}>✓ Con Place ID</span>}
+                    </label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input 
+                        type="text" 
+                        className="form-control code-mono" 
+                        style={{ fontSize: '0.72rem' }} 
+                        value={activeQrUrl} 
+                        readOnly 
+                      />
+                      <button 
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleCopy(activeQrUrl, 'modal-qr-url')}
+                        title="Copiar URL codificada en el QR"
+                      >
+                        {copiedId === 'modal-qr-url' ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {activeModalCard.qrControlUrl && (
+                    <div style={{ marginBottom: '12px', padding: '8px 10px', backgroundColor: 'var(--bg-input)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                        Enlace Panel de Control para Modificar QR:
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <span className="code-mono" style={{ fontSize: '0.72rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {activeModalCard.qrControlUrl}
+                        </span>
+                        <a 
+                          href={activeModalCard.qrControlUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="btn btn-outline btn-sm"
+                          style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <ExternalLink size={12} />
+                          <span>Abrir Panel</span>
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  <button 
+                    type="button"
+                    className="btn btn-success btn-sm"
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 700 }}
+                    onClick={() => {
+                      if (!resolvedReviewUrl) {
+                        if (showToast) showToast('Ingresa primero la URL de reseña o el Place ID en soporte técnico', 'warning');
+                        return;
+                      }
+                      window.open(resolvedReviewUrl, '_blank');
+                    }}
+                  >
+                    <ExternalLink size={14} />
+                    <span>Probar Destino Final en Google Reviews</span>
+                  </button>
+                </div>
+              </div>
 
             {/* Bitácora de Soporte Técnico e Historial con Eliminación bajo Auditoría */}
             <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
@@ -871,7 +1054,7 @@ export default function NfcTraceabilityView({
             </div>
           </div>
         </div>
-      )}
+      ); })()}
 
       {/* MODAL 2: Editar Enlace / Soporte Técnico */}
       {isEditModalOpen && editingCard && (
@@ -1032,8 +1215,10 @@ export default function NfcTraceabilityView({
                     className="form-control code-mono"
                     value={editingCard.placeId || ''}
                     onChange={(e) => {
-                      const cleaned = cleanGooglePlaceId(e.target.value);
-                      const autoUrl = !editingCard.reviewUrl?.trim() && cleaned ? buildGoogleReviewUrl(cleaned) : editingCard.reviewUrl;
+                      const raw = e.target.value;
+                      const cleaned = cleanGooglePlaceId(raw);
+                      const shouldAutoUpdate = cleaned && (!editingCard.reviewUrl?.trim() || editingCard.reviewUrl === 'https://linkeocards.com/' || editingCard.reviewUrl.includes('writereview?placeid='));
+                      const autoUrl = shouldAutoUpdate ? buildGoogleReviewUrl(cleaned) : editingCard.reviewUrl;
                       setEditingCard({ ...editingCard, placeId: cleaned, reviewUrl: autoUrl });
                     }}
                     placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4"

@@ -20,9 +20,13 @@ export function parseDynamicCardRoute(loc = typeof window !== 'undefined' ? wind
   if (pathMatch) {
     const searchParams = new URLSearchParams(search);
     const srcParam = (searchParams.get('src') || 'nfc').toLowerCase();
+    const pid = searchParams.get('pid') || '';
+    const dest = searchParams.get('dest') || '';
     return {
       cardId: pathMatch[1],
-      src: srcParam === 'qr' ? 'qr' : 'nfc'
+      src: srcParam === 'qr' ? 'qr' : 'nfc',
+      pid,
+      dest
     };
   }
 
@@ -31,9 +35,13 @@ export function parseDynamicCardRoute(loc = typeof window !== 'undefined' ? wind
   if (hashMatch) {
     const hashParams = new URLSearchParams(hashMatch[2] || '');
     const srcParam = (hashParams.get('src') || 'nfc').toLowerCase();
+    const pid = hashParams.get('pid') || '';
+    const dest = hashParams.get('dest') || '';
     return {
       cardId: hashMatch[1],
-      src: srcParam === 'qr' ? 'qr' : 'nfc'
+      src: srcParam === 'qr' ? 'qr' : 'nfc',
+      pid,
+      dest
     };
   }
 
@@ -45,8 +53,10 @@ export function parseDynamicCardRoute(loc = typeof window !== 'undefined' ? wind
  * @param {string} cardId - Identificador único de la tarjeta (ej. LNK-508d9e5f)
  * @param {'nfc' | 'qr'} src - Canal de origen ('nfc' para chip, 'qr' para código QR)
  * @param {string} [customBaseUrl] - URL base opcional (ej. https://linkeo.pe o https://linkeocards.com)
+ * @param {string} [placeId] - Google Place ID para reflejarlo en el enlace del QR/Chip
+ * @param {string} [destUrl] - URL de destino directa opcional si no usa Place ID estándar
  */
-export function buildCardRedirectUrl(cardId, src = 'nfc', customBaseUrl = '') {
+export function buildCardRedirectUrl(cardId, src = 'nfc', customBaseUrl = '', placeId = '', destUrl = '') {
   if (!cardId) return '';
   const cleanSrc = src === 'qr' ? 'qr' : 'nfc';
   
@@ -56,8 +66,18 @@ export function buildCardRedirectUrl(cardId, src = 'nfc', customBaseUrl = '') {
   }
   if (!base) base = 'https://linkeocards.com';
 
+  const cleanPid = cleanGooglePlaceId(placeId);
+  const params = new URLSearchParams();
+  params.set('src', cleanSrc);
+  if (cleanPid) {
+    params.set('pid', cleanPid);
+  }
+  if (destUrl && !cleanPid && !destUrl.includes('linkeocards.com/')) {
+    params.set('dest', destUrl);
+  }
+
   // Usamos formato hash #/r/:cardId para máxima portabilidad en cualquier servidor web
-  return `${base}/#/r/${cardId}?src=${cleanSrc}`;
+  return `${base}/#/r/${cardId}?${params.toString()}`;
 }
 
 /**
@@ -220,8 +240,13 @@ export function cleanGooglePlaceId(input) {
  * garantizando el enlace directo de reseña de 5 estrellas.
  */
 export function buildGoogleReviewUrl(placeId) {
+  if (!placeId) return '';
   const cleanId = cleanGooglePlaceId(placeId);
-  return cleanId ? `https://search.google.com/local/writereview?placeid=${cleanId}` : '';
+  if (!cleanId) return '';
+  if (cleanId.startsWith('http://') || cleanId.startsWith('https://')) {
+    return cleanId;
+  }
+  return `https://search.google.com/local/writereview?placeid=${cleanId}`;
 }
 
 /**

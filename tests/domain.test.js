@@ -524,7 +524,7 @@ test('buildLeadWhatsAppMessage customizes for all 6 pipeline stages with social 
 });
 
 test('dynamicRouter parses NFC and QR routes, generates redirect URLs and evaluates post-sale health', async () => {
-  const { parseDynamicCardRoute, buildCardRedirectUrl, evaluateCardHealth } = await import('../src/utils/dynamicRouter.js');
+  const { parseDynamicCardRoute, buildCardRedirectUrl, evaluateCardHealth, buildGoogleReviewUrl } = await import('../src/utils/dynamicRouter.js');
 
   // 1. Parsing pathname /r/:cardId?src=nfc
   const locPath = { pathname: '/r/LNK-508d9e5f', search: '?src=nfc', hash: '' };
@@ -546,6 +546,16 @@ test('dynamicRouter parses NFC and QR routes, generates redirect URLs and evalua
   assert.equal(urlNfc, 'https://linkeocards.com/#/r/LNK-test-1?src=nfc');
   const urlQr = buildCardRedirectUrl('LNK-test-1', 'qr', 'https://linkeocards.com');
   assert.equal(urlQr, 'https://linkeocards.com/#/r/LNK-test-1?src=qr');
+
+  // 4b. URL Builder with Google Place ID reflection
+  const urlQrWithPid = buildCardRedirectUrl('LNK-508d9e5f', 'qr', 'https://linkeocards.com', 'ChIJgZUdLuu5BZER2WB6dl-rFL0');
+  assert.equal(urlQrWithPid, 'https://linkeocards.com/#/r/LNK-508d9e5f?src=qr&pid=ChIJgZUdLuu5BZER2WB6dl-rFL0');
+  const parsedWithPid = parseDynamicCardRoute({ pathname: '/', search: '', hash: '#/r/LNK-508d9e5f?src=qr&pid=ChIJgZUdLuu5BZER2WB6dl-rFL0' });
+  assert.equal(parsedWithPid.cardId, 'LNK-508d9e5f');
+  assert.equal(parsedWithPid.src, 'qr');
+  assert.equal(parsedWithPid.pid, 'ChIJgZUdLuu5BZER2WB6dl-rFL0');
+  const reviewUrlFromPid = buildGoogleReviewUrl(parsedWithPid.pid);
+  assert.equal(reviewUrlFromPid, 'https://search.google.com/local/writereview?placeid=ChIJgZUdLuu5BZER2WB6dl-rFL0');
 
   // 5. Card Health: Inactive (0 bips)
   const inactiveCard = { id: 'c1', businessName: 'Café Surco', readCount: 0, bipsNfc: 0, bipsQr: 0 };
