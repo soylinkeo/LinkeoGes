@@ -233,12 +233,14 @@ button, input, select, textarea {
   justify-content: center;
 }
 
+.sidebar.collapsed .sidebar-partners-section,
 .sidebar.collapsed .sidebar-brand-text,
 .sidebar.collapsed .sidebar-subtitle,
+.sidebar.collapsed .nav-item .nav-label,
 .sidebar.collapsed .nav-item span,
-.sidebar.collapsed .nav-badge,
+.sidebar.collapsed .sidebar-badge,
 .sidebar.collapsed .sidebar-footer {
-  display: none;
+  display: none !important;
 }
 
 .sidebar.collapsed .nav-item {
@@ -247,7 +249,7 @@ button, input, select, textarea {
 }
 
 .sidebar-header {
-  padding: 18px 16px;
+  padding: 16px 14px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -258,12 +260,17 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-md);
   background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-800) 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(0, 102, 255, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 102, 255, 0.35);
+  transition: transform var(--transition-fast);
+}
+
+.sidebar-brand-badge:hover {
+  transform: scale(1.04);
 }
 
 .sidebar-brand-text h1 {
@@ -271,72 +278,348 @@ button, input, select, textarea {
   font-weight: 800;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   color: var(--text-main);
+  letter-spacing: -0.02em;
 }
 
 .brand-ges-tag {
-  background: linear-gradient(135deg, var(--google-red), var(--google-yellow), var(--google-green), var(--google-blue));
+  background: linear-gradient(135deg, #f43f5e 0%, #fbbf24 35%, #10b981 70%, #0066ff 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   font-weight: 900;
 }
 
 .sidebar-subtitle {
-  font-size: 0.72rem;
-  color: var(--text-muted);
+  font-size: 0.68rem;
+  color: var(--text-subtle);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-weight: 700;
 }
 
-.sidebar-nav {
-  flex: 1;
-  padding: 16px 12px;
+/* Sección Co-CEOs moderna */
+.sidebar-partners-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.sidebar-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.sidebar-status-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.sidebar-cloud-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  transition: all var(--transition-fast);
+}
+
+.sidebar-cloud-pill.connected {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  color: #34d399;
+}
+
+.sidebar-cloud-pill.local {
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.28);
+  color: #facc15;
+}
+
+.status-dot-pulse {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  box-shadow: 0 0 5px currentColor;
+}
+
+.sidebar-co-ceos-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.co-ceo-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+  outline: none;
+}
+
+.co-ceo-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.co-ceo-card.is-current {
+  border-color: rgba(0, 102, 255, 0.45);
+  background: rgba(0, 102, 255, 0.09);
+  box-shadow: 0 0 10px rgba(0, 102, 255, 0.15);
+}
+
+.co-ceo-avatar {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.co-ceo-meta {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.co-ceo-name {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-ceo-status {
+  font-size: 0.63rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
   gap: 4px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.co-ceo-status.status-online {
+  color: #10b981;
+}
+
+.co-ceo-status.status-blue {
+  color: #38bdf8;
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 5px #10b981;
+  flex-shrink: 0;
+}
+
+.status-dot.blue {
+  background: #38bdf8;
+  box-shadow: 0 0 5px #38bdf8;
+}
+
+/* Navegación Sidebar */
+.sidebar-nav {
+  flex: 1;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   overflow-y: auto;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 11px;
+  padding: 8px 12px;
   border-radius: var(--radius-md);
-  color: var(--text-muted);
+  color: #94a3b8;
   text-decoration: none;
   font-weight: 500;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   transition: all var(--transition-fast);
   cursor: pointer;
   border: 1px solid transparent;
   background: transparent;
   width: 100%;
   text-align: left;
+  position: relative;
+  overflow: hidden;
 }
 
 .nav-item:hover {
-  color: var(--text-main);
-  background-color: rgba(255, 255, 255, 0.04);
+  color: #f1f5f9;
+  background-color: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .nav-item.active {
   color: #ffffff;
-  background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
+  background: linear-gradient(90deg, rgba(0, 102, 255, 0.18) 0%, rgba(0, 102, 255, 0.04) 100%);
+  border: 1px solid rgba(0, 102, 255, 0.32);
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(0, 102, 255, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 102, 255, 0.16);
 }
 
-.nav-badge {
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3.5px;
+  background: #0066ff;
+  border-radius: 0 4px 4px 0;
+  box-shadow: 0 0 10px #0066ff;
+}
+
+.nav-item .nav-icon {
+  color: #64748b;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.nav-item:hover .nav-icon {
+  color: #94a3b8;
+}
+
+.nav-item.active .nav-icon {
+  color: #38bdf8;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.45));
+}
+
+.nav-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Badges del Sidebar Modernos */
+.sidebar-badge {
   margin-left: auto;
-  font-size: 0.7rem;
-  padding: 2px 7px;
-  border-radius: var(--radius-full);
-  background-color: rgba(255, 255, 255, 0.15);
-  color: inherit;
+  font-size: 0.68rem;
   font-weight: 700;
+  padding: 2.5px 7.5px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Badge Alerta (Inventario / Stock bajo) */
+.sidebar-badge.badge-alert {
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.15);
+}
+
+.nav-item.active .sidebar-badge.badge-alert {
+  background: rgba(245, 158, 11, 0.24);
+  border-color: #f59e0b;
+  color: #fef08a;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+
+.badge-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+  animation: badgePulseWarning 1.6s infinite ease-in-out;
+}
+
+@keyframes badgePulseWarning {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+
+/* Badge Fases ERP */
+.sidebar-badge.badge-phase {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  color: #38bdf8;
+  gap: 4px;
+}
+
+.nav-item.active .sidebar-badge.badge-phase {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #e0f2fe;
+}
+
+.badge-phase-pill {
+  font-size: 0.62rem;
+  background: rgba(56, 189, 248, 0.2);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* Badge Conteo Numérico (Chips, Kanban) */
+.sidebar-badge.badge-count {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+  min-width: 22px;
+  justify-content: center;
+  padding: 2px 7px;
+}
+
+.nav-item.active .sidebar-badge.badge-count {
+  background: rgba(0, 102, 255, 0.26);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #e0f2fe;
+}
+
+/* Badge Excel / Proyecciones */
+.sidebar-badge.badge-excel {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.32);
+  color: #34d399;
+}
+
+.nav-item.active .sidebar-badge.badge-excel {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10b981;
+  color: #a7f3d0;
 }
 
 .sidebar-footer {

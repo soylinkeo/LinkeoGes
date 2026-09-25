@@ -15,7 +15,9 @@ import {
   TrendingUp,
   CreditCard,
   Download,
-  X
+  X,
+  AlertTriangle,
+  Users
 } from 'lucide-react';
 
 export default function Sidebar({ 
@@ -53,19 +55,21 @@ export default function Sidebar({
       label: 'Gestión Proyecto (5F)', 
       icon: FolderKanban,
       badge: '5 Fases',
-      badgeColor: 'badge-blue'
+      badgeType: 'phase'
     },
     { 
       id: 'nfc-traceability', 
       label: 'Chips & Enlaces NFC', 
       icon: Cpu,
-      badge: nfcCardsCount > 0 ? nfcCardsCount : null 
+      badge: nfcCardsCount > 0 ? nfcCardsCount : null,
+      badgeType: 'count'
     },
     { 
       id: 'pipeline', 
       label: 'Pipeline B2B (Kanban)', 
       icon: Kanban,
-      badge: leadsCount > 0 ? leadsCount : null 
+      badge: leadsCount > 0 ? leadsCount : null,
+      badgeType: 'count'
     },
     { 
       id: 'calendar', 
@@ -77,8 +81,10 @@ export default function Sidebar({
       id: 'inventory', 
       label: 'Almacén & Inventario', 
       icon: Boxes,
-      badge: inventoryAlertsCount > 0 ? '⚠️ Alerta' : (productsCount > 0 ? `${productsCount} prods` : null),
-      badgeColor: inventoryAlertsCount > 0 ? 'badge-yellow' : 'badge-blue'
+      badge: inventoryAlertsCount > 0 
+        ? (inventoryAlertsCount === 1 ? '1 alerta' : `${inventoryAlertsCount} alertas`) 
+        : (productsCount > 0 ? `${productsCount} prods` : null),
+      badgeType: inventoryAlertsCount > 0 ? 'alert' : 'count'
     },
     { 
       id: 'finances', 
@@ -91,7 +97,7 @@ export default function Sidebar({
       label: 'Proyecciones & Metas', 
       icon: TrendingUp,
       badge: 'Excel',
-      badgeColor: 'badge-blue'
+      badgeType: 'excel'
     },
     { 
       id: 'audit', 
@@ -100,6 +106,43 @@ export default function Sidebar({
       badge: null
     }
   ];
+
+  const renderBadge = (item) => {
+    if (!item.badge) return null;
+
+    if (item.badgeType === 'alert') {
+      return (
+        <span className="sidebar-badge badge-alert" title="Artículos por debajo del umbral mínimo de stock">
+          <span className="badge-pulse-dot" />
+          <AlertTriangle size={11} />
+          <span>{item.badge}</span>
+        </span>
+      );
+    }
+
+    if (item.badgeType === 'phase') {
+      return (
+        <span className="sidebar-badge badge-phase" title="Metodología 5 Fases ERP">
+          <span className="badge-phase-pill">5F</span>
+          <span>Fases</span>
+        </span>
+      );
+    }
+
+    if (item.badgeType === 'excel') {
+      return (
+        <span className="sidebar-badge badge-excel" title="Modelado financiero y proyecciones de venta">
+          <span>Excel</span>
+        </span>
+      );
+    }
+
+    return (
+      <span className="sidebar-badge badge-count">
+        {item.badge}
+      </span>
+    );
+  };
 
   return (
     <>
@@ -148,81 +191,53 @@ export default function Sidebar({
 
         {/* Sección de Socios Co-CEOs y Conectividad en la barra izquierda */}
         {partnersState && !collapsed && (
-          <div 
-            className="sidebar-partners-section" 
-            style={{ 
-              padding: '10px 14px', 
-              borderBottom: '1px solid var(--border-subtle)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '7px'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Estado de Co-CEOs
+          <div className="sidebar-partners-section">
+            <div className="sidebar-status-header">
+              <div className="sidebar-status-title">
+                <Users size={12} color="#94a3b8" />
+                <span>Socios Co-CEO</span>
               </div>
               <div 
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontSize: '0.68rem',
-                  padding: '2px 7px',
-                  borderRadius: 'var(--radius-full)',
-                  background: isCloudReady ? 'rgba(16, 185, 129, 0.12)' : 'rgba(234, 179, 8, 0.12)',
-                  color: isCloudReady ? 'var(--google-green)' : '#eab308',
-                  border: `1px solid ${isCloudReady ? 'rgba(16, 185, 129, 0.25)' : 'rgba(234, 179, 8, 0.25)'}`,
-                  fontWeight: 600
-                }}
-                title={isCloudReady ? 'Base de datos Supabase conectada y sincronizada' : 'Modo local (sin nube)'}
+                className={`sidebar-cloud-pill ${isCloudReady ? 'connected' : 'local'}`}
+                title={isCloudReady ? 'Base de datos Supabase conectada y sincronizada' : 'Modo de almacenamiento local'}
               >
-                <span>{isCloudReady ? '☁️' : '💾'}</span>
+                <span className="status-dot-pulse" style={{ background: isCloudReady ? '#10b981' : '#eab308' }} />
                 <span>{isCloudReady ? 'Supabase Nube' : 'Local'}</span>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <div 
-                onClick={() => { if (onOpenProfile) onOpenProfile(); if (onCloseMobileMenu) onCloseMobileMenu(); }}
-                style={{ 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: '6px', 
-                  padding: '5px 11px', 
-                  borderRadius: 'var(--radius-full)',
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  border: `1px solid ${currentUser?.id === 'luis' ? 'var(--primary-600)' : 'rgba(16, 185, 129, 0.25)'}`,
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
-                  transition: 'all var(--transition-fast)'
-                }}
-                title="Clic para gestionar estado de Luis Romero"
-              >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981' }}></span>
-                <span style={{ fontWeight: 700 }}>Luis:</span>
-                <span style={{ color: 'var(--google-green)', fontWeight: 600 }}>{partnersState.luis?.status || 'Disponible'}</span>
-              </div>
 
-              <div 
+            <div className="sidebar-co-ceos-grid">
+              <button
+                type="button"
+                className={`co-ceo-card ${currentUser?.id === 'luis' ? 'is-current' : ''}`}
                 onClick={() => { if (onOpenProfile) onOpenProfile(); if (onCloseMobileMenu) onCloseMobileMenu(); }}
-                style={{ 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: '6px', 
-                  padding: '5px 11px', 
-                  borderRadius: 'var(--radius-full)',
-                  background: 'rgba(59, 130, 246, 0.1)',
-                  border: `1px solid ${currentUser?.id === 'kevin' ? 'var(--primary-600)' : 'rgba(59, 130, 246, 0.25)'}`,
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
-                  transition: 'all var(--transition-fast)'
-                }}
-                title="Clic para gestionar estado de Kevin Servat"
+                title="Clic para gestionar perfil y estado de Luis Romero"
               >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#38bdf8', boxShadow: '0 0 6px #38bdf8' }}></span>
-                <span style={{ fontWeight: 700 }}>Kevin:</span>
-                <span style={{ color: '#38bdf8', fontWeight: 600 }}>{partnersState.kevin?.status || 'Guardia'}</span>
-              </div>
+                <div className="co-ceo-avatar">👨‍💼</div>
+                <div className="co-ceo-meta">
+                  <span className="co-ceo-name">Luis</span>
+                  <span className="co-ceo-status status-online">
+                    <span className="status-dot" />
+                    <span>{partnersState.luis?.status || 'Disponible'}</span>
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`co-ceo-card ${currentUser?.id === 'kevin' ? 'is-current' : ''}`}
+                onClick={() => { if (onOpenProfile) onOpenProfile(); if (onCloseMobileMenu) onCloseMobileMenu(); }}
+                title="Clic para gestionar perfil y estado de Kevin Servat"
+              >
+                <div className="co-ceo-avatar">🚀</div>
+                <div className="co-ceo-meta">
+                  <span className="co-ceo-name">Kevin</span>
+                  <span className="co-ceo-status status-blue">
+                    <span className="status-dot blue" />
+                    <span>{partnersState.kevin?.status || 'Disponible'}</span>
+                  </span>
+                </div>
+              </button>
             </div>
           </div>
         )}
@@ -240,13 +255,9 @@ export default function Sidebar({
                   if (onCloseMobileMenu) onCloseMobileMenu();
                 }}
               >
-                <Icon size={18} />
-                <span>{item.label}</span>
-                {item.badge && (
-                  <span className={`nav-badge ${item.badgeColor || ''}`}>
-                    {item.badge}
-                  </span>
-                )}
+                <Icon size={17} className="nav-icon" />
+                <span className="nav-label">{item.label}</span>
+                {renderBadge(item)}
               </button>
             );
           })}
