@@ -1111,6 +1111,56 @@ test('dashboard units sold kpi correctly uses inventory capacity (sold + current
   assert.equal(displayRatio, '2 / 5 uds');
 });
 
+test('operational routine 4 blocks integrates into calendar events with appointments and daily tasks', async () => {
+  const { INITIAL_CALENDAR_EVENTS, OPERATIONAL_ROUTINE_EVENTS, INITIAL_PLAN_30_DAYS } = await import('../src/data/initialData.js');
+
+  // El plan de 30 días debe estar vacío (declarado obsoleto)
+  assert.equal(INITIAL_PLAN_30_DAYS.length, 0);
+
+  // La rutina de 4 bloques debe tener las 9 actividades clave
+  assert.equal(INITIAL_CALENDAR_EVENTS.length, 9);
+  assert.equal(OPERATIONAL_ROUTINE_EVENTS.length, 9);
+
+  // Citas presenciales (Salidas a campo)
+  const appointments = INITIAL_CALENDAR_EVENTS.filter(e => !e.isDailyTask && e.type !== 'daily_task');
+  assert.equal(appointments.length, 2);
+  const shortWindow = appointments.find(a => a.id === 'evt-bloque-3-corta');
+  const longWindow = appointments.find(a => a.id === 'evt-bloque-3-larga');
+  assert.ok(shortWindow, 'Debe existir la salida de ventana corta (Mar/Jue)');
+  assert.equal(shortWindow.startTime, '17:00');
+  assert.equal(shortWindow.endTime, '18:30');
+  assert.ok(longWindow, 'Debe existir la salida de ventana larga (Lun/Mié/Vie)');
+  assert.equal(longWindow.startTime, '17:00');
+  assert.equal(longWindow.endTime, '20:30');
+
+  // Tareas diarias de los 4 bloques
+  const dailyTasks = INITIAL_CALENDAR_EVENTS.filter(e => e.isDailyTask || e.type === 'daily_task');
+  assert.equal(dailyTasks.length, 7);
+
+  // Bloque 1: CRM y Backoffice
+  const b1Pipeline = dailyTasks.find(t => t.id === 'task-bloque-1-pipeline');
+  const b1Cierre = dailyTasks.find(t => t.id === 'task-bloque-1-cierre');
+  assert.ok(b1Pipeline && b1Pipeline.description.includes('8 prospectos'));
+  assert.ok(b1Cierre && b1Cierre.description.includes('Negociación'));
+
+  // Bloque 2: Contenido POV
+  const b2Videos = dailyTasks.find(t => t.id === 'task-bloque-2-grabacion');
+  const b2Post = dailyTasks.find(t => t.id === 'task-bloque-2-publicacion');
+  assert.ok(b2Videos && b2Videos.description.includes('POV'));
+  assert.ok(b2Post && b2Post.description.includes('linkeocards.com'));
+
+  // Bloque 3: Salida a Campo & Preventas
+  const b3Preventas = dailyTasks.find(t => t.id === 'task-bloque-3-preventas');
+  assert.ok(b3Preventas && b3Preventas.description.includes('Tap & Wow'));
+
+  // Bloque 4: Inversión Flujo (S/ 160)
+  const b4Logistica = dailyTasks.find(t => t.id === 'task-bloque-4-logistica');
+  const b4Ads = dailyTasks.find(t => t.id === 'task-bloque-4-publicidad');
+  assert.ok(b4Logistica && b4Logistica.description.includes('40'));
+  assert.ok(b4Ads && b4Ads.description.includes('120'));
+});
+
+
 
 
 

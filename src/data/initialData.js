@@ -1,5 +1,6 @@
 // Datos maestros iniciales de LinkeoGes
 // Extraídos directamente de Control de Gastos NFC.xlsx, linkeocards.com y los flyers oficiales
+import { localDate } from '../utils/dateUtils.js';
 
 export const PARTNERS = {
   luis: {
@@ -225,41 +226,155 @@ export const INITIAL_SUPPLIERS = [
   }
 ];
 
-// Plantilla de referencia con las 27 tareas estratégicas del Excel Control de Gastos NFC.xlsx
-export const EXCEL_PLAN_30_DAYS_TEMPLATE = [
-  { day: 1, week: 1, action: 'Definir oferta, precios y condiciones', target: 'Oferta final escrita', channel: 'Gestión', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 2, week: 1, action: 'Configurar 2 muestras con negocios de prueba', target: '2 muestras funcionando', channel: 'Producto', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 3, week: 1, action: 'Grabar video demostrativo vertical', target: '1 video de 10–15 s', channel: 'Contenido', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 4, week: 1, action: 'Tomar fotos claras de ambos modelos', target: '5 fotos utilizables', channel: 'Contenido', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 5, week: 1, action: 'Crear catálogo de WhatsApp y perfiles', target: 'Catálogo publicado', channel: 'Digital', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 6, week: 1, action: 'Preparar guion de venta y respuestas', target: '1 guion + 8 objeciones', channel: 'Ventas', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 7, week: 1, action: 'Construir lista de prospectos', target: '50 negocios', channel: 'Prospección', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 8, week: 2, action: 'Contactar negocios por Instagram/WhatsApp', target: '15 contactos', channel: 'Mensajes', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 9, week: 2, action: 'Visitar negocios cercanos con muestra', target: '5 visitas', channel: 'Presencial', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 10, week: 2, action: 'Dar seguimiento a interesados', target: '10 seguimientos', channel: 'Mensajes', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 11, week: 2, action: 'Contactar nuevos prospectos', target: '15 contactos', channel: 'Mensajes', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 12, week: 2, action: 'Visitar segunda zona comercial', target: '5 visitas', channel: 'Presencial', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 13, week: 2, action: 'Publicar demostración y caso de uso', target: '1 publicación', channel: 'Contenido', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 14, week: 2, action: 'Revisar conversiones y objeciones', target: 'Resumen semanal', channel: 'Gestión', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 15, week: 3, action: 'Contactar nuevos prospectos', target: '20 contactos', channel: 'Mensajes', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 16, week: 3, action: 'Realizar demostraciones', target: '3 demostraciones', channel: 'Ventas', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 17, week: 3, action: 'Cerrar e instalar primeras ventas', target: '2 ventas', channel: 'Cierre', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 18, week: 3, action: 'Pedir foto y testimonio', target: '1 testimonio', channel: 'Postventa', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 19, week: 3, action: 'Ofrecer pack a negocios con 2 cajas', target: '5 propuestas', channel: 'Ventas', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 20, week: 3, action: 'Visitar negocios referidos', target: '5 visitas', channel: 'Presencial', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 21, week: 3, action: 'Revisar precio y canal ganador', target: 'Decisión documentada', channel: 'Gestión', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 22, week: 4, action: 'Duplicar prospección en rubro ganador', target: '20 contactos', channel: 'Prospección', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 23, week: 4, action: 'Publicar instalación real', target: '1 caso real', channel: 'Contenido', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 24, week: 4, action: 'Solicitar referidos a compradores', target: '5 solicitudes', channel: 'Postventa', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 25, week: 4, action: 'Realizar seguimiento de 7 días', target: '15 seguimientos', channel: 'Mensajes', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 26, week: 4, action: 'Cerrar ventas pendientes', target: '3 cierres', channel: 'Cierre', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' },
-  { day: 27, week: 4, action: 'Calcular costo de conseguir cliente', target: 'Métrica actualizada', channel: 'Gestión', responsible: 'Luis Romero / Kevin Servat', completed: false, result: '' }
-];
-
-// Inicia vacío para escenario libre y registro manual progresivo
+// Plan de 30 días declarado obsoleto por el equipo operativo en favor de la Rutina de 4 Bloques en Agenda
+export const EXCEL_PLAN_30_DAYS_TEMPLATE = [];
 export const INITIAL_PLAN_30_DAYS = [];
 
-export const INITIAL_CALENDAR_EVENTS = [];
+// Rutina Operativa Estratégica Linkeo (Bloques 1 al 4) para la Agenda de Citas y Tareas
+export const OPERATIONAL_ROUTINE_EVENTS = [
+  // --- CITAS Y VISITAS PRESENCIALES (SALIDAS A CAMPO) ---
+  {
+    id: 'evt-bloque-3-corta',
+    title: 'Salida a Campo: Ruta Diaria Lima Este/Centro (Ventana Corta)',
+    type: 'route',
+    partner: 'both',
+    date: localDate(),
+    startTime: '17:00',
+    endTime: '18:30',
+    client: 'Negocios locales cerca de ruta diaria',
+    district: 'Lima Cercado',
+    description: 'Martes y Jueves (17:00 - 18:30): Como las clases de titulación empiezan a las 7:00 PM, usar esta hora y media exclusivamente para visitar negocios locales cerca de tu ruta diaria (Lima Este/Centro). Llevar las tarjetas cuadradas restantes y aplicar el "Tap & Wow" en vivo. Si se venden las 3, cambiar inmediatamente a modo preventa (cobrando 50% de adelanto mediante QR para el lote de Temu).',
+    status: 'pendiente',
+    completed: false,
+    resultSummary: '',
+    isDailyTask: false
+  },
+  {
+    id: 'evt-bloque-3-larga',
+    title: 'Salida a Campo: Corredores Gastronómicos (Ventana Larga)',
+    type: 'demo',
+    partner: 'both',
+    date: localDate(),
+    startTime: '17:00',
+    endTime: '20:30',
+    client: 'Chifas, pollerías, restobares y cafeterías',
+    district: 'Miraflores',
+    description: 'Lunes, Miércoles y Viernes (Ventana Larga): Tarde/noche libre. Ir a corredores comerciales gastronómicos más grandes (chifas, pollerías, restobares) donde el flujo de clientes a esa hora es alto. Demostración en vivo "Tap & Wow", venta de stock restante y levantamiento de preventas con 50% de anticipo por QR.',
+    status: 'pendiente',
+    completed: false,
+    resultSummary: '',
+    isDailyTask: false
+  },
+
+  // --- TAREAS DIARIAS OPERATIVAS (POR BLOQUES ESTRATÉGICOS) ---
+  {
+    id: 'task-bloque-1-pipeline',
+    title: 'Bloque 1 (15:00 - 15:30): Atacar Pipeline - Contactar 8 prospectos en "Respuestas"',
+    type: 'daily_task',
+    isDailyTask: true,
+    partner: 'both',
+    category: 'Ventas',
+    priority: 'alta',
+    status: 'pendiente',
+    completed: false,
+    date: localDate(),
+    startTime: '15:00',
+    endTime: '15:30',
+    description: 'Antes de salir a la calle o grabar, hay que asegurar el dinero que ya está en la mesa. Abre LinkeoGes y contacta a esos 8 prospectos que están en fase de "Respuestas". El mensaje debe ser: "Hola [Nombre], nos acaban de quedar las últimas 2 tarjetas en stock esta semana. ¿Te reservo una o la separamos para el próximo lote?".'
+  },
+  {
+    id: 'task-bloque-1-cierre',
+    title: 'Bloque 1 (15:30 - 16:00): Cierre de Prospecto Caliente (1 Lead en "Negociación")',
+    type: 'daily_task',
+    isDailyTask: true,
+    partner: 'both',
+    category: 'Ventas',
+    priority: 'alta',
+    status: 'pendiente',
+    completed: false,
+    date: localDate(),
+    startTime: '15:30',
+    endTime: '16:00',
+    description: 'Tienes 1 lead en "Negociación". A ese cliente ofrécele la creación gratuita de su ficha de Google Maps si cierra la compra hoy mismo con las tarjetas que te quedan en mano.'
+  },
+  {
+    id: 'task-bloque-2-grabacion',
+    title: 'Bloque 2 (16:00 - 16:30): Grabar 3-4 Videos POV con las 3 Tarjetas en Stock',
+    type: 'daily_task',
+    isDailyTask: true,
+    partner: 'both',
+    category: 'Contenido',
+    priority: 'alta',
+    status: 'pendiente',
+    completed: false,
+    date: localDate(),
+    startTime: '16:00',
+    endTime: '16:30',
+    description: 'El contenido que mejor te funciona en TikTok es el formato POV (vista en primera persona) mostrando cómo el celular lee la tarjeta negra inmediatamente. Agarra las 3 tarjetas que te quedan y graba 3 o 4 videos cortos (10-15 segundos) con diferentes ángulos o en diferentes mesas antes de venderlas.'
+  },
+  {
+    id: 'task-bloque-2-publicacion',
+    title: 'Bloque 2 (16:30 - 17:00): Publicar en TikTok & Reel en Instagram (CTA linkeocards.com)',
+    type: 'daily_task',
+    isDailyTask: true,
+    partner: 'both',
+    category: 'Marketing',
+    priority: 'alta',
+    status: 'pendiente',
+    completed: false,
+    date: localDate(),
+    startTime: '16:30',
+    endTime: '17:00',
+    description: 'Llamado a la acción (CTA): Al final de cada video, no digas "cómprame". Di: "Ve al link de nuestro perfil para elegir tu Linkeo" para dirigir el tráfico directo a linkeocards.com. Sube un video diario a TikTok y replícalo como Reel en Instagram.'
+  },
+  {
+    id: 'task-bloque-3-preventas',
+    title: 'Bloque 3 (17:00 - 18:30): Salida a Campo, "Tap & Wow" y Preventas 50% Adelanto',
+    type: 'daily_task',
+    isDailyTask: true,
+    partner: 'both',
+    category: 'Ventas',
+    priority: 'alta',
+    status: 'pendiente',
+    completed: false,
+    date: localDate(),
+    startTime: '17:00',
+    endTime: '18:30',
+    description: 'Lleva las tarjetas cuadradas restantes y apliquen el "Tap & Wow" en vivo. Si venden las 3, cambien inmediatamente a modo preventa (cobrando 50% de adelanto mediante QR para el lote de reposición Temu).'
+  },
+  {
+    id: 'task-bloque-4-logistica',
+    title: 'Bloque 4: Logística y Packaging Corporativo Linkeo (Presupuesto S/ 40)',
+    type: 'daily_task',
+    isDailyTask: true,
+    partner: 'both',
+    category: 'Operaciones',
+    priority: 'alta',
+    status: 'pendiente',
+    completed: false,
+    date: localDate(),
+    startTime: '10:00',
+    endTime: '11:00',
+    description: 'Con el flujo de caja actual, la publicidad y la percepción visual son la prioridad. Logística (S/ 40): Compra los sobres o cajas Kraft y manda a imprimir stickers con el logo de Linkeo. Las tarjetas del próximo lote no pueden entregarse sin empaque corporativo.'
+  },
+  {
+    id: 'task-bloque-4-publicidad',
+    title: 'Bloque 4: Inversión en Publicidad Digital Meta Ads (Presupuesto S/ 120)',
+    type: 'daily_task',
+    isDailyTask: true,
+    partner: 'both',
+    category: 'Marketing',
+    priority: 'alta',
+    status: 'pendiente',
+    completed: false,
+    date: localDate(),
+    startTime: '11:00',
+    endTime: '12:00',
+    description: 'Publicidad Digital (S/ 120): Invierte S/ 10 diarios durante 12 días en Facebook/Instagram Ads. Usa como anuncio el Reel donde acercas el celular a la tarjeta. Dirige ese tráfico hacia tu botón de WhatsApp Business o hacia el catálogo de precios en tu web.'
+  }
+];
+
+export const INITIAL_CALENDAR_EVENTS = OPERATIONAL_ROUTINE_EVENTS;
 
 export const FINANCIAL_TARGETS = {
   monthlyProfitTarget: 4000.00, // S/ 4,000 meta neta del negocio

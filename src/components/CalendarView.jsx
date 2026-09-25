@@ -1,4 +1,5 @@
 import { localDate } from '../utils/dateUtils.js';
+import { OPERATIONAL_ROUTINE_EVENTS } from '../data/initialData.js';
 import React, { useState } from 'react';
 import { 
   Calendar as CalendarIcon, 
@@ -281,68 +282,28 @@ export default function CalendarView({
     handleCloseEditTask();
   };
 
-  // Precargar tareas diarias sugeridas si está vacío
-  const handleLoadSuggestedDailyTasks = () => {
-    const SUGGESTIONS = [
-      {
-        title: 'Contactar a 15 prospectos comerciales por WhatsApp / Instagram',
-        partner: 'both',
-        category: 'Prospección',
-        priority: 'alta',
-        description: 'Buscar barberías, restaurantes y cafeterías con presencia en Google Maps.'
-      },
-      {
-        title: 'Visitas presenciales de demostración con tarjeta física (3 a 5 locales)',
-        partner: 'luis',
-        category: 'Ventas',
-        priority: 'alta',
-        description: 'Presentar la tarjeta al dueño y probar lectura NFC en tiempo real con su smartphone.'
-      },
-      {
-        title: 'Configuración y prueba de chips NTAG215 con Google Place IDs',
-        partner: 'kevin',
-        category: 'Operaciones',
-        priority: 'alta',
-        description: 'Verificar enlace directo de 5 estrellas y validar lectura en Android y iPhone.'
-      },
-      {
-        title: 'Seguimiento de 48 horas a prospectos de demostración',
-        partner: 'both',
-        category: 'Postventa',
-        priority: 'media',
-        description: 'Consultar dudas al cliente, ofrecer Pack Dúo promocional y coordinar fecha de instalación.'
-      },
-      {
-        title: 'Cierre diario de caja, ventas y balance de gastos en LinkeoGes (50/50)',
-        partner: 'luis',
-        category: 'Finanzas',
-        priority: 'normal',
-        description: 'Registrar ventas confirmadas, gastos del día y verificar que el balance de socios esté al día.'
+  // Cargar / Restaurar la Rutina Estratégica de 4 Bloques (Citas en campo y Tareas diarias)
+  const handleLoadOperationalRoutine = () => {
+    let addedCount = 0;
+    OPERATIONAL_ROUTINE_EVENTS.forEach((item, idx) => {
+      const exists = events.some(e => e.id === item.id || e.title === item.title);
+      if (!exists) {
+        addedCount++;
+        setTimeout(() => {
+          onAddNewEvent({
+            ...item,
+            date: localDate()
+          });
+        }, idx * 30);
       }
-    ];
-
-    SUGGESTIONS.forEach((sug, idx) => {
-      setTimeout(() => {
-        onAddNewEvent({
-          id: `task-sug-${Date.now()}-${idx}`,
-          title: sug.title,
-          type: 'daily_task',
-          isDailyTask: true,
-          partner: sug.partner,
-          category: sug.category,
-          priority: sug.priority,
-          status: 'pendiente',
-          completed: false,
-          date: localDate(),
-          startTime: '09:00',
-          endTime: '18:00',
-          description: sug.description
-        });
-      }, idx * 40);
     });
 
     if (showToast) {
-      showToast('✓ 5 Tareas diarias operativas sugeridas agregadas exitosamente', 'success');
+      if (addedCount > 0) {
+        showToast(`✓ Se sincronizaron ${addedCount} actividades de la Rutina de 4 Bloques en la Agenda`, 'success');
+      } else {
+        showToast('Las 9 actividades de la Rutina de 4 Bloques ya están presentes en la Agenda', 'info');
+      }
     }
   };
 
@@ -365,6 +326,15 @@ export default function CalendarView({
         </div>
 
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleLoadOperationalRoutine} 
+            title="Carga o sincroniza las actividades de los 4 bloques operativos"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Sparkles size={16} color="var(--primary-600)" />
+            <span>⚡ Rutina 4 Bloques</span>
+          </button>
           <button className="btn btn-secondary" onClick={() => setIsNewTaskModalOpen(true)}>
             <CheckSquare size={16} />
             <span>+ Nueva Tarea Diaria</span>
@@ -383,7 +353,7 @@ export default function CalendarView({
           backgroundColor: 'rgba(0, 102, 255, 0.08)',
           borderRadius: 'var(--radius-md)',
           border: '1px solid rgba(0, 102, 255, 0.25)',
-          marginBottom: '20px',
+          marginBottom: '16px',
           display: 'flex',
           alignItems: 'center',
           gap: '14px'
@@ -392,7 +362,7 @@ export default function CalendarView({
         <CalendarDays size={26} color="var(--primary-600)" style={{ flexShrink: 0 }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>
-            Agenda Compartida & Tareas de Alto Rendimiento 50/50
+            Agenda Compartida & Rutina Estratégica 50/50
           </div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Demostraciones presenciales, entregas técnicas y tareas diarias asignadas con respaldo mutuo entre <strong>Luis Romero</strong> y <strong>Kevin Servat</strong>.
@@ -401,6 +371,54 @@ export default function CalendarView({
         <span className="badge badge-green" style={{ flexShrink: 0 }}>
           <Check size={12} /> Agenda 50/50 Activa
         </span>
+      </div>
+
+      {/* Guía Visual Rápida de la Rutina Operativa por Bloques */}
+      <div 
+        className="card"
+        style={{
+          padding: '14px 18px',
+          marginBottom: '20px',
+          backgroundColor: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.1rem' }}>🎯</span>
+            <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+              Protocolo Operativo Diario Linkeo (Rutina Estratégica de 4 Bloques)
+            </span>
+          </div>
+          <button 
+            className="btn btn-sm btn-primary"
+            style={{ fontSize: '0.74rem', padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            onClick={handleLoadOperationalRoutine}
+          >
+            <Sparkles size={13} />
+            <span>Sincronizar las 9 Tareas & Citas</span>
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px', fontSize: '0.78rem' }}>
+          <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.22)' }}>
+            <strong style={{ color: '#60a5fa', display: 'block', marginBottom: '4px' }}>Bloque 1: CRM & Backoffice (15:00 - 16:00)</strong>
+            <span>Asegurar el dinero en mesa: 8 prospectos en Respuestas + cierre al lead caliente en Negociación (Maps gratis).</span>
+          </div>
+          <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.22)' }}>
+            <strong style={{ color: '#c084fc', display: 'block', marginBottom: '4px' }}>Bloque 2: Creación Contenido (16:00 - 17:00)</strong>
+            <span>3-4 videos POV mostrando lectura rápida con las 3 tarjetas en stock + 1 video diario TikTok/Reels con CTA al perfil.</span>
+          </div>
+          <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.22)' }}>
+            <strong style={{ color: '#34d399', display: 'block', marginBottom: '4px' }}>Bloque 3: Campo & Preventas (17:00 - 18:30)</strong>
+            <span>Ruta Este/Centro (Mar/Jue) y Corredores (Lun/Mié/Vie). Tap & Wow en vivo + preventa 50% de anticipo por QR.</span>
+          </div>
+          <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.22)' }}>
+            <strong style={{ color: '#fbbf24', display: 'block', marginBottom: '4px' }}>Bloque 4: Inversión Flujo (S/ 160)</strong>
+            <span>Packaging Kraft (S/ 40) + Meta Ads S/ 10/día por 12 días (S/ 120) dirigidos a WhatsApp Business y web.</span>
+          </div>
+        </div>
       </div>
 
       {/* Grid de Contenido de Agenda: Citas a la izquierda | Tareas Diarias a la derecha */}
@@ -698,10 +716,10 @@ export default function CalendarView({
                     <button 
                       className="btn btn-sm btn-secondary"
                       style={{ fontSize: '0.76rem', padding: '4px 12px' }}
-                      onClick={handleLoadSuggestedDailyTasks}
+                      onClick={handleLoadOperationalRoutine}
                     >
                       <Sparkles size={13} />
-                      <span>Cargar 5 Tareas Sugeridas</span>
+                      <span>Cargar Rutina de 4 Bloques</span>
                     </button>
                   )}
                 </div>
@@ -728,7 +746,7 @@ export default function CalendarView({
                     {/* Checkbox y Contenido de la Tarea */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minWidth: 0, marginRight: '10px' }}>
                       <input 
-                        type="checkbox"
+                        type="checkbox" 
                         checked={isCompleted}
                         onChange={() => handleToggleDailyTask(task)}
                         style={{
@@ -766,6 +784,16 @@ export default function CalendarView({
                           >
                             {task.partner === 'luis' ? '👨‍💼 Luis' : task.partner === 'kevin' ? '🚀 Kevin' : '🤝 Ambos'}
                           </span>
+
+                          {/* Horario si está definido */}
+                          {task.startTime && (
+                            <span 
+                              className="badge badge-secondary" 
+                              style={{ fontSize: '0.7rem', padding: '2px 7px', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa' }}
+                            >
+                              ⏰ {task.startTime}{task.endTime ? ` - ${task.endTime}` : ''}
+                            </span>
+                          )}
 
                           {/* Categoría / Área */}
                           {task.category && (

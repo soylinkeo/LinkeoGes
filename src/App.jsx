@@ -130,6 +130,27 @@ export default function App() {
   const rawProducts = cloud.data.products;
   const setProducts = value => cloud.set('products', value);
 
+  // Sincronización y migración: Borrar plan de 30 días obsoleto y asegurar carga de la Rutina de 4 Bloques
+  useEffect(() => {
+    const routineSyncKey = 'linkeoges_routine_4_blocks_v1';
+    if (!localStorage.getItem(routineSyncKey)) {
+      if (Array.isArray(plan30Days) && plan30Days.length > 0) {
+        setPlan30Days([]);
+      }
+      const currentList = Array.isArray(calendarEvents) ? calendarEvents : [];
+      const hasBlockEvents = currentList.some(e => e.id?.startsWith('task-bloque') || e.id?.startsWith('evt-bloque'));
+      if (!hasBlockEvents) {
+        const eventsToAdd = INITIAL_CALENDAR_EVENTS.filter(
+          initEvt => !currentList.some(e => e.id === initEvt.id || e.title === initEvt.title)
+        );
+        if (eventsToAdd.length > 0) {
+          setCalendarEvents([...currentList, ...eventsToAdd]);
+        }
+      }
+      localStorage.setItem(routineSyncKey, 'true');
+    }
+  }, [calendarEvents, plan30Days]);
+
   // Registro persistente de productos/packs eliminados para asegurar que "nada es data fija"
   const [deletedProductIds, setDeletedProductIds] = useState(() => {
     try {
