@@ -374,6 +374,7 @@ export default function App() {
     paymentMethod: 'Yape',
     soldBy: currentUser?.id || 'luis',
     googlePlaceId: '',
+    chipUid: '',
     customUnitPrice: '',
     customUnitCost: '',
     isCustomPricing: false
@@ -627,6 +628,7 @@ export default function App() {
       paymentMethod: 'Yape',
       soldBy: currentUser?.id || 'luis',
       googlePlaceId: '',
+      chipUid: '',
       customUnitPrice: '',
       customUnitCost: '',
       isCustomPricing: false
@@ -716,10 +718,34 @@ export default function App() {
 
       const saleWithLead = { ...result.sale, leadId: targetLeadId };
       setSales(prev => [saleWithLead, ...prev]);
-      setNfcCards(prev => [...result.cards.map(c => ({ ...c, leadId: targetLeadId })), ...prev]);
+      const createdCards = result.cards.map(c => ({ ...c, leadId: targetLeadId }));
+      setNfcCards(prev => [...createdCards, ...prev]);
+
+      const hasId = Boolean(
+        (newSaleForm.googlePlaceId && newSaleForm.googlePlaceId.trim()) ||
+        (newSaleForm.chipUid && newSaleForm.chipUid.trim()) ||
+        result.cards.some(c => (c.placeId && c.placeId.trim()) || (c.chipUid && c.chipUid.trim()))
+      );
+
+      const targetCard = createdCards[0] || null;
 
       logAudit({ actionType: 'Creación', entityType: 'Venta', entityId: result.sale.id, entityName: result.sale.clientName, reason: 'Venta y stock registrados conjuntamente. Prospecto directo a Entregado y Cobrado.' });
-      cloud.engine.afterSaved(() => { handleCloseNewSaleModal(); pushToast('Venta confirmada en la nube'); });
+
+      handleCloseNewSaleModal();
+
+      if (hasId) {
+        setCurrentTab('nfc-traceability');
+        if (targetCard) {
+          setSelectedCardModal(targetCard);
+        }
+      }
+
+      cloud.engine.afterSaved(() => { 
+        pushToast(hasId 
+          ? '✓ Venta registrada con éxito. Redirigido a Chips & Enlaces NFC.' 
+          : 'Venta confirmada en la nube'
+        ); 
+      });
     } catch (error) { showToast(error.message, 'error'); }
   };
 

@@ -693,14 +693,14 @@ export default function NfcTraceabilityView({
 
       {/* MODAL 1: Visor QR, Payload NFC y Bitácora de Soporte */}
       {activeModalCard && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" onClick={() => { setActiveModalCard(null); if (setSelectedCardModal) setSelectedCardModal(null); }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span className="code-mono" style={{ fontSize: '1rem' }}>{activeModalCard.id}</span>
                 <h3 className="modal-title">{activeModalCard.businessName || 'Tarjeta Linkeo'}</h3>
               </div>
-              <button className="close-btn" onClick={() => setActiveModalCard(null)}>✕</button>
+              <button className="close-btn" onClick={() => { setActiveModalCard(null); if (setSelectedCardModal) setSelectedCardModal(null); }}>✕</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', alignItems: 'center', marginBottom: '20px' }}>

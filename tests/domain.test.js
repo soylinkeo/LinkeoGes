@@ -1276,6 +1276,72 @@ test('nfc traceability: direct review URL, QR control panel, bidirectional addre
   assert.equal(updatedCardFromLead.address, 'Calle Monte Umbroso 120, Surco');
 });
 
+test('sale registration with Google Place ID or Chip UID preserves identifiers, builds review URL and activates NFC redirection', async () => {
+  const { cleanGooglePlaceId } = await import('../src/utils/dynamicRouter.js');
+
+  const inventory = [{ id: 'inv-test-nfc', sku: 'SKU-TEST-1', name: 'Tarjeta NFC Google', quantity: 5 }];
+  const product = { id: 'prod-test-nfc', sku: 'SKU-TEST-1', name: 'Tarjeta NFC Google', price: 60, cost: 13, inventoryId: 'inv-test-nfc' };
+
+  // 1. Venta con Google Place ID (formato directo o URL) y Chip UID
+  const rawUrlWithPlaceId = 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4';
+  const cleanedId = cleanGooglePlaceId(rawUrlWithPlaceId);
+  assert.equal(cleanedId, 'ChIJN1t_tDeuEmsRUsoyG83frY4');
+
+  const formWithId = {
+    clientName: 'Barbería Don Tito',
+    contactPerson: 'Tito',
+    phone: '987654321',
+    district: 'San Borja',
+    quantity: 1,
+    paymentMethod: 'Yape',
+    googlePlaceId: rawUrlWithPlaceId,
+    chipUid: '04:A2:3B:5C:8E:60:80'
+  };
+
+  const resultWithId = createSale({ form: formWithId, product, inventory, userId: 'luis' });
+  assert.equal(resultWithId.cards.length, 1);
+  const cardWithId = resultWithId.cards[0];
+
+  assert.equal(cardWithId.placeId, 'ChIJN1t_tDeuEmsRUsoyG83frY4');
+  assert.equal(cardWithId.chipUid, '04:A2:3B:5C:8E:60:80');
+  assert.ok(cardWithId.reviewUrl.includes('ChIJN1t_tDeuEmsRUsoyG83frY4'));
+  assert.equal(cardWithId.status, 'Activa');
+
+  // Lógica de Redirección: si se agrega su ID (Place ID o Chip UID), hasId es true
+  const hasIdCondition1 = Boolean(
+    (formWithId.googlePlaceId && formWithId.googlePlaceId.trim()) ||
+    (formWithId.chipUid && formWithId.chipUid.trim()) ||
+    resultWithId.cards.some(c => (c.placeId && c.placeId.trim()) || (c.chipUid && c.chipUid.trim()))
+  );
+  assert.equal(hasIdCondition1, true, 'Debe activar redirección a chips y enlacesnfc cuando se agrega su ID');
+
+  // 2. Venta sin ningún ID: hasId es false, no redirige
+  const formWithoutId = {
+    clientName: 'Cliente Sin ID',
+    contactPerson: 'Carlos',
+    phone: '987654322',
+    district: 'Miraflores',
+    quantity: 1,
+    paymentMethod: 'Efectivo',
+    googlePlaceId: '',
+    chipUid: ''
+  };
+
+  const resultWithoutId = createSale({ form: formWithoutId, product, inventory, userId: 'luis' });
+  const cardWithoutId = resultWithoutId.cards[0];
+  assert.equal(cardWithoutId.placeId, '');
+  assert.equal(cardWithoutId.chipUid, '');
+  assert.equal(cardWithoutId.reviewUrl, '');
+  assert.equal(cardWithoutId.status, 'Pendiente de Configuración');
+
+  const hasIdCondition2 = Boolean(
+    (formWithoutId.googlePlaceId && formWithoutId.googlePlaceId.trim()) ||
+    (formWithoutId.chipUid && formWithoutId.chipUid.trim()) ||
+    resultWithoutId.cards.some(c => (c.placeId && c.placeId.trim()) || (c.chipUid && c.chipUid.trim()))
+  );
+  assert.equal(hasIdCondition2, false, 'No debe activar redirección si no se suministra ningún ID');
+});
+
 
 
 

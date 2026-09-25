@@ -35,14 +35,28 @@ export function createSale({ form, product, inventory, userId }) {
   const stockMovements = getStockMovements(product, quantity, inventory);
   const id = `sale-${crypto.randomUUID()}`;
   const date = localDate();
+  const rawPlaceId = form.googlePlaceId ? form.googlePlaceId.trim() : '';
+  const cleanPlaceId = rawPlaceId ? (rawPlaceId.match(/[?&]placeid=([a-zA-Z0-9_-]+)/i)?.[1] || rawPlaceId) : '';
   const cards = Array.from({ length: quantity }, () => ({
-    id: `LNK-${crypto.randomUUID()}`, chipUid: '', model: product.name, productId: product.id,
-    businessName: form.clientName, contactName: form.contactPerson, contactPhone: form.phone,
+    id: `LNK-${crypto.randomUUID()}`, 
+    chipUid: form.chipUid?.trim() || '', 
+    model: product.name, 
+    productId: product.id,
+    businessName: form.clientName, 
+    contactName: form.contactPerson, 
+    contactPhone: form.phone,
     contactEmail: form.email || '',
-    district: form.district, placeId: form.googlePlaceId?.trim() || '',
-    reviewUrl: form.googlePlaceId?.trim() ? `https://search.google.com/local/writereview?placeid=${encodeURIComponent(form.googlePlaceId.trim())}` : '',
-    status: 'Pendiente de grabación', assignedDate: date, saleId: id, history: [],
-    readCount: 0, bipsNfc: 0, bipsQr: 0, lastReadAt: null
+    district: form.district, 
+    placeId: cleanPlaceId,
+    reviewUrl: cleanPlaceId ? (cleanPlaceId.startsWith('http') ? cleanPlaceId : `https://search.google.com/local/writereview?placeid=${encodeURIComponent(cleanPlaceId)}`) : '',
+    status: (cleanPlaceId && form.chipUid?.trim()) ? 'Activa' : (cleanPlaceId ? 'Configurada / Por Entregar' : 'Pendiente de Configuración'), 
+    assignedDate: date, 
+    saleId: id, 
+    history: [],
+    readCount: 0, 
+    bipsNfc: 0, 
+    bipsQr: 0, 
+    lastReadAt: null
   }));
   const cost = Math.round(unitCost * quantity * 100) / 100;
   const totalAmount = Math.round(unitPrice * quantity * 100) / 100;

@@ -19,10 +19,12 @@ import {
   DollarSign, 
   Check, 
   RotateCcw,
-  Tag
+  Tag,
+  Cpu
 } from 'lucide-react';
 import DistrictCombobox from './DistrictCombobox.jsx';
 import { INITIAL_PRODUCTS } from '../data/initialData.js';
+import { cleanGooglePlaceId } from '../utils/dynamicRouter.js';
 
 export const PAYMENT_METHODS = [
   { id: 'Yape', label: 'Yape', icon: '💜', color: '#8b5cf6' },
@@ -72,6 +74,11 @@ export default function NewSaleModal({
   const marginPercent = currentUnitPrice > 0 
     ? (((currentUnitPrice - currentUnitCost) / currentUnitPrice) * 100).toFixed(1) 
     : '0.0';
+
+  const hasId = Boolean(
+    (newSaleForm.googlePlaceId && newSaleForm.googlePlaceId.trim()) ||
+    (newSaleForm.chipUid && newSaleForm.chipUid.trim())
+  );
 
   // Filtrado de productos en catálogo
   const filteredProducts = catalogList.filter(p => {
@@ -577,12 +584,59 @@ export default function NewSaleModal({
                   <input 
                     type="text" 
                     className="sale-custom-input code-mono"
-                    placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4"
-                    value={newSaleForm.googlePlaceId}
-                    onChange={e => setNewSaleForm({ ...newSaleForm, googlePlaceId: e.target.value })}
+                    placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4 o enlace de reseñas"
+                    value={newSaleForm.googlePlaceId || ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      const cleaned = cleanGooglePlaceId(val);
+                      setNewSaleForm({ ...newSaleForm, googlePlaceId: cleaned || val });
+                    }}
                   />
                 </div>
               </div>
+
+              {/* UID Chip NFC Físico */}
+              <div className="form-group" style={{ margin: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="form-label" style={{ fontSize: '0.78rem', margin: 0 }}>
+                    UID Chip NFC Físico (Opcional):
+                  </label>
+                  <span style={{ fontSize: '0.7rem', color: '#38bdf8', fontWeight: 600 }}>
+                    ⚡ Grabación de Hardware
+                  </span>
+                </div>
+                <div className="sale-input-wrapper">
+                  <Cpu size={14} className="sale-input-icon" />
+                  <input 
+                    type="text" 
+                    className="sale-custom-input code-mono"
+                    placeholder="Ej: 04:A2:3B:5C:8E:60:80"
+                    value={newSaleForm.chipUid || ''}
+                    onChange={e => setNewSaleForm({ ...newSaleForm, chipUid: e.target.value.toUpperCase() })}
+                  />
+                </div>
+              </div>
+
+              {/* Banner informativo de Redirección Automática si se ingresa ID */}
+              {hasId && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 12px',
+                  backgroundColor: 'rgba(0, 102, 255, 0.12)',
+                  border: '1px solid rgba(0, 102, 255, 0.35)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '0.74rem',
+                  color: '#93c5fd',
+                  lineHeight: '1.35'
+                }}>
+                  <Sparkles size={16} color="#60a5fa" style={{ flexShrink: 0 }} />
+                  <span>
+                    <strong>Redirección automática activada:</strong> Al confirmar la venta con este ID, serás redirigido directamente a <strong>Chips & Enlaces NFC</strong> para verificar y gestionar la tarjeta.
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -604,7 +658,12 @@ export default function NewSaleModal({
               title={isOutOfStock ? "No se puede registrar: producto sin existencias en almacén" : ""}
             >
               <Sparkles size={16} />
-              <span>Confirmar Venta & Grabar Chip (S/ {currentTotal})</span>
+              <span>
+                {hasId 
+                  ? `Confirmar Venta y Ver en Chips & Enlaces NFC (S/ ${currentTotal})`
+                  : `Confirmar Venta & Grabar Chip (S/ ${currentTotal})`
+                }
+              </span>
             </button>
           </div>
 
