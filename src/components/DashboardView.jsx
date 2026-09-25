@@ -287,7 +287,7 @@ export default function DashboardView({
             </div>
           </div>
           <div className="kpi-value">
-            {totalUnitsSold} <span style={{ fontSize: '1.05rem', color: 'var(--text-muted)' }}>/ {totalInventoryStock} uds</span>
+            {totalUnitsSold} <span style={{ fontSize: '1.05rem', color: 'var(--text-muted)' }}>/ {inventoryCapacity} uds</span>
           </div>
           <div className="kpi-subtext" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{totalInventoryStock} unidades disponibles en almacén</span>

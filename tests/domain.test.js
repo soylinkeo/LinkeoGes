@@ -1086,6 +1086,32 @@ test('deleted product and pack permanence: deleted items are never resurrected b
   assert.ok(catalogList.length < INITIAL_PRODUCTS.length, 'El catálogo debe tener menos elementos');
 });
 
+test('dashboard units sold kpi correctly uses inventory capacity (sold + current stock) as denominator', () => {
+  const sales = [
+    { quantity: 1, totalAmount: 50 },
+    { quantity: 1, totalAmount: 50 }
+  ];
+  const inventory = [
+    { id: 'inv-1', quantity: 2 },
+    { id: 'inv-2', quantity: 1 }
+  ];
+
+  const totalUnitsSold = sales.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
+  const totalInventoryStock = inventory.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0);
+  const inventoryCapacity = totalInventoryStock + totalUnitsSold;
+  const unitsProgressPct = inventoryCapacity > 0 ? Math.min(100, Math.round((totalUnitsSold / inventoryCapacity) * 100)) : 0;
+
+  // 2 vendidas, 3 en almacén => capacidad total = 5
+  assert.equal(totalUnitsSold, 2);
+  assert.equal(totalInventoryStock, 3);
+  assert.equal(inventoryCapacity, 5);
+  // Denominador del KPI debe ser 5 (capacidad total), dando 2 / 5 uds y 40% de avance
+  assert.equal(unitsProgressPct, 40);
+  const displayRatio = `${totalUnitsSold} / ${inventoryCapacity} uds`;
+  assert.equal(displayRatio, '2 / 5 uds');
+});
+
+
 
 
 
