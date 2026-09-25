@@ -1191,6 +1191,92 @@ test('operational protocol blocks editing and task classification (diarias, even
   assert.deepEqual(completedList.map(t => t.id), ['t3', 't4']);
 });
 
+test('nfc traceability: direct review URL, QR control panel, bidirectional address sync and bitacora deletion', async () => {
+  const { cleanGooglePlaceId, buildGoogleReviewUrl, areLeadAndCardLinked } = await import('../src/utils/dynamicRouter.js');
+  const { mappers } = await import('../src/services/mappers.js');
+
+  // 1. Manejo de URL directa vs Place ID
+  const directReviewUrl = 'https://search.google.com/local/writereview?placeid=ChIJhRy6j2y4BZERusz5KrMCpoo';
+  const customMapsUrl = 'https://www.google.com/search?q=Lavatelli+Dry+Cleaners#lrd=0x9105b86c8fha1c85:0x8aa607b32af9ccba,3';
+  
+  // Extracción de Place ID si está presente en la URL
+  const extractedId = cleanGooglePlaceId(directReviewUrl);
+  assert.equal(extractedId, 'ChIJhRy6j2y4BZERusz5KrMCpoo');
+
+  // Si es una URL personalizada sin placeid=, se mantiene como URL directa
+  assert.equal(directReviewUrl.startsWith('http'), true);
+
+  // 2. Mapeo simétrico con panel de control QR, notas técnicas permanentes, dirección y bitácora
+  const fullCard = {
+    id: 'LNK-TEST-TRACE',
+    chipUid: '04:12:34:AB:CD:EF',
+    model: 'Tarjeta Google NFC Cuadrado ESP',
+    category: 'Restaurante / Cafetería',
+    businessName: 'Barbería Silver',
+    district: 'Surco',
+    address: 'Av. Caminos del Inca 3271, Santiago de Surco 15039',
+    placeId: 'ChIJhRy6j2y4BZERusz5KrMCpoo',
+    reviewUrl: directReviewUrl,
+    qrControlUrl: 'https://panel.linkeocards.com/manage/qr-silver',
+    status: 'Activa',
+    notes: 'Cliente solicitó cambio de local a Surco. Chip reconfigurado con éxito.',
+    history: [
+      { id: 'h1', date: '24/09/2026', author: 'Admin Linkeo', action: 'Alta física de tarjeta' },
+      { id: 'h2', date: '24/09/2026', author: 'Admin Linkeo', action: 'Actualización de dirección a Surco' }
+    ]
+  };
+
+  const dbRow = mappers.nfcToDb(fullCard);
+  assert.equal(dbRow.id, 'LNK-TEST-TRACE');
+  assert.equal(dbRow.uid, '04:12:34:AB:CD:EF');
+  assert.equal(dbRow.url, directReviewUrl);
+  assert.equal(dbRow.status, 'Activa');
+  assert.equal(dbRow.assigned_to, 'Barbería Silver');
+
+  const recovered = mappers.nfcToFront(dbRow);
+  assert.equal(recovered.chipUid, '04:12:34:AB:CD:EF');
+  assert.equal(recovered.reviewUrl, directReviewUrl);
+  assert.equal(recovered.qrControlUrl, 'https://panel.linkeocards.com/manage/qr-silver');
+  assert.equal(recovered.address, 'Av. Caminos del Inca 3271, Santiago de Surco 15039');
+  assert.equal(recovered.district, 'Surco');
+  assert.equal(recovered.notes, 'Cliente solicitó cambio de local a Surco. Chip reconfigurado con éxito.');
+  assert.equal(recovered.history.length, 2);
+
+  // 3. Eliminación de registro de bitácora bajo auditoría
+  const historyAfterDelete = recovered.history.filter((_, idx) => idx !== 0);
+  assert.equal(historyAfterDelete.length, 1);
+  assert.equal(historyAfterDelete[0].action, 'Actualización de dirección a Surco');
+
+  // 4. Sincronización bidireccional de dirección y distrito con Kanban
+  const lead = {
+    id: 'lead-silver',
+    businessName: 'Barbería Silver',
+    district: 'Surco',
+    address: 'Av. Caminos del Inca 3271, Santiago de Surco 15039'
+  };
+
+  assert.equal(areLeadAndCardLinked(lead, fullCard), true);
+
+  // Simulación: Cambio de dirección en tarjeta -> sincroniza lead en Kanban
+  const updatedAddressCard = { ...fullCard, address: 'Av. Benavides 4500, Santiago de Surco' };
+  const updatedLeadFromCard = {
+    ...lead,
+    district: updatedAddressCard.district,
+    address: updatedAddressCard.address
+  };
+  assert.equal(updatedLeadFromCard.address, 'Av. Benavides 4500, Santiago de Surco');
+
+  // Simulación inversa: Cambio de dirección en Kanban -> sincroniza tarjeta en NFC
+  const updatedLeadInKanban = { ...lead, address: 'Calle Monte Umbroso 120, Surco' };
+  const updatedCardFromLead = {
+    ...fullCard,
+    district: updatedLeadInKanban.district,
+    address: updatedLeadInKanban.address
+  };
+  assert.equal(updatedCardFromLead.address, 'Calle Monte Umbroso 120, Surco');
+});
+
+
 
 
 

@@ -29,8 +29,7 @@ import { useCloudData } from './hooks/useCloudData';
 import { calculateFinance, isSettlement, isInventoryPurchase } from './utils/financeUtils.js';
 import { getStockMovements, applyStockMovements, createSale } from './utils/operations.js';
 import { localDate } from './utils/dateUtils';
-import { parseDynamicCardRoute, areLeadAndCardLinked } from './utils/dynamicRouter.js';
-import NfcRedirectScreen from './components/NfcRedirectScreen.jsx';
+import { parseDynamicCardRoute, areLeadAndCardLinked, buildGoogleReviewUrl } from './utils/dynamicRouter.js';
 import SyncStatus from './components/SyncStatus';
 import MobileBottomNav from './components/MobileBottomNav';
 export default function App() {
@@ -895,26 +894,33 @@ export default function App() {
     const oldCard = nfcCards.find(c => c.id === updatedCard.id);
     setNfcCards(prev => prev.map(c => c.id === updatedCard.id ? updatedCard : c));
 
-    // Sincronización bidireccional de localidad/distrito con Kanban:
-    // Si la tarjeta NFC cambia de distrito o se edita en soporte técnico, actualizar el prospecto en Kanban
-    if (updatedCard.district) {
-      setLeads(prevLeads => (prevLeads || []).map(l => {
-        const isMatch = areLeadAndCardLinked(l, updatedCard);
-        if (isMatch && l.district !== updatedCard.district) {
-          return { ...l, district: updatedCard.district };
+    // Sincronización bidireccional completa (distrito, dirección y negocio) con Kanban:
+    setLeads(prevLeads => (prevLeads || []).map(l => {
+      const isMatch = areLeadAndCardLinked(l, updatedCard);
+      if (isMatch) {
+        const hasDistrictChange = updatedCard.district && l.district !== updatedCard.district;
+        const hasAddressChange = updatedCard.address !== undefined && l.address !== updatedCard.address;
+        const hasNameChange = updatedCard.businessName && l.businessName !== updatedCard.businessName;
+        if (hasDistrictChange || hasAddressChange || hasNameChange) {
+          return { 
+            ...l, 
+            district: updatedCard.district || l.district,
+            address: updatedCard.address !== undefined ? updatedCard.address : l.address,
+            businessName: updatedCard.businessName || l.businessName
+          };
         }
-        return l;
-      }));
-    }
+      }
+      return l;
+    }));
 
     logAudit({
       actionType: 'Modificación',
       entityType: 'Tarjeta NFC',
       entityId: updatedCard.id,
       entityName: updatedCard.businessName,
-      reason: `Modificación de enlace Place ID / datos de contacto (Distrito: ${updatedCard.district}).`,
+      reason: `Actualización de tarjeta NFC (Distrito: ${updatedCard.district || '—'}, Dirección: ${updatedCard.address || '—'}).`,
       snapshot: oldCard,
-      diff: `Antes: Place ID ${oldCard?.placeId || '—'}, Distrito: ${oldCard?.district || '—'} -> Ahora: ${updatedCard.placeId}, Distrito: ${updatedCard.district}`
+      diff: `Antes: ${oldCard?.businessName || '—'} (${oldCard?.district || '—'}, ${oldCard?.address || '—'}) -> Ahora: ${updatedCard.businessName} (${updatedCard.district || '—'}, ${updatedCard.address || '—'})`
     });
   };
 
@@ -1109,28 +1115,37 @@ export default function App() {
 
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
 
-    // Sincronización bidireccional con Trazabilidad NFC:
-    // Si el prospecto en Kanban actualiza su localidad/distrito, reflejarlo inmediatamente en la tarjeta NFC correspondiente
-    if (updatedLead.district) {
-      setNfcCards(prevCards => (prevCards || []).map(c => {
-        const isMatch = areLeadAndCardLinked(updatedLead, c);
-        if (isMatch && c.district !== updatedLead.district) {
+    // Sincronización bidireccional completa (distrito, dirección y negocio) con Trazabilidad NFC:
+    setNfcCards(prevCards => (prevCards || []).map(c => {
+      const isMatch = areLeadAndCardLinked(updatedLead, c);
+      if (isMatch) {
+        const hasDistrictChange = updatedLead.district && c.district !== updatedLead.district;
+        const hasAddressChange = updatedLead.address !== undefined && c.address !== updatedLead.address;
+        const hasNameChange = updatedLead.businessName && c.businessName !== updatedLead.businessName;
+        if (hasDistrictChange || hasAddressChange || hasNameChange) {
+          const changes = [];
+          if (hasDistrictChange) changes.push(`Distrito: "${updatedLead.district}"`);
+          if (hasAddressChange) changes.push(`Dirección: "${updatedLead.address}"`);
+          if (hasNameChange) changes.push(`Negocio: "${updatedLead.businessName}"`);
           return {
             ...c,
-            district: updatedLead.district,
+            businessName: updatedLead.businessName || c.businessName,
+            district: updatedLead.district || c.district,
+            address: updatedLead.address !== undefined ? updatedLead.address : c.address,
             history: [
               ...(c.history || []),
               {
+                id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
                 date: new Date().toLocaleString('es-PE'),
                 author: 'Sincronización Kanban',
-                action: `Distrito sincronizado desde Kanban: "${updatedLead.district}".`
+                action: `Datos sincronizados desde Kanban: ${changes.join(', ')}.`
               }
             ]
           };
         }
-        return c;
-      }));
-    }
+      }
+      return c;
+    }));
 
     logAudit({
       actionType: 'Modificación',
@@ -1469,6 +1484,15 @@ export default function App() {
       try { if (item.stockMovements?.length) setInventory(applyStockMovements(inventory, item.stockMovements, 1)); }
       catch (error) { showToast(error.message, 'error'); return false; }
       setNfcCards(prev => prev.filter(c => c.id !== item.id));
+    } else if (entityType === 'Entrada de Bitácora' || entityType === 'Historial Soporte NFC') {
+      setNfcCards(prev => prev.map(c => {
+        if (c.id === item.cardId) {
+          const newHist = (c.history || []).filter((_, idx) => idx !== item.historyIndex);
+          return { ...c, history: newHist };
+        }
+        return c;
+      }));
+      cascadeDetails = ` Entrada de bitácora eliminada de la tarjeta "${item.cardName || item.cardId}".`;
     } else if (entityType === 'Insumo') {
       if (products.some(p => p.inventoryId === item.id || p.sku === item.sku || p.bundleItems?.some(b => b.id === item.id || b.inventoryId === item.id || b.sku === item.sku)) || sales.some(s => s.stockMovements?.some(m => m.inventoryId === item.id))) {
         showToast('El insumo está vinculado a productos o ventas. Conserva su registro y ajusta su stock.', 'warning'); return false;
@@ -1820,16 +1844,17 @@ export default function App() {
     });
   };
 
-  // 1. Enrutador Dinámico de Redirección para clientes (Público, no requiere login)
+  // 1. Enrutador Dinámico de Redirección (Directo a Google Reviews sin pantalla intermedia de BIP)
   if (dynamicCardRoute) {
-    return (
-      <NfcRedirectScreen
-        cardId={dynamicCardRoute.cardId}
-        src={dynamicCardRoute.src}
-        nfcCards={nfcCards}
-        onRecordBip={handleRecordCardBip}
-      />
-    );
+    if (typeof window !== 'undefined') {
+      const matchedCard = nfcCards.find(c => c.id === dynamicCardRoute.cardId);
+      const targetUrl = matchedCard?.reviewUrl?.trim() || (matchedCard?.placeId ? buildGoogleReviewUrl(matchedCard.placeId) : 'https://linkeocards.com/');
+      try {
+        handleRecordCardBip(dynamicCardRoute.cardId, dynamicCardRoute.src);
+      } catch (e) {}
+      window.location.replace(targetUrl);
+    }
+    return null;
   }
 
   if (authLoading) return <div className="loading-screen">Validando sesión…</div>;

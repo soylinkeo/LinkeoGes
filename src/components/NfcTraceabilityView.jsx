@@ -1,11 +1,9 @@
 import { localDate } from '../utils/dateUtils.js';
 import { 
   buildCardRedirectUrl, 
-  formatRelativeTime, 
-  evaluateCardHealth,
-  cleanGooglePlaceId,
-  buildGoogleReviewUrl,
-  areLeadAndCardLinked
+  cleanGooglePlaceId, 
+  buildGoogleReviewUrl, 
+  areLeadAndCardLinked 
 } from '../utils/dynamicRouter.js';
 import DistrictCombobox from './DistrictCombobox.jsx';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -20,17 +18,15 @@ import {
   Edit3, 
   Copy, 
   Check, 
-  Smartphone,
-  MapPin,
-  Building,
-  Trash2,
-  Activity,
-  Sparkles,
-  MessageSquare,
-  Play,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle2
+  Smartphone, 
+  MapPin, 
+  Building, 
+  Trash2, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Link2,
+  SlidersHorizontal,
+  FileText
 } from 'lucide-react';
 
 export default function NfcTraceabilityView({
@@ -42,17 +38,14 @@ export default function NfcTraceabilityView({
   onUpdateLead,
   onUpdateCard,
   onAddNewCard,
-  onRecordBip,
   onRequestDelete,
   selectedCardModal,
   setSelectedCardModal,
-  onUpdateInventoryStock,
   showToast
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDistrict, setFilterDistrict] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [filterHealth, setFilterHealth] = useState('all');
   const [activeModalCard, setActiveModalCard] = useState(null);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [copiedId, setCopiedId] = useState(null);
@@ -107,8 +100,12 @@ export default function NfcTraceabilityView({
     address: '',
     contactName: '',
     contactPhone: '',
+    reviewUrl: '',
     placeId: '',
     chipUid: '',
+    qrControlUrl: '',
+    status: 'Activa',
+    notes: '',
     discountStock: true
   });
 
@@ -128,8 +125,12 @@ export default function NfcTraceabilityView({
       address: '',
       contactName: '',
       contactPhone: '',
+      reviewUrl: '',
       placeId: '',
       chipUid: '',
+      qrControlUrl: '',
+      status: 'Activa',
+      notes: '',
       discountStock: true
     });
     setIsNewCardModalOpen(false);
@@ -141,7 +142,7 @@ export default function NfcTraceabilityView({
     }
   }, [selectedCardModal]);
 
-  // Generar QR dinámico (con enrutador inteligente y contador de bips) cuando se abre el modal
+  // Generar QR cuando se abre el modal 1
   useEffect(() => {
     if (activeModalCard) {
       const dynamicQrUrl = buildCardRedirectUrl(activeModalCard.id, 'qr');
@@ -158,41 +159,31 @@ export default function NfcTraceabilityView({
     }
   }, [activeModalCard]);
 
-  // Mantener la tarjeta activa sincronizada si cambian sus contadores o estado
+  // Mantener la tarjeta activa sincronizada si cambian sus propiedades
   useEffect(() => {
     if (activeModalCard) {
       const fresh = nfcCards.find(c => c.id === activeModalCard.id);
-      if (fresh && (fresh.readCount !== activeModalCard.readCount || fresh.bipsNfc !== activeModalCard.bipsNfc || fresh.bipsQr !== activeModalCard.bipsQr || fresh.lastReadAt !== activeModalCard.lastReadAt)) {
+      if (fresh && JSON.stringify(fresh) !== JSON.stringify(activeModalCard)) {
         setActiveModalCard(fresh);
       }
     }
   }, [nfcCards, activeModalCard]);
 
-  const handleSimulateBip = (cardId, src = 'nfc') => {
-    if (onRecordBip) {
-      onRecordBip(cardId, src);
-      if (showToast) {
-        showToast(`⚡ ¡Bip ${src.toUpperCase()} simulado! +1 a ${src === 'nfc' ? 'Chip NFC' : 'Código QR'}`, 'success');
-      }
-    }
-  };
-
   // Filtros
   const filteredCards = nfcCards.filter(card => {
+    const term = searchTerm.toLowerCase();
     const matchesSearch = 
-      card.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      card.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (card.placeId && card.placeId.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (card.chipUid && card.chipUid.toLowerCase().includes(searchTerm.toLowerCase()));
+      card.id.toLowerCase().includes(term) ||
+      (card.businessName && card.businessName.toLowerCase().includes(term)) ||
+      (card.placeId && card.placeId.toLowerCase().includes(term)) ||
+      (card.reviewUrl && card.reviewUrl.toLowerCase().includes(term)) ||
+      (card.address && card.address.toLowerCase().includes(term)) ||
+      (card.chipUid && card.chipUid.toLowerCase().includes(term));
 
     const matchesDistrict = filterDistrict === 'all' || card.district === filterDistrict;
     const matchesStatus = filterStatus === 'all' || card.status === filterStatus;
-    const matchesHealth = filterHealth === 'all' || (() => {
-      const h = evaluateCardHealth(card);
-      return h.status === filterHealth;
-    })();
 
-    return matchesSearch && matchesDistrict && matchesStatus && matchesHealth;
+    return matchesSearch && matchesDistrict && matchesStatus;
   });
 
   // Distritos únicos combinando maestros y tarjetas existentes
@@ -215,13 +206,20 @@ export default function NfcTraceabilityView({
     // Buscar si existe un prospecto en Kanban coincidente por leadId o por nombre de negocio
     const matchingLead = (leads || []).find(l => areLeadAndCardLinked(l, card));
 
-    // Si el lead en Kanban tiene distrito, sincronizar y asegurar coincidencia
+    // Sincronizar distrito y dirección con Kanban
     const resolvedDistrict = card.district || matchingLead?.district || 'Miraflores';
+    const resolvedAddress = card.address !== undefined ? card.address : (matchingLead?.address || '');
 
     setEditingCard({
       ...card,
       leadId: card.leadId || matchingLead?.id || null,
-      district: resolvedDistrict
+      district: resolvedDistrict,
+      address: resolvedAddress,
+      notes: card.notes || card.supportNotes || '',
+      reviewUrl: card.reviewUrl || (card.placeId ? buildGoogleReviewUrl(card.placeId) : ''),
+      qrControlUrl: card.qrControlUrl || '',
+      chipUid: card.chipUid || '',
+      status: card.status || 'Activa'
     });
     setSupportNote('');
     setIsEditModalOpen(true);
@@ -231,36 +229,60 @@ export default function NfcTraceabilityView({
     e.preventDefault();
     if (!editingCard) return;
 
-    // Recalcular URL si el Place ID cambió (usando cleanGooglePlaceId y buildGoogleReviewUrl)
-    const cleanPlaceId = cleanGooglePlaceId(editingCard.placeId);
-    const updatedReviewUrl = buildGoogleReviewUrl(cleanPlaceId) || editingCard.reviewUrl;
+    // Determinar URL de reseña y Place ID
+    let finalReviewUrl = (editingCard.reviewUrl || '').trim();
+    let finalPlaceId = cleanGooglePlaceId(editingCard.placeId || '');
 
-    const updatedHistory = [
-      ...(editingCard.history || []),
-      {
-        date: new Date().toLocaleString('es-PE'),
-        author: 'Admin Linkeo',
-        action: supportNote.trim() || `Actualización de Place ID / Distrito (${editingCard.district}) en soporte técnico.`
+    // Si pegó una URL que contiene placeid, extraerlo si no tenía Place ID
+    if (finalReviewUrl && !finalPlaceId) {
+      const extracted = cleanGooglePlaceId(finalReviewUrl);
+      if (extracted && extracted !== finalReviewUrl) {
+        finalPlaceId = extracted;
       }
-    ];
+    }
+    // Si no puso URL pero sí Place ID, autoconstruir la URL
+    if (!finalReviewUrl && finalPlaceId) {
+      finalReviewUrl = buildGoogleReviewUrl(finalPlaceId);
+    }
+
+    const newHistoryEntry = supportNote.trim() ? {
+      id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      date: new Date().toLocaleString('es-PE'),
+      author: 'Admin Linkeo',
+      action: supportNote.trim()
+    } : null;
+
+    const updatedHistory = newHistoryEntry 
+      ? [...(editingCard.history || []), newHistoryEntry]
+      : (editingCard.history || []);
 
     const cardToSave = {
       ...editingCard,
-      placeId: cleanPlaceId,
-      reviewUrl: updatedReviewUrl,
+      placeId: finalPlaceId,
+      reviewUrl: finalReviewUrl,
+      notes: (editingCard.notes || '').trim(),
+      supportNotes: (editingCard.notes || '').trim(),
       history: updatedHistory
     };
 
     onUpdateCard(cardToSave);
 
-    // Sincronizar directamente con el prospecto correspondiente en Kanban
+    // Sincronizar bidireccionalmente distrito, dirección y nombre con el prospecto correspondiente en Kanban
     if (onUpdateLead) {
       const targetLead = (leads || []).find(l => areLeadAndCardLinked(l, cardToSave));
-      if (targetLead && targetLead.district !== cardToSave.district) {
-        onUpdateLead({
-          ...targetLead,
-          district: cardToSave.district
-        });
+      if (targetLead) {
+        const needsUpdate = 
+          targetLead.district !== cardToSave.district || 
+          targetLead.address !== cardToSave.address ||
+          (cardToSave.businessName && targetLead.businessName !== cardToSave.businessName);
+        if (needsUpdate) {
+          onUpdateLead({
+            ...targetLead,
+            businessName: cardToSave.businessName || targetLead.businessName,
+            district: cardToSave.district || targetLead.district,
+            address: cardToSave.address !== undefined ? cardToSave.address : targetLead.address
+          });
+        }
       }
     }
 
@@ -275,37 +297,84 @@ export default function NfcTraceabilityView({
     handleCloseEditModal();
   };
 
+  const handleDeleteHistoryEntry = (card, index) => {
+    if (!card || !Array.isArray(card.history) || !card.history[index]) return;
+    const entry = card.history[index];
+    
+    if (onRequestDelete) {
+      onRequestDelete({
+        ...entry,
+        cardId: card.id,
+        cardName: card.businessName,
+        historyIndex: index
+      }, 'Entrada de Bitácora');
+      return;
+    }
+
+    if (window.confirm(`¿Estás seguro de eliminar este registro de la bitácora?\n"${entry.action}"`)) {
+      const updatedHistory = card.history.filter((_, idx) => idx !== index);
+      const updatedCard = { ...card, history: updatedHistory };
+      onUpdateCard(updatedCard);
+      if (editingCard && editingCard.id === card.id) {
+        setEditingCard(updatedCard);
+      }
+      if (activeModalCard && activeModalCard.id === card.id) {
+        setActiveModalCard(updatedCard);
+      }
+      if (showToast) showToast('Registro eliminado de la bitácora', 'info');
+    }
+  };
+
   const handleCreateNewCard = (e) => {
     e.preventDefault();
-    const nextNum = nfcCards.length + 101;
     const newId = `LNK-${crypto.randomUUID()}`;
-    const generatedUrl = newCardForm.placeId.trim() 
-      ? `https://search.google.com/local/writereview?placeid=${newCardForm.placeId.trim()}`
-      : 'https://linkeocards.com/';
+
+    let finalReviewUrl = newCardForm.reviewUrl.trim();
+    let finalPlaceId = cleanGooglePlaceId(newCardForm.placeId.trim());
+
+    if (finalReviewUrl && !finalPlaceId) {
+      const extracted = cleanGooglePlaceId(finalReviewUrl);
+      if (extracted && extracted !== finalReviewUrl) {
+        finalPlaceId = extracted;
+      }
+    }
+    if (!finalReviewUrl && finalPlaceId) {
+      finalReviewUrl = buildGoogleReviewUrl(finalPlaceId);
+    }
+    if (!finalReviewUrl) {
+      finalReviewUrl = 'https://linkeocards.com/';
+    }
 
     const selectedProd = products.find(p => p.name === newCardForm.model) || inventory.find(i => i.name === newCardForm.model);
+
+    // Estado inteligente: Si tiene enlace o place ID y negocio, está lista para estar Activa
+    const initialStatus = newCardForm.status || ((finalReviewUrl && finalReviewUrl !== 'https://linkeocards.com/') ? 'Activa' : 'Pendiente de Configuración');
 
     const newCard = {
       id: newId,
       chipUid: newCardForm.chipUid.trim(),
+      qrControlUrl: newCardForm.qrControlUrl.trim(),
       model: newCardForm.model,
       productId: selectedProd?.id || null,
       productSku: selectedProd?.sku || null,
       discountStock: newCardForm.discountStock,
-      businessName: newCardForm.businessName,
+      businessName: newCardForm.businessName.trim(),
       category: newCardForm.category,
       district: newCardForm.district,
-      address: newCardForm.address || `Distrito de ${newCardForm.district}, Lima`,
-      contactName: newCardForm.contactName,
-      contactPhone: newCardForm.contactPhone,
-      placeId: newCardForm.placeId.trim(),
-      reviewUrl: generatedUrl,
+      address: newCardForm.address.trim() || `Distrito de ${newCardForm.district}, Lima`,
+      contactName: newCardForm.contactName.trim(),
+      contactPhone: newCardForm.contactPhone.trim(),
+      placeId: finalPlaceId,
+      reviewUrl: finalReviewUrl,
+      notes: newCardForm.notes.trim(),
+      supportNotes: newCardForm.notes.trim(),
       fallbackShortUrl: `https://linkeocards.com/r/${newCardForm.businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
       assignedDate: localDate(),
       renewalDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      status: 'Configurada / Por Entregar',
+      status: initialStatus,
       history: [
         {
+          id: `hist-${Date.now()}`,
           date: new Date().toLocaleString('es-PE'),
           author: 'Luis Romero / Kevin Servat',
           action: `Alta y vinculación física de tarjeta NFC (${newCardForm.model}).`
@@ -334,7 +403,7 @@ export default function NfcTraceabilityView({
             </h2>
           </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', margin: '4px 0 0 0' }}>
-            Vinculación de ID físico de tarjeta, Place ID de Google, código QR y bitácora de soporte técnico.
+            Vinculación de ID físico de tarjeta, URL de Google Reviews, panel QR dinámico y bitácora de soporte técnico.
           </p>
         </div>
 
@@ -355,7 +424,7 @@ export default function NfcTraceabilityView({
             <input 
               type="text" 
               className="form-control" 
-              placeholder="Buscar por ID, Negocio, Place ID..."
+              placeholder="Buscar por ID, Negocio, Place ID, URL..."
               style={{ paddingLeft: '36px' }}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -382,22 +451,11 @@ export default function NfcTraceabilityView({
               onChange={(e) => setFilterStatus(e.target.value)}
             >
               <option value="all">⚡ Todos los Estados</option>
-              <option value="Activa">Activa</option>
-              <option value="Configurada / Por Entregar">Configurada / Por Entregar</option>
-              <option value="En Soporte">En Soporte / Mantenimiento</option>
-            </select>
-          </div>
-
-          <div>
-            <select 
-              className="form-control"
-              value={filterHealth}
-              onChange={(e) => setFilterHealth(e.target.value)}
-            >
-              <option value="all">🩺 Toda la Salud Operativa</option>
-              <option value="high_performance">🟢 Alto Rendimiento (+50 bips)</option>
-              <option value="active">🟡 En Uso Regular</option>
-              <option value="inactive">🔴 Alerta: Inactivas (0 bips / 7d+)</option>
+              <option value="Activa">🟢 Activa</option>
+              <option value="Configurada / Por Entregar">🔵 Configurada / Por Entregar</option>
+              <option value="Pendiente de Configuración">🟡 Pendiente de Configuración</option>
+              <option value="En Soporte">🟣 En Soporte</option>
+              <option value="Inactiva">⚪ Inactiva</option>
             </select>
           </div>
 
@@ -410,8 +468,8 @@ export default function NfcTraceabilityView({
       {/* Grid de Tarjetas NFC */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '16px' }}>
         {filteredCards.map(card => {
-          const health = evaluateCardHealth(card);
-          const dynamicNfcUrl = buildCardRedirectUrl(card.id, 'nfc');
+          const targetReviewUrl = card.reviewUrl || (card.placeId ? buildGoogleReviewUrl(card.placeId) : '');
+          const isConfigured = Boolean(targetReviewUrl && card.businessName);
 
           return (
             <div 
@@ -431,14 +489,22 @@ export default function NfcTraceabilityView({
                     <span className="code-mono" style={{ fontSize: '0.88rem', fontWeight: 700 }}>
                       {card.id}
                     </span>
-                    <span className={`badge ${card.status === 'Activa' ? 'badge-green' : 'badge-yellow'}`}>
-                      {card.status}
-                    </span>
-                    <span 
-                      className={`badge ${health.alertLevel === 'success' ? 'badge-green' : health.alertLevel === 'danger' ? 'badge-red' : health.alertLevel === 'warning' ? 'badge-yellow' : 'badge-blue'}`}
-                      style={{ fontSize: '0.68rem', padding: '2px 6px', fontWeight: 700 }}
-                    >
-                      {health.label}
+                    <span className={`badge ${
+                      card.status === 'Activa' 
+                        ? 'badge-green' 
+                        : card.status === 'Configurada / Por Entregar' 
+                          ? 'badge-blue' 
+                          : card.status === 'En Soporte' 
+                            ? 'badge-purple' 
+                            : card.status === 'Pendiente de Configuración' 
+                              ? 'badge-yellow' 
+                              : 'badge-gray'
+                    }`}>
+                      {card.status === 'Activa' && '● Activa'}
+                      {card.status === 'Configurada / Por Entregar' && '● Por Entregar'}
+                      {card.status === 'Pendiente de Configuración' && '● Por Configurar'}
+                      {card.status === 'En Soporte' && '● En Soporte'}
+                      {card.status !== 'Activa' && card.status !== 'Configurada / Por Entregar' && card.status !== 'Pendiente de Configuración' && card.status !== 'En Soporte' && card.status}
                     </span>
                   </div>
 
@@ -447,7 +513,7 @@ export default function NfcTraceabilityView({
                       className="btn-icon" 
                       style={{ width: '30px', height: '30px' }}
                       onClick={() => handleOpenEdit(card)}
-                      title="Editar o registrar soporte técnico"
+                      title="Editar enlace, dirección o registrar soporte técnico"
                     >
                       <Edit3 size={14} />
                     </button>
@@ -464,120 +530,17 @@ export default function NfcTraceabilityView({
 
                 {/* Nombre del Negocio */}
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '4px' }}>
-                  {card.businessName}
+                  {card.businessName || '(Negocio no asignado)'}
                 </h3>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
                   <Building size={14} />
-                  <span>{card.category}</span>
+                  <span>{card.category || 'General'}</span>
                   <span>•</span>
                   <MapPin size={14} />
-                  <span>{card.district}</span>
-                </div>
-
-                {/* Métricas de Tráfico Dinámico (Bips NFC vs QR) */}
-                <div 
-                  style={{
-                    backgroundColor: 'rgba(0, 102, 255, 0.05)',
-                    border: '1px solid rgba(0, 102, 255, 0.18)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '10px 12px',
-                    marginBottom: '12px'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary-400)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Activity size={13} />
-                      <span>Tráfico & Bips Dinámicos</span>
-                    </span>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                      Último: <strong style={{ color: card.lastReadAt ? '#38bdf8' : 'var(--text-muted)' }}>{formatRelativeTime(card.lastReadAt)}</strong>
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center' }}>
-                    <div style={{ backgroundColor: 'var(--bg-input)', padding: '6px 4px', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)' }}>{health.totalBips}</div>
-                      <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>Total Bips</div>
-                    </div>
-                    <div style={{ backgroundColor: 'var(--bg-input)', padding: '6px 4px', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0066FF' }}>{health.bipsNfc}</div>
-                      <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>📲 NFC</div>
-                    </div>
-                    <div style={{ backgroundColor: 'var(--bg-input)', padding: '6px 4px', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#10b981' }}>{health.bipsQr}</div>
-                      <div style={{ fontSize: '0.64rem', color: 'var(--text-muted)' }}>📷 QR</div>
-                    </div>
-                  </div>
-
-                  {/* Acciones Post-Venta según salud */}
-                  {health.status === 'inactive' && (
-                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                      <div style={{ fontSize: '0.7rem', color: '#f87171', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <AlertTriangle size={12} />
-                        <span>{health.recommendation}</span>
-                      </div>
-                      {card.contactPhone && (
-                        <a
-                          href={`https://wa.me/${card.contactPhone.replace(/[^0-9]/g, '').length === 9 ? '51' + card.contactPhone.replace(/[^0-9]/g, '') : card.contactPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(health.followUpMessage)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-sm"
-                          style={{
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '5px',
-                            fontSize: '0.72rem',
-                            padding: '4px 8px',
-                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                            border: '1px solid rgba(239, 68, 68, 0.4)',
-                            color: '#f87171',
-                            textDecoration: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            fontWeight: 700
-                          }}
-                        >
-                          <MessageSquare size={12} />
-                          <span>Escribir Soporte Post-Venta (WhatsApp)</span>
-                        </a>
-                      )}
-                    </div>
-                  )}
-
-                  {health.status === 'high_performance' && card.contactPhone && (
-                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                      <div style={{ fontSize: '0.7rem', color: '#34d399', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Sparkles size={12} />
-                        <span>{health.recommendation}</span>
-                      </div>
-                      <a
-                        href={`https://wa.me/${card.contactPhone.replace(/[^0-9]/g, '').length === 9 ? '51' + card.contactPhone.replace(/[^0-9]/g, '') : card.contactPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(health.followUpMessage)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-sm"
-                        style={{
-                          width: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '5px',
-                          fontSize: '0.72rem',
-                          padding: '4px 8px',
-                          backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                          border: '1px solid rgba(16, 185, 129, 0.4)',
-                          color: '#34d399',
-                          textDecoration: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          fontWeight: 700
-                        }}
-                      >
-                        <Sparkles size={12} />
-                        <span>Ofrecer Recompra / Tarjeta Adicional</span>
-                      </a>
-                    </div>
-                  )}
+                  <span title={card.address ? `${card.address} (${card.district})` : card.district}>
+                    {card.district} {card.address ? `— ${card.address}` : ''}
+                  </span>
                 </div>
 
                 {/* Detalles Técnicos */}
@@ -589,8 +552,8 @@ export default function NfcTraceabilityView({
                     fontSize: '0.78rem',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '6px',
-                    marginBottom: '14px'
+                    gap: '7px',
+                    marginBottom: '12px'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -600,16 +563,62 @@ export default function NfcTraceabilityView({
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: 'var(--text-muted)' }}>UID Chip NFC:</span>
-                    <span className="code-mono" style={{ fontSize: '0.75rem' }}>{card.chipUid || 'No asignado'}</span>
+                    <span className="code-mono" style={{ fontSize: '0.75rem', fontWeight: card.chipUid ? 700 : 400 }}>
+                      {card.chipUid || 'No asignado'}
+                    </span>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Google Place ID:</span>
+                    <span style={{ color: 'var(--text-muted)' }}>Panel Control QR:</span>
+                    {card.qrControlUrl ? (
+                      <a 
+                        href={card.qrControlUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        style={{ color: 'var(--primary-400)', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none', fontWeight: 600 }}
+                        title="Abrir enlace del panel de control para modificar el QR"
+                      >
+                        <ExternalLink size={12} />
+                        <span>Abrir Panel ↗</span>
+                      </a>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)' }}>No configurado</span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Enlace Reseñas:</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span className="code-mono" style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {card.placeId || 'Pendiente'}
-                      </span>
-                      {card.placeId && (
+                      {targetReviewUrl ? (
+                        <>
+                          <span 
+                            className="code-mono" 
+                            style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#10b981', fontWeight: 600 }}
+                            title={targetReviewUrl}
+                          >
+                            {targetReviewUrl.replace('https://', '')}
+                          </span>
+                          <button 
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
+                            onClick={() => handleCopy(targetReviewUrl, `url-${card.id}`)}
+                            title="Copiar enlace de reseña"
+                          >
+                            {copiedId === `url-${card.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+                          </button>
+                        </>
+                      ) : (
+                        <span style={{ color: '#f59e0b', fontSize: '0.74rem', fontWeight: 600 }}>⚠️ Sin configurar</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {card.placeId && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Google Place ID:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span className="code-mono" style={{ maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={card.placeId}>
+                          {card.placeId}
+                        </span>
                         <button 
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}
                           onClick={() => handleCopy(card.placeId, `pid-${card.id}`)}
@@ -617,35 +626,61 @@ export default function NfcTraceabilityView({
                         >
                           {copiedId === `pid-${card.id}` ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
                         </button>
-                      )}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Vencimiento Anual:</span>
                     <span style={{ color: '#38bdf8' }}>{card.renewalDate || '15/09/2027'}</span>
                   </div>
                 </div>
+
+                {/* Nota de Soporte Técnico Permanente */}
+                {card.notes && (
+                  <div style={{ 
+                    marginBottom: '12px',
+                    padding: '8px 10px', 
+                    backgroundColor: 'rgba(0, 102, 255, 0.08)', 
+                    borderRadius: 'var(--radius-sm)', 
+                    borderLeft: '3px solid #0066FF', 
+                    fontSize: '0.76rem' 
+                  }}>
+                    <div style={{ fontWeight: 700, color: 'var(--primary-400)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Edit3 size={11} />
+                      <span>Nota de Soporte Técnico:</span>
+                    </div>
+                    <div style={{ color: 'var(--text-main)', whiteSpace: 'pre-wrap' }}>{card.notes}</div>
+                  </div>
+                )}
               </div>
 
               {/* Acciones de la Tarjeta */}
               <div style={{ display: 'flex', gap: '8px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
-                <a 
-                  href={card.reviewUrl || (card.placeId ? `https://search.google.com/local/writereview?placeid=${card.placeId}` : 'https://linkeocards.com/')}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button 
+                  type="button"
                   className="btn btn-secondary btn-sm"
-                  style={{ flex: 1, textDecoration: 'none' }}
-                  title="Probar que el enlace abre las reseñas de Google directamente"
+                  style={{ flex: 1 }}
+                  onClick={() => {
+                    const url = card.reviewUrl || (card.placeId ? buildGoogleReviewUrl(card.placeId) : '');
+                    if (!url) {
+                      if (showToast) showToast('Ingresa primero la URL de reseña en el soporte técnico', 'warning');
+                      handleOpenEdit(card);
+                      return;
+                    }
+                    window.open(url, '_blank');
+                  }}
+                  title="Abrir enlace de reseñas de Google directamente"
                 >
                   <ExternalLink size={14} />
                   <span>Probar Enlace</span>
-                </a>
+                </button>
 
                 <button 
                   className="btn btn-primary btn-sm"
                   style={{ flex: 1 }}
                   onClick={() => setActiveModalCard(card)}
+                  title="Ver código QR, enrutador y bitácora"
                 >
                   <QrCode size={14} />
                   <span>Ver QR & NFC</span>
@@ -663,7 +698,7 @@ export default function NfcTraceabilityView({
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span className="code-mono" style={{ fontSize: '1rem' }}>{activeModalCard.id}</span>
-                <h3 className="modal-title">{activeModalCard.businessName}</h3>
+                <h3 className="modal-title">{activeModalCard.businessName || 'Tarjeta Linkeo'}</h3>
               </div>
               <button className="close-btn" onClick={() => setActiveModalCard(null)}>✕</button>
             </div>
@@ -681,11 +716,11 @@ export default function NfcTraceabilityView({
                 </div>
               </div>
 
-              {/* Datos de Grabación NFC NDEF & Analítica Dinámica */}
+              {/* Datos de Grabación NFC NDEF & Panel */}
               <div>
                 <h4 style={{ fontSize: '0.95rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Smartphone size={16} color="var(--primary-600)" />
-                  <span>Enrutador Dinámico para Chip NFC & QR (Linkeo)</span>
+                  <span>Configuración para Chip NFC & QR</span>
                 </h4>
 
                 <div className="form-group" style={{ marginBottom: '10px' }}>
@@ -732,77 +767,49 @@ export default function NfcTraceabilityView({
                   </div>
                 </div>
 
-                {/* Simulador de Bips & Analítica en Vivo */}
-                <div style={{
-                  padding: '10px 12px',
-                  backgroundColor: 'var(--bg-input)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid rgba(0, 102, 255, 0.25)',
-                  marginBottom: '12px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--primary-400)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Activity size={13} />
-                      <span>Simulador de Bips en Vivo</span>
-                    </span>
-                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                      Última: <strong style={{ color: activeModalCard.lastReadAt ? '#38bdf8' : 'var(--text-muted)' }}>{formatRelativeTime(activeModalCard.lastReadAt)}</strong>
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center', marginBottom: '8px' }}>
-                    <div style={{ backgroundColor: 'var(--bg-card)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ fontSize: '1rem', fontWeight: 800 }}>{Number(activeModalCard.readCount || 0)}</div>
-                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Total Bips</div>
+                {activeModalCard.qrControlUrl && (
+                  <div style={{ marginBottom: '12px', padding: '8px 10px', backgroundColor: 'var(--bg-input)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Enlace Panel de Control para Modificar QR:
                     </div>
-                    <div style={{ backgroundColor: 'var(--bg-card)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0066FF' }}>{Number(activeModalCard.bipsNfc || 0)}</div>
-                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>📲 NFC</div>
-                    </div>
-                    <div style={{ backgroundColor: 'var(--bg-card)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ fontSize: '1rem', fontWeight: 800, color: '#10b981' }}>{Number(activeModalCard.bipsQr || 0)}</div>
-                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>📷 QR</div>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <span className="code-mono" style={{ fontSize: '0.72rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {activeModalCard.qrControlUrl}
+                      </span>
+                      <a 
+                        href={activeModalCard.qrControlUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <ExternalLink size={12} />
+                        <span>Abrir Panel</span>
+                      </a>
                     </div>
                   </div>
+                )}
 
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      style={{ flex: 1, fontSize: '0.72rem', padding: '4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
-                      onClick={() => handleSimulateBip(activeModalCard.id, 'nfc')}
-                      title="Probar incremento de bip NFC"
-                    >
-                      <Smartphone size={12} color="#0066FF" />
-                      <span>Simular Bip NFC</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      style={{ flex: 1, fontSize: '0.72rem', padding: '4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
-                      onClick={() => handleSimulateBip(activeModalCard.id, 'qr')}
-                      title="Probar incremento de escaneo QR"
-                    >
-                      <QrCode size={12} color="#10b981" />
-                      <span>Simular Bip QR</span>
-                    </button>
-                  </div>
-                </div>
-
-                <a 
-                  href={activeModalCard.reviewUrl || (activeModalCard.placeId ? `https://search.google.com/local/writereview?placeid=${activeModalCard.placeId}` : 'https://linkeocards.com/')}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button 
+                  type="button"
                   className="btn btn-success btn-sm"
-                  style={{ width: '100%', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  onClick={() => {
+                    const url = activeModalCard.reviewUrl || (activeModalCard.placeId ? buildGoogleReviewUrl(activeModalCard.placeId) : '');
+                    if (!url) {
+                      if (showToast) showToast('Ingresa primero la URL de reseña en el soporte técnico', 'warning');
+                      return;
+                    }
+                    window.open(url, '_blank');
+                  }}
                 >
                   <ExternalLink size={14} />
-                  <span>Probar Destino Final en Google Maps</span>
-                </a>
+                  <span>Probar Destino Final en Google Reviews</span>
+                </button>
               </div>
             </div>
 
-            {/* Bitácora de Soporte Técnico e Historial */}
+            {/* Bitácora de Soporte Técnico e Historial con Eliminación bajo Auditoría */}
             <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <h4 style={{ fontSize: '0.9rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -821,24 +828,45 @@ export default function NfcTraceabilityView({
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
-                {(activeModalCard.history || []).map((h, idx) => (
-                  <div 
-                    key={idx}
-                    style={{
-                      padding: '8px 12px',
-                      backgroundColor: 'var(--bg-input)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '0.78rem'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-subtle)', marginBottom: '2px' }}>
-                      <span><strong>{h.author}</strong></span>
-                      <span>{h.date}</span>
-                    </div>
-                    <div>{h.action}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                {(activeModalCard.history || []).length === 0 ? (
+                  <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                    Sin registros en la bitácora aún.
                   </div>
-                ))}
+                ) : (
+                  (activeModalCard.history || []).map((h, idx) => (
+                    <div 
+                      key={idx}
+                      style={{
+                        padding: '8px 12px',
+                        backgroundColor: 'var(--bg-input)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.78rem',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-subtle)', marginBottom: '2px', fontSize: '0.72rem' }}>
+                          <span><strong>{h.author}</strong></span>
+                          <span>{h.date}</span>
+                        </div>
+                        <div>{h.action}</div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        style={{ width: '24px', height: '24px', color: '#ef4444', padding: 0, flexShrink: 0 }}
+                        onClick={() => handleDeleteHistoryEntry(activeModalCard, idx)}
+                        title="Eliminar este registro de la bitácora (Bajo Auditoría)"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -892,23 +920,106 @@ export default function NfcTraceabilityView({
                     required
                   />
                 </div>
+
                 <div className="form-group">
-                  <label className="form-label">Estado:</label>
-                  <select 
+                  <label className="form-label">Dirección del Local / Negocio:</label>
+                  <input 
+                    type="text" 
                     className="form-control"
-                    value={editingCard.status}
-                    onChange={(e) => setEditingCard({ ...editingCard, status: e.target.value })}
-                  >
-                    <option value="Activa">Activa</option>
-                    <option value="Configurada / Por Entregar">Configurada / Por Entregar</option>
-                    <option value="En Soporte">En Soporte</option>
-                  </select>
+                    placeholder="Ej: Av. Caminos del Inca 3271, Santiago de Surco"
+                    value={editingCard.address || ''}
+                    onChange={(e) => setEditingCard({ ...editingCard, address: e.target.value })}
+                  />
                 </div>
               </div>
 
               <div className="form-group">
+                <label className="form-label">Estado de la Tarjeta:</label>
+                <select 
+                  className="form-control"
+                  value={editingCard.status || 'Activa'}
+                  onChange={(e) => setEditingCard({ ...editingCard, status: e.target.value })}
+                >
+                  <option value="Activa">🟢 Activa (Lista para uso en producción)</option>
+                  <option value="Configurada / Por Entregar">🔵 Configurada / Por Entregar (Lista, pendiente entrega)</option>
+                  <option value="Pendiente de Configuración">🟡 Pendiente de Configuración (Falta URL o chip)</option>
+                  <option value="En Soporte">🟣 En Soporte (Mantenimiento / actualización)</option>
+                  <option value="Inactiva">⚪ Inactiva (Retirada o baja)</option>
+                </select>
+                <span style={{ fontSize: '0.72rem', marginTop: '4px', display: 'block', color: (editingCard.reviewUrl?.trim() || editingCard.placeId?.trim()) ? '#10b981' : '#f59e0b' }}>
+                  {(editingCard.reviewUrl?.trim() || editingCard.placeId?.trim()) 
+                    ? '✓ Datos completos: La tarjeta tiene destino configurado y puede estar Activa.' 
+                    : '⚠️ Falta ingresar URL de Reseña o Place ID para considerarla configurada.'
+                  }
+                </span>
+              </div>
+
+              {/* URL Directa de Reseña de Google / Destino */}
+              <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label className="form-label" style={{ marginBottom: 0 }}>Google Place ID (Actualizable si el cliente se muda):</label>
+                  <label className="form-label" style={{ marginBottom: 0 }}>
+                    URL Directa de Reseña de Google / Destino:
+                  </label>
+                  {editingCard.reviewUrl?.trim() && (
+                    <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 600 }}>
+                      ✓ URL Configurada
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+                  <input 
+                    type="text" 
+                    className="form-control code-mono"
+                    placeholder="Pega aquí el enlace: https://search.google.com/local/writereview?placeid=... o https://g.page/r/.../review"
+                    value={editingCard.reviewUrl || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      let pid = cleanGooglePlaceId(val);
+                      setEditingCard({ 
+                        ...editingCard, 
+                        reviewUrl: val,
+                        placeId: (pid && pid !== val) ? pid : editingCard.placeId 
+                      });
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      const url = editingCard.reviewUrl?.trim() || (editingCard.placeId?.trim() ? buildGoogleReviewUrl(editingCard.placeId) : '');
+                      if (!url) {
+                        if (showToast) showToast('Ingresa primero la URL de reseña o el Place ID', 'warning');
+                        return;
+                      }
+                      window.open(url, '_blank');
+                    }}
+                    disabled={!editingCard.reviewUrl?.trim() && !editingCard.placeId?.trim()}
+                    title="Abrir enlace de reseña directamente en nueva pestaña"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      whiteSpace: 'nowrap',
+                      fontWeight: 700,
+                      padding: '0 16px'
+                    }}
+                  >
+                    <ExternalLink size={15} />
+                    <span>Enlace redirigido</span>
+                  </button>
+                </div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
+                  Pega aquí el enlace directo de reseñas de Google Maps, el enlace corto de tu perfil de negocio o la URL con <code>#lrd</code>.
+                </span>
+              </div>
+
+              {/* Google Place ID (Opcional si ya se colocó la URL) */}
+              <div className="form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>
+                    Google Place ID (Opcional si ya colocaste la URL arriba):
+                  </label>
                   {editingCard.placeId?.trim() && (
                     <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 600 }}>
                       ✓ ID: {cleanGooglePlaceId(editingCard.placeId)}
@@ -919,113 +1030,140 @@ export default function NfcTraceabilityView({
                   <input 
                     type="text" 
                     className="form-control code-mono"
-                    value={editingCard.placeId}
+                    value={editingCard.placeId || ''}
                     onChange={(e) => {
                       const cleaned = cleanGooglePlaceId(e.target.value);
-                      setEditingCard({ ...editingCard, placeId: cleaned });
+                      const autoUrl = !editingCard.reviewUrl?.trim() && cleaned ? buildGoogleReviewUrl(cleaned) : editingCard.reviewUrl;
+                      setEditingCard({ ...editingCard, placeId: cleaned, reviewUrl: autoUrl });
                     }}
                     placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4"
-                    required
                     style={{ flex: 1 }}
                   />
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => {
-                      const id = cleanGooglePlaceId(editingCard.placeId);
-                      if (!id) {
-                        if (showToast) showToast('Ingresa primero el Google Place ID', 'warning');
-                        return;
-                      }
-                      const url = buildGoogleReviewUrl(id);
-                      window.open(url, '_blank');
-                    }}
-                    disabled={!editingCard.placeId?.trim()}
-                    title="Abrir enlace redirigido uniendo https://search.google.com/local/writereview?placeid= con el ID"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      whiteSpace: 'nowrap',
-                      fontWeight: 700,
-                      padding: '0 16px',
-                      cursor: editingCard.placeId?.trim() ? 'pointer' : 'not-allowed',
-                      opacity: editingCard.placeId?.trim() ? 1 : 0.6
-                    }}
-                  >
-                    <ExternalLink size={15} />
-                    <span>Enlace redirigido</span>
-                  </button>
-                </div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                  Al ingresar el ID, el botón <strong>Enlace redirigido</strong> une <code>https://search.google.com/local/writereview?placeid=</code> con el Place ID.
-                </span>
-              </div>
-
-              <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label className="form-label" style={{ marginBottom: 0 }}>URL de Reseña Generada:</label>
-                  {cleanGooglePlaceId(editingCard.placeId) && (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--primary-400)', fontWeight: 600 }}>
-                      ✓ https://search.google.com/local/writereview?placeid= + ID
-                    </span>
+                  {editingCard.placeId?.trim() && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        const url = buildGoogleReviewUrl(editingCard.placeId);
+                        setEditingCard({ ...editingCard, reviewUrl: url });
+                        if (showToast) showToast('URL de reseña generada desde el Place ID', 'info');
+                      }}
+                      title="Generar URL con writereview?placeid="
+                      style={{ whiteSpace: 'nowrap', fontSize: '0.78rem' }}
+                    >
+                      Generar URL
+                    </button>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+              </div>
+
+              {/* UID Chip NFC & Panel de Control QR */}
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">UID Chip NFC:</label>
                   <input 
                     type="text" 
                     className="form-control code-mono"
-                    value={buildGoogleReviewUrl(editingCard.placeId) || `https://search.google.com/local/writereview?placeid=`}
-                    readOnly
-                    style={{ flex: 1 }}
+                    placeholder="04:XX:XX:XX:XX:XX"
+                    value={editingCard.chipUid || ''}
+                    onChange={(e) => setEditingCard({ ...editingCard, chipUid: e.target.value })}
                   />
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      const url = buildGoogleReviewUrl(editingCard.placeId);
-                      if (url) {
-                        handleCopy(url, 'modal-review-url');
-                      } else {
-                        if (showToast) showToast('Ingresa un Place ID para copiar la URL', 'warning');
-                      }
-                    }}
-                    title="Copiar URL generada"
-                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    {copiedId === 'modal-review-url' ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
-                    <span style={{ fontSize: '0.8rem' }}>Copiar</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    onClick={() => {
-                      const url = buildGoogleReviewUrl(editingCard.placeId);
-                      if (url) {
-                        window.open(url, '_blank');
-                      }
-                    }}
-                    disabled={!cleanGooglePlaceId(editingCard.placeId)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
-                    title="Abrir enlace redirigido en nueva pestaña"
-                  >
-                    <ExternalLink size={14} />
-                    <span>Enlace redirigido</span>
-                  </button>
+                </div>
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Panel de Control (Modificar QR):</label>
+                    {editingCard.qrControlUrl?.trim() && (
+                      <a 
+                        href={editingCard.qrControlUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        style={{ fontSize: '0.72rem', color: 'var(--primary-400)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                      >
+                        <ExternalLink size={12} />
+                        <span>Abrir Panel</span>
+                      </a>
+                    )}
+                  </div>
+                  <input 
+                    type="url" 
+                    className="form-control code-mono"
+                    placeholder="https://panel.linkeocards.com/... o portal del QR"
+                    value={editingCard.qrControlUrl || ''}
+                    onChange={(e) => setEditingCard({ ...editingCard, qrControlUrl: e.target.value })}
+                  />
                 </div>
               </div>
 
+              {/* Notas de Soporte Técnico Permanentes */}
               <div className="form-group">
-                <label className="form-label">Nota de Soporte Técnico (Quedará registrada en la bitácora):</label>
+                <label className="form-label">Notas de Soporte Técnico / Diagnóstico Actual:</label>
                 <textarea 
                   className="form-control"
-                  rows="3"
-                  placeholder="Motivo del cambio: El restaurante cambió de nombre / local, se reconfiguró el chip..."
+                  rows="2"
+                  placeholder="Diagnóstico permanente del chip, modelo o requerimiento especial del cliente..."
+                  value={editingCard.notes || ''}
+                  onChange={(e) => setEditingCard({ ...editingCard, notes: e.target.value })}
+                ></textarea>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                  Esta nota se mantendrá guardada permanentemente en la ficha de la tarjeta y será visible en el módulo.
+                </span>
+              </div>
+
+              {/* Nueva entrada a la Bitácora */}
+              <div className="form-group">
+                <label className="form-label">Agregar Nueva Entrada a la Bitácora de Cambios (Opcional):</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="Ej: Cambio de Place ID a Surco, reconfiguración de chip exitosa..."
                   value={supportNote}
                   onChange={(e) => setSupportNote(e.target.value)}
-                  required
-                ></textarea>
+                />
               </div>
+
+              {/* Historial de la Bitácora con Eliminación bajo Auditoría */}
+              {(editingCard.history || []).length > 0 && (
+                <div style={{ marginTop: '16px', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <History size={14} color="var(--primary-600)" />
+                    <span>Historial de la Bitácora ({editingCard.history.length} registros):</span>
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '140px', overflowY: 'auto' }}>
+                    {editingCard.history.map((h, idx) => (
+                      <div 
+                        key={idx}
+                        style={{
+                          padding: '6px 10px',
+                          backgroundColor: 'var(--bg-input)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.76rem',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          gap: '8px'
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-subtle)', marginBottom: '2px', fontSize: '0.70rem' }}>
+                            <span><strong>{h.author}</strong></span>
+                            <span>{h.date}</span>
+                          </div>
+                          <div>{h.action}</div>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          style={{ width: '22px', height: '22px', color: '#ef4444', padding: 0, flexShrink: 0 }}
+                          onClick={() => handleDeleteHistoryEntry(editingCard, idx)}
+                          title="Eliminar este registro de la bitácora (Bajo Auditoría)"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
                 <button type="button" className="btn btn-secondary" onClick={handleCloseEditModal}>
@@ -1106,44 +1244,6 @@ export default function NfcTraceabilityView({
                     )}
                   </select>
 
-                  {/* Tarjeta de Disponibilidad de Stock */}
-                  {(() => {
-                    const matched = products.find(p => p.name === newCardForm.model) || inventory.find(i => i.name === newCardForm.model);
-                    const stock = getProductStock(matched || newCardForm.model);
-                    return (
-                      <div 
-                        style={{
-                          marginTop: '8px',
-                          padding: '8px 12px',
-                          borderRadius: 'var(--radius-md)',
-                          backgroundColor: stock > 0 ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                          border: `1px solid ${stock > 0 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          fontSize: '0.78rem'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '1.05rem' }}>{stock > 0 ? '📦' : '⚠️'}</span>
-                          <div>
-                            <strong style={{ color: stock > 0 ? '#10b981' : '#ef4444' }}>
-                              {stock > 0 ? `Stock Disponible: ${stock} unidades en almacén` : 'Sin unidades en almacén (Agotado)'}
-                            </strong>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              {matched?.sku ? `SKU: ${matched.sku} • ` : ''}
-                              {matched?.price ? `Precio: S/ ${Number(matched.price).toFixed(2)} • ` : ''}
-                              {matched?.cost ? `Costo: S/ ${Number(matched.cost).toFixed(2)}` : ''}
-                            </div>
-                          </div>
-                        </div>
-                        <span className={`badge ${stock > 0 ? 'badge-green' : 'badge-red'}`}>
-                          {stock > 0 ? 'Disponible' : 'Sin Stock'}
-                        </span>
-                      </div>
-                    );
-                  })()}
-
                   <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                     <input 
                       type="checkbox"
@@ -1168,6 +1268,21 @@ export default function NfcTraceabilityView({
                     onChange={(e) => setNewCardForm({ ...newCardForm, chipUid: e.target.value })}
                   />
                 </div>
+              </div>
+
+              {/* Panel de Control para Modificar QR */}
+              <div className="form-group">
+                <label className="form-label">Enlace del Panel de Control (para modificar el QR):</label>
+                <input 
+                  type="url" 
+                  className="form-control code-mono"
+                  placeholder="https://panel.linkeocards.com/... o portal del QR"
+                  value={newCardForm.qrControlUrl}
+                  onChange={(e) => setNewCardForm({ ...newCardForm, qrControlUrl: e.target.value })}
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                  Enlace para administrar o reconfigurar el código QR dinámico impreso en la tarjeta física.
+                </span>
               </div>
 
               <div className="form-group">
@@ -1224,11 +1339,25 @@ export default function NfcTraceabilityView({
               </div>
 
               <div className="form-group">
+                <label className="form-label">Dirección del Local / Establecimiento:</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="Ej: Av. Caminos del Inca 3271, Santiago de Surco 15039"
+                  value={newCardForm.address}
+                  onChange={(e) => setNewCardForm({ ...newCardForm, address: e.target.value })}
+                />
+              </div>
+
+              {/* URL Directa de Reseña de Google / Destino */}
+              <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label className="form-label" style={{ marginBottom: 0 }}>Google Place ID del Negocio:</label>
-                  {newCardForm.placeId?.trim() && (
+                  <label className="form-label" style={{ marginBottom: 0 }}>
+                    URL Directa de Reseña de Google / Destino:
+                  </label>
+                  {newCardForm.reviewUrl?.trim() && (
                     <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 600 }}>
-                      ✓ ID: {cleanGooglePlaceId(newCardForm.placeId)}
+                      ✓ URL ingresada
                     </span>
                   )}
                 </div>
@@ -1236,38 +1365,39 @@ export default function NfcTraceabilityView({
                   <input 
                     type="text" 
                     className="form-control code-mono"
-                    placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4"
-                    value={newCardForm.placeId}
+                    placeholder="Pega aquí el enlace: https://search.google.com/local/writereview?placeid=... o enlace de reseñas"
+                    value={newCardForm.reviewUrl}
                     onChange={(e) => {
-                      const cleaned = cleanGooglePlaceId(e.target.value);
-                      setNewCardForm({ ...newCardForm, placeId: cleaned });
+                      const val = e.target.value;
+                      let pid = cleanGooglePlaceId(val);
+                      setNewCardForm({ 
+                        ...newCardForm, 
+                        reviewUrl: val,
+                        placeId: (pid && pid !== val) ? pid : newCardForm.placeId 
+                      });
                     }}
-                    required
                     style={{ flex: 1 }}
                   />
                   <button
                     type="button"
                     className="btn btn-primary"
                     onClick={() => {
-                      const id = cleanGooglePlaceId(newCardForm.placeId);
-                      if (!id) {
-                        if (showToast) showToast('Ingresa primero el Google Place ID', 'warning');
+                      const url = newCardForm.reviewUrl?.trim() || (newCardForm.placeId?.trim() ? buildGoogleReviewUrl(newCardForm.placeId) : '');
+                      if (!url) {
+                        if (showToast) showToast('Ingresa primero la URL de reseña o el Place ID', 'warning');
                         return;
                       }
-                      const url = buildGoogleReviewUrl(id);
                       window.open(url, '_blank');
                     }}
-                    disabled={!newCardForm.placeId?.trim()}
-                    title="Abrir enlace redirigido uniendo https://search.google.com/local/writereview?placeid= con el ID"
+                    disabled={!newCardForm.reviewUrl?.trim() && !newCardForm.placeId?.trim()}
+                    title="Abrir enlace de reseña directamente"
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
                       whiteSpace: 'nowrap',
                       fontWeight: 700,
-                      padding: '0 16px',
-                      cursor: newCardForm.placeId?.trim() ? 'pointer' : 'not-allowed',
-                      opacity: newCardForm.placeId?.trim() ? 1 : 0.6
+                      padding: '0 16px'
                     }}
                   >
                     <ExternalLink size={15} />
@@ -1275,11 +1405,44 @@ export default function NfcTraceabilityView({
                   </button>
                 </div>
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '4px', display: 'block' }}>
-                  {newCardForm.placeId?.trim()
-                    ? `URL unida: ${buildGoogleReviewUrl(newCardForm.placeId)}`
-                    : 'Al colocar el ID, el botón "Enlace redirigido" une https://search.google.com/local/writereview?placeid= con el ID.'
-                  }
+                  Pega aquí el enlace exacto de reseñas de Google Maps o el enlace de tu ficha de negocio.
                 </span>
+              </div>
+
+              {/* Google Place ID del Negocio (Opcional si ya se colocó la URL) */}
+              <div className="form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Google Place ID del Negocio (Opcional):</label>
+                  {newCardForm.placeId?.trim() && (
+                    <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 600 }}>
+                      ✓ ID: {cleanGooglePlaceId(newCardForm.placeId)}
+                    </span>
+                  )}
+                </div>
+                <input 
+                  type="text" 
+                  className="form-control code-mono"
+                  placeholder="Ej: ChIJN1t_tDeuEmsRUsoyG83frY4"
+                  value={newCardForm.placeId}
+                  onChange={(e) => {
+                    const cleaned = cleanGooglePlaceId(e.target.value);
+                    const autoUrl = !newCardForm.reviewUrl?.trim() && cleaned ? buildGoogleReviewUrl(cleaned) : newCardForm.reviewUrl;
+                    setNewCardForm({ ...newCardForm, placeId: cleaned, reviewUrl: autoUrl });
+                  }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Estado Inicial:</label>
+                <select 
+                  className="form-control"
+                  value={newCardForm.status}
+                  onChange={(e) => setNewCardForm({ ...newCardForm, status: e.target.value })}
+                >
+                  <option value="Activa">🟢 Activa (Lista y en producción)</option>
+                  <option value="Configurada / Por Entregar">🔵 Configurada / Por Entregar (Lista para entrega)</option>
+                  <option value="Pendiente de Configuración">🟡 Pendiente de Configuración (Falta URL o chip)</option>
+                </select>
               </div>
 
               <div className="form-row">
@@ -1312,6 +1475,17 @@ export default function NfcTraceabilityView({
                     }}
                   />
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Notas Iniciales de Soporte Técnico (Opcional):</label>
+                <textarea 
+                  className="form-control"
+                  rows="2"
+                  placeholder="Detalles sobre entrega física, requerimientos especiales o configuración..."
+                  value={newCardForm.notes}
+                  onChange={(e) => setNewCardForm({ ...newCardForm, notes: e.target.value })}
+                ></textarea>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
