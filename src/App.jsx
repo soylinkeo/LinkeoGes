@@ -774,7 +774,8 @@ export default function App() {
       ...newExp,
       inventoryStatus,
       stockMovements,
-      month: newExp.month || getAccountingMonth(newExp.date || localDate())
+      month: newExp.month || getAccountingMonth(newExp.date || localDate()),
+      affectsCapital: Boolean(newExp.affectsCapital)
     };
     setExpenses([expenseWithMonth, ...expenses]);
     logAudit({
@@ -782,7 +783,7 @@ export default function App() {
       entityType: 'Gasto',
       entityId: expenseWithMonth.id,
       entityName: `${expenseWithMonth.description} - S/ ${Number(expenseWithMonth.amount).toFixed(2)}`,
-      reason: `Gasto pagado por ${expenseWithMonth.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'} vía ${expenseWithMonth.paymentMethod} (Mes: ${expenseWithMonth.month}).${isPending ? ' [⏳ Mercadería en camino - Pendiente de ingreso a inventario]' : ''}`
+      reason: `Gasto pagado por ${expenseWithMonth.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'} vía ${expenseWithMonth.paymentMethod} (Mes: ${expenseWithMonth.month}).${expenseWithMonth.affectsCapital ? ' [💰 Egreso afectable al Capital]' : ''}${isPending ? ' [⏳ Mercadería en camino - Pendiente de ingreso a inventario]' : ''}`
     });
     return true;
   };
@@ -869,7 +870,8 @@ export default function App() {
       ...updatedExp,
       stockMovements: movements,
       inventoryStatus: updatedExp.selectedProductId ? (updatedExp.inventoryStatus || original?.inventoryStatus || 'pending') : null,
-      month: updatedExp.month || getAccountingMonth(updatedExp.date || localDate())
+      month: updatedExp.month || getAccountingMonth(updatedExp.date || localDate()),
+      affectsCapital: Boolean(updatedExp.affectsCapital)
     };
     const oldExp = expenses.find(e => e.id === updatedExp.id);
     setExpenses(prev => prev.map(e => e.id === updatedExp.id ? expenseWithMonth : e));
@@ -878,9 +880,9 @@ export default function App() {
       entityType: 'Gasto',
       entityId: updatedExp.id,
       entityName: `${expenseWithMonth.description} - S/ ${Number(expenseWithMonth.amount).toFixed(2)}`,
-      reason: `Modificación de gasto pagado por ${expenseWithMonth.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'} (Mes: ${expenseWithMonth.month}).`,
+      reason: `Modificación de gasto pagado por ${expenseWithMonth.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'} (Mes: ${expenseWithMonth.month}).${expenseWithMonth.affectsCapital ? ' [💰 Egreso afectable al Capital]' : ''}`,
       snapshot: oldExp,
-      diff: `Antes: S/ ${Number(oldExp?.amount || 0).toFixed(2)} (${oldExp?.description || '—'}) -> Ahora: S/ ${Number(expenseWithMonth.amount).toFixed(2)} (${expenseWithMonth.description})`
+      diff: `Antes: S/ ${Number(oldExp?.amount || 0).toFixed(2)} (${oldExp?.description || '—'}${oldExp?.affectsCapital ? ' · Afecta Capital' : ''}) -> Ahora: S/ ${Number(expenseWithMonth.amount).toFixed(2)} (${expenseWithMonth.description}${expenseWithMonth.affectsCapital ? ' · Afecta Capital' : ''})`
     });
     return true;
   };

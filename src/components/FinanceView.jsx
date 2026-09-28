@@ -13,7 +13,8 @@ import {
   Trash2,
   Edit3,
   Clock,
-  Check
+  Check,
+  Wallet
 } from 'lucide-react';
 import { getAccountingMonth, ACCOUNTING_MONTHS } from '../utils/dateUtils';
 import NewExpenseModal from './NewExpenseModal.jsx';
@@ -61,7 +62,8 @@ export default function FinanceView({
     month: getAccountingMonth(todayStr),
     notes: '',
     inventoryStatus: 'pending',
-    addToInventory: true
+    addToInventory: true,
+    affectsCapital: false
   });
 
   // Manejar selección de producto/insumo de almacén para cargar costo por default
@@ -101,7 +103,18 @@ export default function FinanceView({
   const [settleNote, setSettleNote] = useState('Transferencia de cuadre vía Yape/BCP');
 
   // Cálculos
-  const { totalSalesAmount, totalCost, totalGrossProfit, totalExpenses, inventoryPurchases, totalDisbursed, netProfit } = calculateFinance(sales, expenses);
+  const { 
+    totalSalesAmount, 
+    totalCost, 
+    totalGrossProfit, 
+    totalExpenses, 
+    inventoryPurchases, 
+    totalDisbursed, 
+    netProfit,
+    totalAfectableExpenses,
+    totalCapital,
+    affectableCount
+  } = calculateFinance(sales, expenses);
 
   // Aportes de socios
   const paidByKevin = partnerBalance.paidByKevin || 0;
@@ -126,7 +139,8 @@ export default function FinanceView({
       month: getAccountingMonth(today),
       notes: '',
       inventoryStatus: 'pending',
-      addToInventory: true
+      addToInventory: true,
+      affectsCapital: false
     });
     setIsNewExpenseModalOpen(true);
   };
@@ -148,7 +162,8 @@ export default function FinanceView({
       month: exp.month || getAccountingMonth(exp.date || localDate()),
       notes: exp.notes || '',
       inventoryStatus: exp.inventoryStatus || (exp.selectedProductId ? 'received' : 'none'),
-      addToInventory: false
+      addToInventory: false,
+      affectsCapital: Boolean(exp.affectsCapital ?? exp.affects_capital ?? false)
     });
     setIsNewExpenseModalOpen(true);
   };
@@ -170,7 +185,8 @@ export default function FinanceView({
       month: getAccountingMonth(today),
       notes: '',
       inventoryStatus: 'pending',
-      addToInventory: true
+      addToInventory: true,
+      affectsCapital: false
     });
     setEditingExpense(null);
     setIsNewExpenseModalOpen(false);
@@ -178,6 +194,25 @@ export default function FinanceView({
 
   const handleCloseSettleModal = () => {
     setIsSettleModalOpen(false);
+  };
+
+  const handleToggleAffectsCapital = (exp) => {
+    const nextVal = !Boolean(exp.affectsCapital ?? exp.affects_capital ?? false);
+    const updated = {
+      ...exp,
+      affectsCapital: nextVal
+    };
+    if (onEditExpense) {
+      if (onEditExpense(updated) === false) return;
+    }
+    if (showToast) {
+      showToast(
+        nextVal 
+          ? `💰 Gasto "${exp.description}" marcado como Egreso afectable (-S/ ${Number(exp.amount).toFixed(2)} al Capital)`
+          : `ℹ️ Gasto "${exp.description}" desmarcado (Ya no resta al Capital)`,
+        'info'
+      );
+    }
   };
 
   const handleCreateExpense = (e) => {
@@ -200,7 +235,8 @@ export default function FinanceView({
         unitCost: expenseForm.unitCost ? Number(expenseForm.unitCost) : null,
         quantity: Number(expenseForm.quantity) || 1,
         isCustomCost: expenseForm.isCustomCost,
-        inventoryStatus: expenseForm.inventoryStatus
+        inventoryStatus: expenseForm.inventoryStatus,
+        affectsCapital: Boolean(expenseForm.affectsCapital)
       };
 
       if (onEditExpense) {
@@ -228,7 +264,8 @@ export default function FinanceView({
       unitCost: expenseForm.unitCost ? Number(expenseForm.unitCost) : null,
       quantity: Number(expenseForm.quantity) || 1,
       isCustomCost: expenseForm.isCustomCost,
-      inventoryStatus: expenseForm.selectedProductId ? (expenseForm.inventoryStatus || 'pending') : null
+      inventoryStatus: expenseForm.selectedProductId ? (expenseForm.inventoryStatus || 'pending') : null,
+      affectsCapital: Boolean(expenseForm.affectsCapital)
     };
 
     if (onAddNewExpense({ ...newExp, addToInventory: expenseForm.addToInventory }) === false) return;
@@ -362,7 +399,7 @@ export default function FinanceView({
       </div>
 
       {/* KPIs Financieros */}
-      <div className="metrics-grid" style={{ marginBottom: '32px' }}>
+      <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', marginBottom: '32px' }}>
         <div className="kpi-card">
           <div className="kpi-header">
             <span className="kpi-label">Facturado en Ventas</span>
@@ -372,6 +409,23 @@ export default function FinanceView({
           </div>
           <div className="kpi-value">S/ {totalSalesAmount.toFixed(2)}</div>
           <div className="kpi-subtext">Meta mensual estimada: S/ {targets.monthlyRevenueEstimate ?? 5100}</div>
+        </div>
+
+        <div className="kpi-card kpi-purple">
+          <div className="kpi-header">
+            <span className="kpi-label">Total en Capital</span>
+            <div className="kpi-icon-wrapper" style={{ background: 'rgba(168, 85, 247, 0.12)', color: '#c084fc' }}>
+              <Wallet size={18} />
+            </div>
+          </div>
+          <div className="kpi-value" style={{ color: totalCapital >= 0 ? '#c084fc' : '#ef4444' }}>
+            S/ {totalCapital.toFixed(2)}
+          </div>
+          <div className="kpi-subtext">
+            {totalAfectableExpenses > 0 
+              ? `Ventas (S/ ${totalSalesAmount.toFixed(2)}) - Gastos afect. (S/ ${totalAfectableExpenses.toFixed(2)})`
+              : `Ventas S/ ${totalSalesAmount.toFixed(2)} · S/ 0.00 egresos afectables`}
+          </div>
         </div>
 
         <div className="kpi-card kpi-red">
@@ -526,8 +580,36 @@ export default function FinanceView({
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
                       )}
                     </td>
-                    <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      {exp.notes || '—'}
+                    <td style={{ fontSize: '0.78rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleAffectsCapital(exp)}
+                          title={exp.affectsCapital ? 'Egreso afectable al Capital. Clic para desmarcar.' : 'Gasto NO afectable al capital. Clic para marcar y que reste del Capital.'}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            width: 'fit-content',
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            border: exp.affectsCapital ? '1px solid rgba(168, 85, 247, 0.55)' : '1px dashed var(--border-subtle)',
+                            backgroundColor: exp.affectsCapital ? 'rgba(168, 85, 247, 0.16)' : 'rgba(255, 255, 255, 0.03)',
+                            color: exp.affectsCapital ? '#c084fc' : 'var(--text-muted)',
+                            fontSize: '0.70rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <span>{exp.affectsCapital ? '💰 Egreso afectable (-Capital)' : '⬜ No afecta capital'}</span>
+                        </button>
+                        {exp.notes && (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
+                            {exp.notes}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>

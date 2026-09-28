@@ -28,9 +28,11 @@ export function exportLinkeoGesToExcel({
     [],
     ['INDICADORES CLAVE (KPIs)', 'VALOR', 'META MENSUAL', 'CUMPLIMIENTO %'],
     ['Total Facturado (Ventas)', totalSalesAmount, targets.monthlyRevenueEstimate || 5100, (totalSalesAmount / (targets.monthlyRevenueEstimate || 5100))],
+    ['Total en Capital (Ventas - Gastos afectables)', finance.totalCapital ?? (totalSalesAmount - (finance.totalAfectableExpenses || 0)), '-', '-'],
     ['Costo de Ventas (Mercadería)', totalCostSales, '-', '-'],
     ['Margen Bruto de Ventas', totalGrossProfit, '-', '-'],
     ['Gastos Operativos e Importaciones', totalExpenses, 100, '-'],
+    ['Gastos Afectables al Capital', finance.totalAfectableExpenses || 0, '-', '-'],
     ['Utilidad Neta Real', netProfit, targets.monthlyProfitTarget || 4000, (netProfit / (targets.monthlyProfitTarget || 4000))],
     ['Unidades Vendidas', sales.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0), targets.monthlyUnitsTarget || 75, (sales.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0) / (targets.monthlyUnitsTarget || 75))],
     [],
@@ -70,7 +72,7 @@ export function exportLinkeoGesToExcel({
 
   // 3. HOJA: INGRESOS Y GASTOS (Compatible con fórmulas SUMAR.SI.CONJUNTO)
   const expenseHeaders = [
-    ['Fecha', 'Tipo', 'Categoría', 'Descripción', 'Monto (S/)', 'Método de Pago', 'Socio Responsable', 'Mes', 'Notas / Liquidación']
+    ['Fecha', 'Tipo', 'Categoría', 'Descripción', 'Monto (S/)', 'Método de Pago', 'Socio Responsable', 'Mes', 'Afecta Capital', 'Notas / Liquidación']
   ];
   const expenseRows = expenses.map(e => [
     e.date,
@@ -81,6 +83,7 @@ export function exportLinkeoGesToExcel({
     e.paymentMethod,
     e.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat',
     e.month || '',
+    e.affectsCapital ? 'Sí (Egreso afectable)' : 'No',
     e.notes || ''
   ]);
   const wsExpenses = XLSX.utils.aoa_to_sheet([...expenseHeaders, ...expenseRows]);

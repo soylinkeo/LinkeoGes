@@ -30,6 +30,27 @@ test('purchases are not deducted a second time as operating expenses', () => {
   assert.equal(result.netProfit,60); assert.equal(result.debtLuisToKevin,20);
   assert.equal(result.inventoryPurchases, 40); assert.equal(result.totalDisbursed, 40);
 });
+test('total capital equals total sales minus only affectable expenses', () => {
+  const sales = [
+    { totalAmount: 160.00, cost: 40.00 }
+  ];
+  const expenses = [
+    { id: 'e1', description: 'Compra Tarjetas NFC', amount: 194.47, category: 'Compra de mercadería', paidBy: 'kevin', affectsCapital: false },
+    { id: 'e2', description: 'Alimentación', amount: 34.40, category: 'Otro', paidBy: 'kevin', affectsCapital: true },
+    { id: 'e3', description: 'Pasajes', amount: 12.00, category: 'Otro', paidBy: 'kevin', affectsCapital: true },
+  ];
+
+  const result = calculateFinance(sales, expenses);
+  assert.equal(result.totalSalesAmount, 160.00);
+  assert.equal(result.totalAfectableExpenses, 46.40);
+  assert.equal(result.totalCapital, 113.60);
+  assert.equal(result.affectableCount, 2);
+
+  const noAffectable = calculateFinance(sales, [expenses[0]]);
+  assert.equal(noAffectable.totalAfectableExpenses, 0);
+  assert.equal(noAffectable.totalCapital, 160.00);
+  assert.equal(noAffectable.affectableCount, 0);
+});
 test('a loss-making product cannot yield a feasible sales target', () => {
   const result = computeDynamicTargets({ projectedProducts:[{ price:10,baseCost:20,mixPercent:100 }] });
   assert.equal(result.isFeasible,false); assert.equal(result.monthlyUnitsTarget,0); assert.equal(result.weightedMargin,-10);

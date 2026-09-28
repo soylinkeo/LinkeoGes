@@ -49,7 +49,8 @@ const legacyMappers = {
     paidBy: e.paid_by,
     month: e.month,
     date: e.date,
-    receiptUrl: e.receipt_url || ''
+    receiptUrl: e.receipt_url || '',
+    affectsCapital: Boolean(e.affectsCapital ?? e.affects_capital ?? e.payload?.affectsCapital ?? false)
   }),
 
   expenseToDb: (e) => ({

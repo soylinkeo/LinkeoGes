@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     month TEXT NOT NULL,
     date TEXT NOT NULL,
     receipt_url TEXT,
+    affects_capital BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

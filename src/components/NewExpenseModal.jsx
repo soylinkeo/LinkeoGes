@@ -570,6 +570,72 @@ export default function NewExpenseModal({
                 S/ {Number(expenseForm.amount || computedTotal || 0).toFixed(2)}
               </div>
             </div>
+
+            {/* Opción: Egreso afectable al Capital (Ventas - Gastos afectables) */}
+            <div 
+              onClick={() => setExpenseForm(prev => ({ ...prev, affectsCapital: !prev.affectsCapital }))}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                padding: '13px 15px',
+                borderRadius: '14px',
+                border: expenseForm.affectsCapital ? '2px solid #a855f7' : '1px solid var(--border-subtle)',
+                backgroundColor: expenseForm.affectsCapital ? 'rgba(168, 85, 247, 0.12)' : 'var(--bg-input)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                marginTop: '12px',
+                userSelect: 'none'
+              }}
+            >
+              <input 
+                type="checkbox" 
+                id="affectsCapital"
+                checked={Boolean(expenseForm.affectsCapital)}
+                onChange={e => setExpenseForm(prev => ({ ...prev, affectsCapital: e.target.checked }))}
+                onClick={e => e.stopPropagation()}
+                style={{
+                  marginTop: '3px',
+                  width: '18px',
+                  height: '18px',
+                  accentColor: '#a855f7',
+                  cursor: 'pointer'
+                }}
+              />
+              <div style={{ flex: 1 }}>
+                <label 
+                  htmlFor="affectsCapital" 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    fontWeight: 800,
+                    fontSize: '0.84rem',
+                    cursor: 'pointer',
+                    margin: 0,
+                    color: expenseForm.affectsCapital ? '#c084fc' : 'var(--text-main)'
+                  }}
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span>Egreso afectable</span>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                      (Resta al Capital Total)
+                    </span>
+                  </span>
+                  <span 
+                    className={`badge ${expenseForm.affectsCapital ? 'badge-purple' : 'badge-gray'}`}
+                    style={{ fontSize: '0.68rem', padding: '2px 8px' }}
+                  >
+                    {expenseForm.affectsCapital ? '💰 Descuenta del Capital' : 'No resta al Capital'}
+                  </span>
+                </label>
+                <p style={{ margin: '5px 0 0 0', fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+                  Marca esta opción si este gasto se pagó con las ganancias/ventas del negocio (ej: pasajes, movilidad, alimentación, recargas). 
+                  Se descontará del <strong>Total en Capital</strong> (Ventas - Gastos afectables). Si el gasto provino de inversión propia o aportes personales de los socios (como la compra de tarjetas), déjalo sin marcar.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* SECCIÓN 4: Estado de Recepción & Método de Pago */}
