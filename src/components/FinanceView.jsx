@@ -294,7 +294,8 @@ export default function FinanceView({
   // Filtrado de gastos
   const filteredExpenses = expenses.filter(e => {
     const matchesMonth = filterMonth === 'all' || e.month === filterMonth;
-    const matchesPartner = filterPartner === 'all' || e.paidBy === filterPartner;
+    const matchesPartner = filterPartner === 'all' || 
+      (filterPartner === 'business' ? (e.affectsCapital || e.paidBy === 'business') : (!e.affectsCapital && e.paidBy === filterPartner));
     return matchesMonth && matchesPartner;
   });
 
@@ -493,9 +494,10 @@ export default function FinanceView({
               value={filterPartner}
               onChange={(e) => setFilterPartner(e.target.value)}
             >
-              <option value="all">Todos los Socios</option>
+              <option value="all">Todos los Responsables</option>
               <option value="luis">Luis Romero (Co-CEO)</option>
               <option value="kevin">Kevin Servat (Co-CEO)</option>
+              <option value="business">🏢 Fondos del Negocio (Omisos)</option>
             </select>
           </div>
         </div>
@@ -539,9 +541,32 @@ export default function FinanceView({
                     </td>
                     <td><span className="badge badge-blue">{exp.paymentMethod}</span></td>
                     <td>
-                      <span style={{ fontWeight: 600 }}>
-                        {exp.paidBy === 'luis' ? '👨‍💼 Luis Romero' : '🚀 Kevin Servat'}
-                      </span>
+                      {exp.affectsCapital ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span 
+                            className="badge badge-purple" 
+                            style={{ 
+                              fontSize: '0.74rem', 
+                              padding: '3px 8px', 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '4px',
+                              width: 'fit-content'
+                            }}
+                            title="Gasto pagado con fondos del negocio/capital. Queda omiso de balance 50/50 y sin responsabilidad de Luis ni de Kevin."
+                          >
+                            <span>🏢 Fondos del Negocio</span>
+                            <span style={{ fontSize: '0.66rem', opacity: 0.85 }}>(Omiso)</span>
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
+                            Sin responsabilidad 50/50
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ fontWeight: 600 }}>
+                          {exp.paidBy === 'luis' ? '👨‍💼 Luis Romero' : '🚀 Kevin Servat'}
+                        </span>
+                      )}
                     </td>
                     <td>{exp.month}</td>
                     <td>

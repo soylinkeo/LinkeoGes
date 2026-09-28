@@ -8,8 +8,11 @@ export function calculateFinance(sales = [], expenses = []) {
   const contributions = expenses.filter(e => !isSettlement(e));
   const operatingExpenses = contributions.filter(e => !isInventoryPurchase(e));
   const affectableExpenses = contributions.filter(isAffectableExpense);
-  const paidByKevin = sum(contributions.filter(e => e.paidBy === 'kevin'), 'amount');
-  const paidByLuis = sum(contributions.filter(e => e.paidBy === 'luis'), 'amount');
+
+  // Aportes personales de socios (los egresos afectables al capital son pagados con fondos del negocio y quedan OMISOS de balance 50/50)
+  const personalContributions = contributions.filter(e => !isAffectableExpense(e) && e.paidBy !== 'business');
+  const paidByKevin = sum(personalContributions.filter(e => e.paidBy === 'kevin'), 'amount');
+  const paidByLuis = sum(personalContributions.filter(e => e.paidBy === 'luis'), 'amount');
   const settlements = expenses.filter(isSettlement);
   const repaidByLuis = sum(settlements.filter(e => e.paidBy === 'luis'), 'amount');
   const repaidByKevin = sum(settlements.filter(e => e.paidBy === 'kevin'), 'amount');

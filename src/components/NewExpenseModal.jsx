@@ -739,32 +739,65 @@ export default function NewExpenseModal({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  className={`sale-partner-card ${expenseForm.paidBy === 'luis' ? 'selected' : ''}`}
-                  onClick={() => setExpenseForm({ ...expenseForm, paidBy: 'luis' })}
-                >
-                  <span style={{ fontSize: '1.2rem' }}>👨‍💼</span>
+              {expenseForm.affectsCapital && (
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  background: 'rgba(168, 85, 247, 0.12)',
+                  border: '1px solid rgba(168, 85, 247, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <span style={{ fontSize: '1.25rem' }}>🏢</span>
                   <div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>Luis Romero</div>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Co-CEO Fundador</div>
+                    <div style={{ fontWeight: 800, fontSize: '0.80rem', color: '#c084fc' }}>
+                      Egreso Omiso de Balance 50/50 (Fondos del Negocio)
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      Al ser pagado con el Capital del negocio, no representa deuda ni responsabilidad personal de Luis ni de Kevin.
+                    </div>
                   </div>
-                  {expenseForm.paidBy === 'luis' && <Check size={14} color="#0066ff" style={{ marginLeft: 'auto' }} />}
-                </button>
+                </div>
+              )}
 
-                <button
-                  type="button"
-                  className={`sale-partner-card ${expenseForm.paidBy === 'kevin' ? 'selected' : ''}`}
-                  onClick={() => setExpenseForm({ ...expenseForm, paidBy: 'kevin' })}
-                >
-                  <span style={{ fontSize: '1.2rem' }}>🚀</span>
-                  <div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>Kevin Servat</div>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Co-CEO Fundador</div>
-                  </div>
-                  {expenseForm.paidBy === 'kevin' && <Check size={14} color="#0066ff" style={{ marginLeft: 'auto' }} />}
-                </button>
+              <div>
+                <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: '6px', color: 'var(--text-muted)' }}>
+                  {expenseForm.affectsCapital 
+                    ? '¿Quién ejecutó físicamente el pago? (Solo referencia, queda omiso de deuda):' 
+                    : 'Socio que desembolsó de su propio dinero (Balance 50/50):'}
+                </label>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    className={`sale-partner-card ${expenseForm.paidBy === 'luis' ? 'selected' : ''}`}
+                    onClick={() => setExpenseForm({ ...expenseForm, paidBy: 'luis' })}
+                  >
+                    <span style={{ fontSize: '1.2rem' }}>👨‍💼</span>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>Luis Romero</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        {expenseForm.affectsCapital ? 'Ejecutor (Omiso)' : 'Co-CEO Fundador'}
+                      </div>
+                    </div>
+                    {expenseForm.paidBy === 'luis' && <Check size={14} color="#0066ff" style={{ marginLeft: 'auto' }} />}
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`sale-partner-card ${expenseForm.paidBy === 'kevin' ? 'selected' : ''}`}
+                    onClick={() => setExpenseForm({ ...expenseForm, paidBy: 'kevin' })}
+                  >
+                    <span style={{ fontSize: '1.2rem' }}>🚀</span>
+                    <div>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>Kevin Servat</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                        {expenseForm.affectsCapital ? 'Ejecutor (Omiso)' : 'Co-CEO Fundador'}
+                      </div>
+                    </div>
+                    {expenseForm.paidBy === 'kevin' && <Check size={14} color="#0066ff" style={{ marginLeft: 'auto' }} />}
+                  </button>
+                </div>
               </div>
 
               {/* Mes Contable */}

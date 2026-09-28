@@ -81,7 +81,7 @@ export function exportLinkeoGesToExcel({
     e.description,
     e.amount,
     e.paymentMethod,
-    e.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat',
+    e.affectsCapital ? 'Fondos del Negocio (Omiso)' : (e.paidBy === 'luis' ? 'Luis Romero' : 'Kevin Servat'),
     e.month || '',
     e.affectsCapital ? 'Sí (Egreso afectable)' : 'No',
     e.notes || ''

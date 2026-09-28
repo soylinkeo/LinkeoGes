@@ -46,10 +46,17 @@ test('total capital equals total sales minus only affectable expenses', () => {
   assert.equal(result.totalCapital, 113.60);
   assert.equal(result.affectableCount, 2);
 
+  // Los gastos afectables al capital son OMISOS de responsabilidad de los socios (no inflan aportes ni generan deuda 50/50)
+  assert.equal(result.paidByKevin, 194.47); // Solo la compra de tarjetas de su bolsillo, omite alimentación (34.40) y pasajes (12.00)
+  assert.equal(result.paidByLuis, 0);
+  assert.equal(result.debtLuisToKevin, 97.24);
+
   const noAffectable = calculateFinance(sales, [expenses[0]]);
   assert.equal(noAffectable.totalAfectableExpenses, 0);
   assert.equal(noAffectable.totalCapital, 160.00);
   assert.equal(noAffectable.affectableCount, 0);
+  assert.equal(noAffectable.paidByKevin, 194.47);
+  assert.equal(noAffectable.debtLuisToKevin, 97.24);
 });
 test('a loss-making product cannot yield a feasible sales target', () => {
   const result = computeDynamicTargets({ projectedProducts:[{ price:10,baseCost:20,mixPercent:100 }] });
