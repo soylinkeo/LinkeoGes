@@ -528,7 +528,7 @@ export default function FinanceView({
 
                 return (
                   <tr key={exp.id}>
-                    <td>{exp.date}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{exp.date}</td>
                     <td>
                       <span className={`badge ${exp.type === 'Ingreso' ? 'badge-green' : 'badge-red'}`}>
                         {exp.type}
@@ -536,39 +536,46 @@ export default function FinanceView({
                     </td>
                     <td>{exp.category}</td>
                     <td><strong>{exp.description}</strong></td>
-                    <td style={{ fontWeight: 800, color: exp.type === 'Ingreso' ? '#10b981' : '#ef4444' }}>
+                    <td style={{ fontWeight: 800, whiteSpace: 'nowrap', color: exp.type === 'Ingreso' ? '#10b981' : '#ef4444' }}>
                       {exp.type === 'Ingreso' ? '+' : '-'}S/ {Number(exp.amount).toFixed(2)}
                     </td>
                     <td><span className="badge badge-blue">{exp.paymentMethod}</span></td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
                       {exp.affectsCapital ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <span 
-                            className="badge badge-purple" 
-                            style={{ 
-                              fontSize: '0.74rem', 
-                              padding: '3px 8px', 
-                              display: 'inline-flex', 
-                              alignItems: 'center', 
-                              gap: '4px',
-                              width: 'fit-content'
-                            }}
-                            title="Gasto pagado con fondos del negocio/capital. Queda omiso de balance 50/50 y sin responsabilidad de Luis ni de Kevin."
-                          >
-                            <span>🏢 Fondos del Negocio</span>
-                            <span style={{ fontSize: '0.66rem', opacity: 0.85 }}>(Omiso)</span>
+                        <span 
+                          style={{ 
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontWeight: 600,
+                            fontSize: '0.80rem',
+                            color: '#c084fc',
+                            background: 'rgba(168, 85, 247, 0.10)',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(168, 85, 247, 0.28)'
+                          }}
+                          title="Gasto pagado con fondos del negocio. Omiso de balance 50/50 y sin responsabilidad personal."
+                        >
+                          <span>🏢 Fondos del Negocio</span>
+                          <span style={{ 
+                            fontSize: '0.65rem', 
+                            fontWeight: 800, 
+                            color: '#a855f7', 
+                            background: 'rgba(168, 85, 247, 0.22)', 
+                            padding: '1px 6px', 
+                            borderRadius: '6px' 
+                          }}>
+                            Omiso
                           </span>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
-                            Sin responsabilidad 50/50
-                          </span>
-                        </div>
+                        </span>
                       ) : (
                         <span style={{ fontWeight: 600 }}>
                           {exp.paidBy === 'luis' ? '👨‍💼 Luis Romero' : '🚀 Kevin Servat'}
                         </span>
                       )}
                     </td>
-                    <td>{exp.month}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{exp.month}</td>
                     <td>
                       {isPending ? (
                         <button
@@ -585,7 +592,8 @@ export default function FinanceView({
                             cursor: 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '5px'
+                            gap: '5px',
+                            whiteSpace: 'nowrap'
                           }}
                           onClick={() => setExpenseToReceive(exp)}
                           title="Haz clic para dar OK e ingresar estos productos al inventario físico"
@@ -596,7 +604,7 @@ export default function FinanceView({
                       ) : isReceived ? (
                         <span 
                           className="badge badge-green" 
-                          style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
                           title="Mercadería ya ingresada al inventario físico"
                         >
                           <Check size={12} /> Ingresado ({unitsQty} uds)
@@ -606,28 +614,29 @@ export default function FinanceView({
                       )}
                     </td>
                     <td style={{ fontSize: '0.78rem' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <button
                           type="button"
                           onClick={() => handleToggleAffectsCapital(exp)}
-                          title={exp.affectsCapital ? 'Egreso afectable al Capital. Clic para desmarcar.' : 'Gasto NO afectable al capital. Clic para marcar y que reste del Capital.'}
+                          title={exp.affectsCapital ? 'Egreso afectable al Capital (resta de Ventas). Clic para desmarcar.' : 'No afecta al Capital. Clic para marcar como egreso afectable.'}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '5px',
+                            whiteSpace: 'nowrap',
                             width: 'fit-content',
-                            padding: '3px 8px',
-                            borderRadius: '12px',
+                            padding: '4px 10px',
+                            borderRadius: '16px',
                             border: exp.affectsCapital ? '1px solid rgba(168, 85, 247, 0.55)' : '1px dashed var(--border-subtle)',
-                            backgroundColor: exp.affectsCapital ? 'rgba(168, 85, 247, 0.16)' : 'rgba(255, 255, 255, 0.03)',
+                            backgroundColor: exp.affectsCapital ? 'rgba(168, 85, 247, 0.14)' : 'transparent',
                             color: exp.affectsCapital ? '#c084fc' : 'var(--text-muted)',
-                            fontSize: '0.70rem',
+                            fontSize: '0.72rem',
                             fontWeight: 700,
                             cursor: 'pointer',
                             transition: 'all 0.15s ease'
                           }}
                         >
-                          <span>{exp.affectsCapital ? '💰 Egreso afectable (-Capital)' : '⬜ No afecta capital'}</span>
+                          <span>{exp.affectsCapital ? '💰 Egreso afectable' : '⚪ No afecta capital'}</span>
                         </button>
                         {exp.notes && (
                           <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
