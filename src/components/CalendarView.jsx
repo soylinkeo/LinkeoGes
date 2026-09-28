@@ -111,23 +111,39 @@ export default function CalendarView({
     return null;
   };
 
-  const sortedAppointments = [...appointments].sort((a, b) => {
-    const dateTimeA = `${a.date || '9999-12-31'} ${a.startTime || '00:00'}`;
-    const dateTimeB = `${b.date || '9999-12-31'} ${b.startTime || '00:00'}`;
-    const diff = dateTimeA.localeCompare(dateTimeB);
-    return appointmentSortOrder === 'asc' ? diff : -diff;
-  });
+  // Ordenamiento de citas respetando:
+  // 1. Las citas PENDIENTES (no completadas) van ARRIBA
+  // 2. Las citas REALIZADAS (completadas) van ABAJO
+  // 3. Dentro de cada grupo, se ordenan cronológicamente según appointmentSortOrder
+  const sortAppointmentsByDate = (list) => {
+    return [...list].sort((a, b) => {
+      const dateTimeA = `${a.date || '9999-12-31'} ${a.startTime || '00:00'}`;
+      const dateTimeB = `${b.date || '9999-12-31'} ${b.startTime || '00:00'}`;
+      const diff = dateTimeA.localeCompare(dateTimeB);
+      return appointmentSortOrder === 'asc' ? diff : -diff;
+    });
+  };
 
-  // Filtrado de Citas ordenadas por fecha
-  const filteredAppointments = sortedAppointments.filter(evt => {
-    const isCompleted = evt.status === 'realizada' || evt.completed;
-    if (appointmentFilter === 'pending') return !isCompleted;
-    if (appointmentFilter === 'completed') return isCompleted;
-    return true;
-  });
+  const pendingAppointmentsList = sortAppointmentsByDate(
+    appointments.filter(e => e.status !== 'realizada' && !e.completed)
+  );
 
-  const pendingAppointmentsCount = appointments.filter(e => e.status !== 'realizada' && !e.completed).length;
-  const completedAppointmentsCount = appointments.filter(e => e.status === 'realizada' || e.completed).length;
+  const completedAppointmentsList = sortAppointmentsByDate(
+    appointments.filter(e => e.status === 'realizada' || e.completed)
+  );
+
+  // Lista combinada donde pendientes van arriba y completadas abajo
+  const sortedAppointments = [...pendingAppointmentsList, ...completedAppointmentsList];
+
+  // Filtrado según pestaña seleccionada
+  const filteredAppointments = appointmentFilter === 'pending'
+    ? pendingAppointmentsList
+    : appointmentFilter === 'completed'
+    ? completedAppointmentsList
+    : sortedAppointments;
+
+  const pendingAppointmentsCount = pendingAppointmentsList.length;
+  const completedAppointmentsCount = completedAppointmentsList.length;
 
   // Filtrado de Tareas por Socio
   const filteredTasksByPartner = allTasks.filter(task => {
@@ -415,6 +431,163 @@ export default function CalendarView({
     setIsEditProtocolModalOpen(false);
   };
 
+  const renderAppointmentCard = (evt) => {
+    const isRealizada = evt.status === 'realizada' || evt.completed;
+
+    return (
+      <div 
+        key={evt.id}
+        style={{
+          padding: '14px',
+          borderRadius: 'var(--radius-md)',
+          backgroundColor: isRealizada ? 'rgba(16, 185, 129, 0.04)' : 'var(--bg-input)',
+          border: isRealizada ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid var(--border-subtle)',
+          transition: 'all var(--transition-fast)'
+        }}
+      >
+        {/* Fila 1: Título, Estado y Responsable */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1rem' }}>
+              {evt.type === 'demo' ? '🎯' : evt.type === 'delivery' ? '📦' : evt.type === 'route' ? '🚗' : evt.type === 'follow_up' ? '📞' : '🤝'}
+            </span>
+            <strong style={{ fontSize: '0.94rem', textDecoration: isRealizada ? 'none' : 'none' }}>
+              {evt.title}
+            </strong>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            {/* Estado: Pendiente o Realizada */}
+            {isRealizada ? (
+              <span className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <CheckCircle2 size={12} /> Cita Realizada
+              </span>
+            ) : (
+              <span className="badge badge-yellow" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Clock size={12} /> Pendiente
+              </span>
+            )}
+
+            <span className={`badge ${evt.partner === 'luis' ? 'badge-blue' : evt.partner === 'kevin' ? 'badge-yellow' : 'badge-purple'}`}>
+              {evt.partner === 'luis' ? '👨‍💼 Luis Romero' : evt.partner === 'kevin' ? '🚀 Kevin Servat' : '🤝 Ambos Co-CEOs'}
+            </span>
+
+            {/* Botón Editar Evento */}
+            <button 
+              className="btn-icon" 
+              style={{ width: '24px', height: '24px' }}
+              onClick={() => handleOpenEditEvent(evt)}
+              title="Editar detalles de la cita"
+            >
+              <Edit3 size={12} />
+            </button>
+
+            {/* Botón Eliminar Evento */}
+            <button 
+              className="btn-icon" 
+              style={{ width: '24px', height: '24px', color: '#ef4444' }}
+              onClick={() => onRequestDelete && onRequestDelete(evt, 'Evento')}
+              title="Eliminar cita (con auditoría)"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        </div>
+
+        {/* Metadata de fecha, hora y lugar con etiqueta de proximidad */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '8px', flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            📅 <strong style={{ color: 'var(--text-main)' }}>{evt.date}</strong>
+            {(() => {
+              const rel = getRelativeDateLabel(evt.date);
+              if (!rel) return null;
+              const isToday = rel === 'Hoy';
+              const isTomorrow = rel === 'Mañana';
+              return (
+                <span style={{
+                  fontSize: '0.68rem',
+                  padding: '1px 6px',
+                  borderRadius: '4px',
+                  fontWeight: 700,
+                  backgroundColor: isToday ? 'rgba(16, 185, 129, 0.15)' : isTomorrow ? 'rgba(0, 102, 255, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+                  color: isToday ? '#10b981' : isTomorrow ? '#60a5fa' : 'var(--text-muted)'
+                }}>
+                  {rel}
+                </span>
+              );
+            })()}
+          </span>
+          <span>⏰ {evt.startTime} - {evt.endTime}</span>
+          {evt.district && <span>📍 {evt.district}</span>}
+          {evt.client && <span>🏢 {evt.client}</span>}
+        </div>
+
+        {evt.description && (
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-main)', margin: '0 0 10px 0' }}>
+            {evt.description}
+          </p>
+        )}
+
+        {/* Resumen de lo que se hizo si la cita está realizada */}
+        {isRealizada && (
+          <div 
+            style={{
+              marginTop: '8px',
+              padding: '10px 12px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.22)',
+              fontSize: '0.8rem'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <span style={{ fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <CheckCircle2 size={13} />
+                <span>Resumen de lo que se hizo en la visita:</span>
+              </span>
+              <button 
+                type="button" 
+                onClick={() => handleOpenCompleteModal(evt)}
+                style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', fontSize: '0.72rem', textDecoration: 'underline' }}
+              >
+                Editar resumen
+              </button>
+            </div>
+            <p style={{ margin: 0, color: 'var(--text-main)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
+              {evt.resultSummary || 'Visita comercial completada exitosamente.'}
+            </p>
+          </div>
+        )}
+
+        {/* Barra de Acciones de la Cita */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+          {!isRealizada ? (
+            <button 
+              type="button" 
+              className="btn btn-sm btn-primary"
+              style={{ fontSize: '0.78rem', padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+              onClick={() => handleOpenCompleteModal(evt)}
+            >
+              <CheckCircle2 size={13} />
+              <span>Marcar como Realizada (+ Resumen)</span>
+            </button>
+          ) : (
+            <button 
+              type="button" 
+              className="btn btn-sm btn-secondary"
+              style={{ fontSize: '0.74rem', padding: '3px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              onClick={() => handleReopenAppointment(evt)}
+              title="Volver la cita a estado pendiente"
+            >
+              <RotateCcw size={11} />
+              <span>Reabrir a Pendiente</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="calendar-view">
       {/* Header Principal */}
@@ -576,175 +749,62 @@ export default function CalendarView({
             </button>
           </div>
 
-          <div className="agenda-scroll-container" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {filteredAppointments.length === 0 ? (
+          <div className="agenda-scroll-container" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {appointments.length === 0 ? (
               <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <Clock size={32} style={{ opacity: 0.35, marginBottom: '8px' }} />
                 <p style={{ margin: 0, fontSize: '0.85rem' }}>
-                  {appointmentFilter === 'completed' 
-                    ? 'Aún no hay citas marcadas como realizadas.'
-                    : appointmentFilter === 'pending'
-                    ? 'No hay citas pendientes. ¡Excelente!'
-                    : 'No hay citas agendadas. Haz clic en "+ Agendar Cita" para programar una visita comercial.'}
+                  No hay citas agendadas. Haz clic en "+ Agendar Cita" para programar una visita comercial.
                 </p>
               </div>
             ) : (
-              filteredAppointments.map(evt => {
-                const isRealizada = evt.status === 'realizada' || evt.completed;
-
-                return (
-                  <div 
-                    key={evt.id}
-                    style={{
-                      padding: '14px',
-                      borderRadius: 'var(--radius-md)',
-                      backgroundColor: isRealizada ? 'rgba(16, 185, 129, 0.04)' : 'var(--bg-input)',
-                      border: isRealizada ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid var(--border-subtle)',
-                      transition: 'all var(--transition-fast)'
-                    }}
-                  >
-                    {/* Fila 1: Título, Estado y Responsable */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '1rem' }}>
-                          {evt.type === 'demo' ? '🎯' : evt.type === 'delivery' ? '📦' : evt.type === 'route' ? '🚗' : evt.type === 'follow_up' ? '📞' : '🤝'}
+              <>
+                {/* 1. SECCIÓN: CITAS PENDIENTES / POR ATENDER (ESTRICTAMENTE ARRIBA) */}
+                {(appointmentFilter === 'all' || appointmentFilter === 'pending') && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {appointmentFilter === 'all' && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 2px', borderBottom: '1px solid rgba(245, 158, 11, 0.30)' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>⏳</span> Citas Pendientes ({pendingAppointmentsList.length})
                         </span>
-                        <strong style={{ fontSize: '0.94rem', textDecoration: isRealizada ? 'none' : 'none' }}>
-                          {evt.title}
-                        </strong>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        {/* Estado: Pendiente o Realizada */}
-                        {isRealizada ? (
-                          <span className="badge badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <CheckCircle2 size={12} /> Cita Realizada
-                          </span>
-                        ) : (
-                          <span className="badge badge-yellow" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <Clock size={12} /> Pendiente
-                          </span>
-                        )}
-
-                        <span className={`badge ${evt.partner === 'luis' ? 'badge-blue' : evt.partner === 'kevin' ? 'badge-yellow' : 'badge-purple'}`}>
-                          {evt.partner === 'luis' ? '👨‍💼 Luis Romero' : evt.partner === 'kevin' ? '🚀 Kevin Servat' : '🤝 Ambos Co-CEOs'}
-                        </span>
-
-                        {/* Botón Editar Evento */}
-                        <button 
-                          className="btn-icon" 
-                          style={{ width: '24px', height: '24px' }}
-                          onClick={() => handleOpenEditEvent(evt)}
-                          title="Editar detalles de la cita"
-                        >
-                          <Edit3 size={12} />
-                        </button>
-
-                        {/* Botón Eliminar Evento */}
-                        <button 
-                          className="btn-icon" 
-                          style={{ width: '24px', height: '24px', color: '#ef4444' }}
-                          onClick={() => onRequestDelete && onRequestDelete(evt, 'Evento')}
-                          title="Eliminar cita (con auditoría)"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Metadata de fecha, hora y lugar con etiqueta de proximidad */}
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '8px', flexWrap: 'wrap' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                        📅 <strong style={{ color: 'var(--text-main)' }}>{evt.date}</strong>
-                        {(() => {
-                          const rel = getRelativeDateLabel(evt.date);
-                          if (!rel) return null;
-                          const isToday = rel === 'Hoy';
-                          const isTomorrow = rel === 'Mañana';
-                          return (
-                            <span style={{
-                              fontSize: '0.68rem',
-                              padding: '1px 6px',
-                              borderRadius: '4px',
-                              fontWeight: 700,
-                              backgroundColor: isToday ? 'rgba(16, 185, 129, 0.15)' : isTomorrow ? 'rgba(0, 102, 255, 0.15)' : 'rgba(255, 255, 255, 0.08)',
-                              color: isToday ? '#10b981' : isTomorrow ? '#60a5fa' : 'var(--text-muted)'
-                            }}>
-                              {rel}
-                            </span>
-                          );
-                        })()}
-                      </span>
-                      <span>⏰ {evt.startTime} - {evt.endTime}</span>
-                      {evt.district && <span>📍 {evt.district}</span>}
-                      {evt.client && <span>🏢 {evt.client}</span>}
-                    </div>
-
-                    {evt.description && (
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-main)', margin: '0 0 10px 0' }}>
-                        {evt.description}
-                      </p>
-                    )}
-
-                    {/* Resumen de lo que se hizo si la cita está realizada */}
-                    {isRealizada && (
-                      <div 
-                        style={{
-                          marginTop: '8px',
-                          padding: '10px 12px',
-                          borderRadius: 'var(--radius-sm)',
-                          backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                          border: '1px solid rgba(16, 185, 129, 0.22)',
-                          fontSize: '0.8rem'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                          <span style={{ fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <CheckCircle2 size={13} />
-                            <span>Resumen de lo que se hizo en la visita:</span>
-                          </span>
-                          <button 
-                            type="button" 
-                            onClick={() => handleOpenCompleteModal(evt)}
-                            style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', fontSize: '0.72rem', textDecoration: 'underline' }}
-                          >
-                            Editar resumen
-                          </button>
-                        </div>
-                        <p style={{ margin: 0, color: 'var(--text-main)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
-                          {evt.resultSummary || 'Visita comercial completada exitosamente.'}
-                        </p>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Por atender o realizar</span>
                       </div>
                     )}
 
-                    {/* Barra de Acciones de la Cita */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
-                      {!isRealizada ? (
-                        <button 
-                          type="button" 
-                          className="btn btn-sm btn-primary"
-                          style={{ fontSize: '0.78rem', padding: '4px 12px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                          onClick={() => handleOpenCompleteModal(evt)}
-                        >
-                          <CheckCircle2 size={13} />
-                          <span>Marcar como Realizada (+ Resumen)</span>
-                        </button>
-                      ) : (
-                        <button 
-                          type="button" 
-                          className="btn btn-sm btn-secondary"
-                          style={{ fontSize: '0.74rem', padding: '3px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                          onClick={() => handleReopenAppointment(evt)}
-                          title="Volver la cita a estado pendiente"
-                        >
-                          <RotateCcw size={11} />
-                          <span>Reabrir a Pendiente</span>
-                        </button>
-                      )}
-                    </div>
+                    {pendingAppointmentsList.length === 0 ? (
+                      <div style={{ padding: '12px 14px', fontSize: '0.80rem', color: 'var(--text-muted)', fontStyle: 'italic', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-subtle)', textAlign: 'center' }}>
+                        {appointmentFilter === 'pending'
+                          ? 'No hay citas pendientes. ¡Excelente trabajo!'
+                          : 'No hay citas pendientes por realizar.'}
+                      </div>
+                    ) : (
+                      pendingAppointmentsList.map(renderAppointmentCard)
+                    )}
                   </div>
-                );
-              })
+                )}
+
+                {/* 2. SECCIÓN: CITAS REALIZADAS / COMPLETADAS (COLOCADAS ESTRICTAMENTE ABAJO) */}
+                {(appointmentFilter === 'all' || appointmentFilter === 'completed') && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: appointmentFilter === 'all' ? '6px' : '0' }}>
+                    {appointmentFilter === 'all' && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 2px', borderBottom: '1px solid rgba(16, 185, 129, 0.30)' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>✓</span> Citas Realizadas ({completedAppointmentsList.length})
+                        </span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Completadas con resumen</span>
+                      </div>
+                    )}
+
+                    {completedAppointmentsList.length === 0 ? (
+                      <div style={{ padding: '12px 14px', fontSize: '0.80rem', color: 'var(--text-muted)', fontStyle: 'italic', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-subtle)', textAlign: 'center' }}>
+                        Aún no hay citas marcadas como realizadas.
+                      </div>
+                    ) : (
+                      completedAppointmentsList.map(renderAppointmentCard)
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

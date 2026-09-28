@@ -1380,6 +1380,40 @@ test('sale registration with Google Place ID or Chip UID preserves identifiers, 
   assert.equal(hasIdCondition2, false, 'No debe activar redirección si no se suministra ningún ID');
 });
 
+test('calendar appointments classification: pending appointments always top, completed appointments bottom', () => {
+  const events = [
+    { id: 'evt-1', title: 'Cita completada ayer', date: '2026-09-26', startTime: '10:00', status: 'realizada', completed: true },
+    { id: 'evt-2', title: 'Cita completada anoche', date: '2026-09-26', startTime: '19:30', status: 'realizada', completed: true },
+    { id: 'evt-3', title: 'Cita pendiente hoy', date: '2026-09-27', startTime: '15:00', status: 'pendiente', completed: false },
+    { id: 'evt-4', title: 'Cita completada hoy temprano', date: '2026-09-27', startTime: '11:00', status: 'realizada', completed: true },
+    { id: 'evt-5', title: 'Cita pendiente mañana', date: '2026-09-28', startTime: '09:00', status: 'pendiente', completed: false }
+  ];
+
+  const sortAppointmentsByDate = (list, order = 'asc') => {
+    return [...list].sort((a, b) => {
+      const dateTimeA = `${a.date || '9999-12-31'} ${a.startTime || '00:00'}`;
+      const dateTimeB = `${b.date || '9999-12-31'} ${b.startTime || '00:00'}`;
+      const diff = dateTimeA.localeCompare(dateTimeB);
+      return order === 'asc' ? diff : -diff;
+    });
+  };
+
+  const pending = sortAppointmentsByDate(events.filter(e => e.status !== 'realizada' && !e.completed));
+  const completed = sortAppointmentsByDate(events.filter(e => e.status === 'realizada' || e.completed));
+  const sorted = [...pending, ...completed];
+
+  // Las pendientes deben ir arriba
+  assert.equal(sorted[0].id, 'evt-3');
+  assert.equal(sorted[1].id, 'evt-5');
+  // Las completadas deben ir abajo
+  assert.equal(sorted[2].id, 'evt-1');
+  assert.equal(sorted[3].id, 'evt-2');
+  assert.equal(sorted[4].id, 'evt-4');
+  assert.equal(pending.length, 2);
+  assert.equal(completed.length, 3);
+});
+
+
 
 
 
