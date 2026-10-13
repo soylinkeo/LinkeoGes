@@ -175,6 +175,29 @@ export const INITIAL_PRODUCTS = [
     bundleItems: []
   },
   {
+    id: 'prod-ind-identificable',
+    inventoryId: 'inv-carnet',
+    name: 'Tarjeta Identificable Digital (NFC + QR)',
+    sku: 'SKU-LNK-IDENT',
+    category: 'Individual',
+    type: 'individual',
+    price: 40.00,
+    cost: 12.93,
+    margin: 27.07,
+    marginPct: 67.68,
+    badge: 'Digital',
+    description: 'Tarjeta identificable personal o corporativa con chip NFC y código QR de alta definición.',
+    web: {
+      slug: 'identificable',
+      published: true,
+      name: 'Tarjeta Identificable',
+      designs: ['Negro mate texturizado'],
+      image: 'tarjeta-identificable-polished.png',
+      icon: '✨'
+    },
+    bundleItems: []
+  },
+  {
     id: 'prod-pack-1',
     name: 'Pack Restaurante Dúo (2 Tarjetas NFC)',
     sku: 'SKU-PACK-DUO',

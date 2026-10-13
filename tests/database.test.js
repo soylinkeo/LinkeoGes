@@ -62,5 +62,67 @@ test('SQL migration: authorization, atomic rollback, revisions, idempotency and 
     await assert.rejects(db.query('select public.linkeoges_snapshot()'),/permission denied/);
     await db.exec('RESET ROLE');
     assert.equal((await db.query('select count(*)::int as n from public.operation_journal')).rows[0].n,4);
+
+    // Apply storefront and catalog migration
+    const storefrontMigration = await fs.readFile('supabase/migrations/202610130001_storefront_and_catalog.sql', 'utf8');
+    await db.exec(storefrontMigration);
+    await db.exec(storefrontMigration); // safe to run twice (idempotent)
+
+    // Insert a product via commit to test trigger and catalog output
+    const prod = {
+      id: 'prod-h',
+      sku: 'SKU-LNK-6781',
+      name: 'Tarjeta Google NFC Cuadrado ESP',
+      category: 'Individual',
+      type: 'individual',
+      price: 60,
+      cost: 12.93,
+      margin: 47.07,
+      marginPct: 78.45,
+      badge: 'Popular',
+      description: 'Tarjeta inteligente horizontal',
+      web: { slug: 'horizontal', published: true, name: 'Tarjeta Horizontal' }
+    };
+    snapshot = await commit(4, [{ table: 'products', kind: 'insert', id: prod.id, data: mappers.productToDb(prod) }]);
+    assert.equal(snapshot.tables.products.length, 1);
+
+    // Anon role can call linkeo_public_catalog() and read catalog_sync
+    await db.exec('SET ROLE anon');
+    const catalogRes = (await db.query('select public.linkeo_public_catalog() as cat')).rows[0].cat;
+    assert.ok(catalogRes.products.length >= 1);
+    assert.equal(catalogRes.products[0].slug, 'horizontal');
+    assert.equal(catalogRes.products[0].price, 60);
+    assert.equal(catalogRes.products[0].cost, undefined); // never leaks cost
+    const syncRes = (await db.query('select revision from public.catalog_sync where id = 1')).rows[0];
+    assert.ok(syncRes.revision >= 1);
+
+    // Test review submission by anon
+    const subId = crypto.randomUUID();
+    await db.query(`select public.linkeo_submit_review(
+      $1::uuid, 'Juan Perez', 'Restaurante El Sol', 'horizontal', 5,
+      'Excelente producto para nuestro local', 'juan@elsol.pe', 'Miraflores', 'PED-123', true, ''
+    )`, [subId]);
+
+    // Public reviews only return approved
+    const pubReviewsBefore = (await db.query('select * from public.linkeo_public_reviews()')).rows;
+    assert.equal(pubReviewsBefore.length, 0); // still pending
+
+    // Partner approves review
+    await db.exec('RESET ROLE');
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [uid]);
+    await db.exec('SET ROLE authenticated');
+    const partnerReviews = (await db.query('select public.linkeoges_reviews() as r')).rows[0].r;
+    assert.equal(partnerReviews.length, 1);
+    const revId = partnerReviews[0].id;
+    await db.query('select public.linkeoges_review_moderate($1::uuid, $2)', [revId, 'approved']);
+
+    // Now public reviews show it
+    await db.exec('SET ROLE anon');
+    const pubReviewsAfter = (await db.query('select * from public.linkeo_public_reviews()')).rows;
+    assert.equal(pubReviewsAfter.length, 1);
+    assert.equal(pubReviewsAfter[0].display_name, 'Juan Perez');
+
+    await db.exec('RESET ROLE');
+    assert.equal((await db.query('select count(*)::int as n from public.operation_journal')).rows[0].n, 5);
   } finally {await db.close();}
 });
