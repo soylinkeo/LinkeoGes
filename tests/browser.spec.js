@@ -29,7 +29,7 @@ test('two browser sessions share a lead, preserve its fields and report a failed
         else if(url.pathname.includes('/rpc/linkeoges_commit')) {
           if(failCommit){await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'offline simulado'})});return;}
           const args=route.request().postDataJSON();
-          try {body=(await db.query('select public.linkeoges_commit($1,$2,$3::jsonb) as value',[args.expected_revision,args.request_id,JSON.stringify(args.operations)])).rows[0].value;writes++;}
+          try {body=(await db.query('select public.linkeoges_commit($1,$2,$3::jsonb) as value',[args.expected_revision,args.request_id,JSON.stringify(args.operations)])).rows[0].value;if (args.operations.some(op => op.table === 'leads')) writes++;}
           catch(error){await route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({code:error.code,message:error.message})});return;}
         } else body={};
         await route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
@@ -40,19 +40,19 @@ test('two browser sessions share a lead, preserve its fields and report a failed
       await page.getByRole('button',{name:/Kevin Servat/}).click();
       await page.getByPlaceholder('Ingresa tu contraseña').fill('test-password-not-real');
       await page.getByRole('button',{name:/Ingresar|Acceder|Iniciar/i}).click();
-      await expect(page.getByText('Cambios guardados en la nube',{exact:true})).toBeVisible();
+      await expect(page.getByText('Cambios guardados',{exact:true})).toBeVisible();
       return page;
     };
     const a=await createPage(), b=await createPage();
     await a.getByRole('button',{name:/Pipeline B2B/}).click();
     await a.getByRole('button',{name:'+ Nuevo Prospecto / Lead'}).click();
     await a.getByPlaceholder("Ej: Barbería Don Tito, Pollería Roky's...").fill('Cliente Compartido');
-    await a.getByPlaceholder('Encargado o Dueño').fill('Contacto Persistente');
+    await a.getByPlaceholder('Gerencia / Nombre de Contacto').fill('Contacto Persistente');
     await a.getByPlaceholder('Detalles de la conversación, objeciones, horarios preferidos...').fill('Seguimiento desde PC1');
     await a.getByRole('button',{name:'Crear Prospecto',exact:true}).click();
-    await expect(a.getByText('Cambios guardados en la nube',{exact:true})).toBeVisible();
+    await expect(a.getByText('Cambios guardados',{exact:true})).toBeVisible();
     await b.reload();
-    await expect(b.getByText('Cambios guardados en la nube',{exact:true})).toBeVisible();
+    await expect(b.getByText('Cambios guardados',{exact:true})).toBeVisible();
     await b.getByRole('button',{name:/Pipeline B2B/}).click();
     await expect(b.getByText('Cliente Compartido',{exact:true})).toBeVisible();
     const row=(await db.query("select payload from public.leads where business_name='Cliente Compartido'")).rows[0].payload;
@@ -66,7 +66,7 @@ test('two browser sessions share a lead, preserve its fields and report a failed
     expect((await db.query('select count(*)::int as n from public.leads')).rows[0].n).toBe(1);
     failCommit=false;
     await b.getByRole('button',{name:'Reintentar',exact:true}).click();
-    await expect(b.getByText('Cambios guardados en la nube',{exact:true})).toBeVisible();
+    await expect(b.getByText('Cambios guardados',{exact:true})).toBeVisible();
     expect((await db.query('select count(*)::int as n from public.leads')).rows[0].n).toBe(2);
   } finally {for(const context of contexts) await context.close();await db.close();}
 });

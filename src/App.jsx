@@ -26,6 +26,7 @@ import NewExpenseModal from './components/NewExpenseModal.jsx';
 import ToastNotification from './components/ToastNotification';
 import { isSupabaseConfigured, supabase } from './services/supabase';
 import { getAuthenticatedPartner } from './services/authService';
+import { createSessionValidation } from './services/sessionValidation.js';
 import { useCloudData } from './hooks/useCloudData';
 import { calculateFinance, isSettlement, isInventoryPurchase } from './utils/financeUtils.js';
 import { getStockMovements, applyStockMovements, createSale } from './utils/operations.js';
@@ -40,6 +41,8 @@ export default function App() {
   });
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
+  const [authAttempt, setAuthAttempt] = useState(0);
   const [dynamicCardRoute, setDynamicCardRoute] = useState(() => parseDynamicCardRoute());
 
   useEffect(() => {
@@ -56,24 +59,26 @@ export default function App() {
 
   const cloud = useCloudData(currentUser);
   useEffect(() => {
-    let active = true;
-    const refresh = async () => {
-      const user = await getAuthenticatedPartner();
-      if (active) {
-        setCurrentUser(user);
-        setAuthLoading(false);
-      }
-    };
-    refresh();
-    const subscription = supabase?.auth.onAuthStateChange(() => {
-      setTimeout(refresh, 0);
+    const validation = createSessionValidation({
+      read: getAuthenticatedPartner,
+      onUser: setCurrentUser,
+      onError: setAuthError,
+      onSettled: () => setAuthLoading(false),
+    });
+    let scheduled;
+    validation.refresh();
+    const subscription = supabase?.auth.onAuthStateChange(event => {
+      clearTimeout(scheduled);
+      if (event === 'SIGNED_OUT') validation.signedOut();
+      // Initial session is already being validated; avoid duplicate SDK calls.
+      else if (event !== 'INITIAL_SESSION') scheduled = setTimeout(() => validation.refresh(), 0);
     });
     return () => {
-      active = false;
+      clearTimeout(scheduled);
+      validation.dispose();
       subscription?.data.subscription.unsubscribe();
     };
-  }, []);
-
+  }, [authAttempt]);
   // Modales de sesión y maestros
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMasterDataModalOpen, setIsMasterDataModalOpen] = useState(false);
@@ -1803,6 +1808,13 @@ export default function App() {
     return null;
   }
 
+  if (authError) return <div className="loading-screen" role="alert" style={{ padding: 32 }}>
+    <h2>No se pudo validar la sesión</h2>
+    <p>{authError}</p>
+    <p>Tus datos y borradores locales se conservan.</p>
+    <button className="btn btn-primary" onClick={() => { setAuthError(''); setAuthLoading(true); setAuthAttempt(n => n + 1); }}>Reintentar validación</button>
+    <button className="btn btn-secondary" onClick={() => window.location.reload()}>Recargar página</button>
+  </div>;
   if (authLoading) return <div className="loading-screen">Validando sesión…</div>;
   // Si no hay usuario autenticado, renderizar exclusivamente el Login modal bloqueando el acceso
   if (!currentUser) {

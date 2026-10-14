@@ -22,9 +22,11 @@ export const PARTNERS_INFO = {
 export async function getAuthenticatedPartner() {
   if (!supabase) return null;
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return null;
+  if (error && error.name !== 'AuthSessionMissingError') throw new Error('No se pudo comprobar la sesión. Verifica tu conexión y reintenta.');
+  if (!user) return null;
   const { data: member, error: memberError } = await supabase.from('app_members').select('partner_id').eq('user_id', user.id).single();
-  if (memberError || !member || !PARTNERS_INFO[member.partner_id]) return null;
+  if (memberError) throw new Error('No se pudo verificar el acceso del socio. Reintenta o consulta al administrador.');
+  if (!member || !PARTNERS_INFO[member.partner_id]) return null;
   return { ...PARTNERS_INFO[member.partner_id], authId: user.id };
 }
 export async function verifyUserPassword(userId, password) {
