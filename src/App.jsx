@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import confetti from 'canvas-confetti';
-import { PARTNERS, INITIAL_PRODUCTS, INITIAL_EXPENSES, INITIAL_SALES, INITIAL_NFC_CARDS, INITIAL_LEADS, INITIAL_INVENTORY, INITIAL_SUPPLIERS, INITIAL_PLAN_30_DAYS, INITIAL_CALENDAR_EVENTS, FINANCIAL_TARGETS, INITIAL_AUDIT_LOGS, INITIAL_DISTRICTS, INITIAL_PROJECT_PHASES, INITIAL_PROJECTIONS_DATA } from './data/initialData';
+import { PARTNERS, INITIAL_PRODUCTS, INITIAL_EXPENSES, INITIAL_SALES, INITIAL_NFC_CARDS, INITIAL_LEADS, INITIAL_INVENTORY, INITIAL_SUPPLIERS, INITIAL_PLAN_30_DAYS, INITIAL_CALENDAR_EVENTS, FINANCIAL_TARGETS, INITIAL_AUDIT_LOGS, INITIAL_DISTRICTS, INITIAL_PROJECTIONS_DATA } from './data/initialData';
 
 import { getAccountingMonth, ACCOUNTING_MONTHS } from './utils/dateUtils';
 import { computeDynamicTargets } from './utils/projectionsUtils';
@@ -23,7 +23,6 @@ import MasterDataModal from './components/MasterDataModal';
 import DistrictCombobox from './components/DistrictCombobox.jsx';
 import NewSaleModal from './components/NewSaleModal.jsx';
 import NewExpenseModal from './components/NewExpenseModal.jsx';
-const ProjectLifecycleView = lazy(() => import('./components/ProjectLifecycleView'));
 import ToastNotification from './components/ToastNotification';
 import { isSupabaseConfigured, supabase } from './services/supabase';
 import { getAuthenticatedPartner } from './services/authService';
@@ -110,8 +109,6 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const districts = cloud.data.districts;
   const setDistricts = value => cloud.set('districts', value);
-  const projectPhases = cloud.data.projectPhases;
-  const setProjectPhases = value => cloud.set('projectPhases', value);
   const sales = cloud.data.sales;
   const setSales = value => cloud.set('sales', value);
   const expenses = cloud.data.expenses;
@@ -1255,87 +1252,6 @@ export default function App() {
     });
   };
 
-  // Handlers para Fases del Proyecto ERP
-  const handleToggleDeliverable = (phaseId, delId) => {
-    setProjectPhases(prev => prev.map(phase => {
-      if (phase.id === phaseId) {
-        const updatedDels = phase.deliverables.map(d => d.id === delId ? {
-          ...d,
-          completed: !d.completed
-        } : d);
-        const compCount = updatedDels.filter(d => d.completed).length;
-        const newPct = Math.round(compCount / updatedDels.length * 100);
-        return {
-          ...phase,
-          deliverables: updatedDels,
-          progress: newPct,
-          status: newPct === 100 ? 'completado' : 'en_proceso'
-        };
-      }
-      return phase;
-    }));
-    logAudit({
-      actionType: 'Modificación',
-      entityType: 'Entregable',
-      entityId: delId,
-      entityName: `Hito de Fase: ${phaseId}`,
-      reason: 'Cambio de estado en entregable de fase ERP.'
-    });
-  };
-
-  const handleSyncActualProgress = () => {
-    setProjectPhases(INITIAL_PROJECT_PHASES);
-    logAudit({
-      actionType: 'Modificación',
-      entityType: 'Entregable',
-      entityId: 'sync-all-phases',
-      entityName: 'Gestión de Proyecto (5 Fases)',
-      reason: 'Sincronización masiva de hitos con el avance real auditado del proyecto (74%).'
-    });
-    if (showToast) {
-      showToast('✓ Avance del proyecto sincronizado al 74% (17 hitos completados)', 'success', 2500);
-    }
-  };
-  const handleAddDeliverable = (phaseId, newDel) => {
-    setProjectPhases(prev => prev.map(phase => {
-      if (phase.id === phaseId) {
-        const updated = [...(phase.deliverables || []), newDel];
-        const compCount = updated.filter(d => d.completed).length;
-        return {
-          ...phase,
-          deliverables: updated,
-          progress: Math.round(compCount / updated.length * 100)
-        };
-      }
-      return phase;
-    }));
-    logAudit({
-      actionType: 'Creación',
-      entityType: 'Entregable',
-      entityId: newDel.id,
-      entityName: newDel.title,
-      reason: `Nuevo hito agregado a la fase ${phaseId}.`
-    });
-  };
-  const handleEditDeliverable = (phaseId, updatedDel) => {
-    setProjectPhases(prev => prev.map(phase => {
-      if (phase.id === phaseId) {
-        return {
-          ...phase,
-          deliverables: phase.deliverables.map(d => d.id === updatedDel.id ? updatedDel : d)
-        };
-      }
-      return phase;
-    }));
-    logAudit({
-      actionType: 'Modificación',
-      entityType: 'Entregable',
-      entityId: updatedDel.id,
-      entityName: updatedDel.title,
-      reason: `Edición de entregable en fase ${phaseId}.`
-    });
-  };
-
   // Handlers para Distritos (Maestro Central)
   const handleAddDistrict = async newDist => {
     const trimmed = typeof newDist === 'string' ? newDist.trim() : '';
@@ -1561,11 +1477,6 @@ export default function App() {
         ...prev,
         projectedProducts: (prev.projectedProducts || []).filter(p => p.id !== item.id)
       }));
-    } else if (entityType === 'Entregable') {
-      setProjectPhases(prev => prev.map(phase => ({
-        ...phase,
-        deliverables: (phase.deliverables || []).filter(d => d.id !== item.id)
-      })));
     }
 
     // Registrar en auditoría
@@ -1863,7 +1774,7 @@ export default function App() {
   const handleExportExcel = async () => {
     const { exportLinkeoGesToExcel } = await import('./utils/excelExport');
     exportLinkeoGesToExcel({
-      products, suppliers, calendarEvents, projectPhases, projectionsData, auditLogs, districts,
+      products, suppliers, calendarEvents, projectionsData, auditLogs, districts,
       sales,
       expenses,
       nfcCards,
@@ -1958,10 +1869,7 @@ export default function App() {
           setCurrentTab('nfc-traceability');
         }} onOpenNewSale={handleOpenNewSaleModal} onOpenNewExpense={() => setIsNewExpenseModalOpen(true)} onRequestDelete={handleRequestDelete} projectionsData={projectionsData} onUpdateProjectionsData={setProjectionsData} showToast={showToast} />}
 
-          {/* MÓDULO 2: Gestión de Proyecto (5 Fases ERP) */}
-          {currentTab === 'lifecycle' && <ProjectLifecycleView projectPhases={projectPhases} onToggleDeliverable={handleToggleDeliverable} onAddDeliverable={handleAddDeliverable} onEditDeliverable={handleEditDeliverable} onDeleteDeliverable={(phaseId, del) => handleRequestDelete(del, 'Entregable')} currentUser={currentUser} onSyncActualProgress={handleSyncActualProgress} />}
-
-          {/* MÓDULO 3: Trazabilidad Chips NFC */}
+          {/* MÓDULO 2: Trazabilidad Chips NFC */}
           {currentTab === 'nfc-traceability' && (
             <NfcTraceabilityView 
               nfcCards={nfcCards} 

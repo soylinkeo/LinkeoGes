@@ -12,7 +12,7 @@ export function exportLinkeoGesToExcel({
   inventory = [],
   leads = [],
   plan30Days = [],
-  products = [], suppliers = [], calendarEvents = [], projectPhases = [], projectionsData = {}, auditLogs = [], districts = [],
+  products = [], suppliers = [], calendarEvents = [], projectionsData = {}, auditLogs = [], districts = [],
   targets = {}
 }) {
   const wb = XLSX.utils.book_new();
@@ -199,7 +199,7 @@ export function exportLinkeoGesToExcel({
   });
 
   for (const [name, rows] of Object.entries({ Catálogo: products, Proveedores: suppliers, Agenda: calendarEvents,
-    Auditoría: auditLogs, Distritos: districts.map(name => ({ name })), Fases: projectPhases,
+    Auditoría: auditLogs, Distritos: districts.map(name => ({ name })),
     Proyecciones: [{ configuración: JSON.stringify(projectionsData) }] })) {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map(row => Object.fromEntries(Object.entries(row).map(([key,value]) => [key, typeof value === 'object' && value !== null ? JSON.stringify(value) : value])))), name);
   }

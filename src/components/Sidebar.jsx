@@ -10,7 +10,6 @@ import {
   ExternalLink,
   ShieldCheck,
   History,
-  FolderKanban,
   MapPin,
   TrendingUp,
   CreditCard,
@@ -50,13 +49,6 @@ export default function Sidebar({
       label: 'Panel General', 
       icon: LayoutDashboard,
       badge: null 
-    },
-    { 
-      id: 'lifecycle', 
-      label: 'Gestión Proyecto (5F)', 
-      icon: FolderKanban,
-      badge: '5 Fases',
-      badgeType: 'phase'
     },
     { 
       id: 'nfc-traceability', 
