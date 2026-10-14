@@ -1176,6 +1176,37 @@ button, input, select, textarea {
   vertical-align: middle;
 }
 
+/* Tabla Compacta Financiera sin scroll */
+.table-compact-finance {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.81rem;
+}
+
+.table-compact-finance th {
+  background-color: rgba(255, 255, 255, 0.03);
+  padding: 10px 11px;
+  font-weight: 700;
+  font-size: 0.71rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.table-compact-finance td {
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  vertical-align: middle;
+}
+
+.table-compact-finance tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
 /* Empty States Premium */
 .empty-state-card {
   display: flex;

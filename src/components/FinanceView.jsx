@@ -503,181 +503,197 @@ export default function FinanceView({
         </div>
 
         <div className="table-responsive">
-          <table className="data-table">
+          <table className="table-compact-finance">
             <thead>
               <tr>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Categoría</th>
-                <th>Descripción</th>
-                <th>Monto (S/)</th>
-                <th>Método Pago</th>
-                <th>Socio Responsable</th>
-                <th>Mes</th>
-                <th>Estado Inventario</th>
-                <th>Notas / Impacto en Caja</th>
-                <th style={{ textAlign: 'center' }}>Acciones</th>
+                <th style={{ width: '90px' }}>Fecha</th>
+                <th style={{ width: '75px' }}>Tipo</th>
+                <th>Concepto / Mercadería</th>
+                <th style={{ width: '95px' }}>Monto (S/)</th>
+                <th style={{ width: '80px' }}>Método</th>
+                <th style={{ width: '115px' }}>Responsable</th>
+                <th style={{ width: '115px' }}>Impacto Caja</th>
+                <th style={{ width: '85px', textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {filteredExpenses.map(exp => {
-                const isPurchase = Boolean(exp.selectedProductId || exp.stockMovements?.length);
-                const isPending = isPurchase && exp.inventoryStatus === 'pending';
-                const isReceived = isPurchase && exp.inventoryStatus !== 'pending';
-                const unitsQty = exp.quantity || exp.stockMovements?.[0]?.quantity || 1;
+              {filteredExpenses.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
+                    No se encontraron movimientos registrados con los filtros seleccionados.
+                  </td>
+                </tr>
+              ) : (
+                filteredExpenses.map(exp => {
+                  const isPurchase = Boolean(exp.selectedProductId || exp.stockMovements?.length);
+                  const isPending = isPurchase && exp.inventoryStatus === 'pending';
+                  const isReceived = isPurchase && exp.inventoryStatus !== 'pending';
+                  const unitsQty = exp.quantity || exp.stockMovements?.[0]?.quantity || 1;
 
-                return (
-                  <tr key={exp.id}>
-                    <td style={{ whiteSpace: 'nowrap' }}>{exp.date}</td>
-                    <td>
-                      <span className={`badge ${exp.type === 'Ingreso' ? 'badge-green' : 'badge-red'}`}>
-                        {exp.type}
-                      </span>
-                    </td>
-                    <td>{exp.category}</td>
-                    <td><strong>{exp.description}</strong></td>
-                    <td style={{ fontWeight: 800, whiteSpace: 'nowrap', color: exp.type === 'Ingreso' ? '#10b981' : '#ef4444' }}>
-                      {exp.type === 'Ingreso' ? '+' : '-'}S/ {Number(exp.amount).toFixed(2)}
-                    </td>
-                    <td><span className="badge badge-blue">{exp.paymentMethod}</span></td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      {exp.affectsCapital ? (
-                        <span 
-                          style={{ 
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontWeight: 600,
-                            fontSize: '0.80rem',
-                            color: '#c084fc',
-                            background: 'rgba(168, 85, 247, 0.10)',
-                            padding: '4px 10px',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(168, 85, 247, 0.28)'
-                          }}
-                          title="Gasto pagado con fondos del negocio. Omiso de balance 50/50 y sin responsabilidad personal."
-                        >
-                          <span>🏢 Fondos del Negocio</span>
-                          <span style={{ 
-                            fontSize: '0.65rem', 
-                            fontWeight: 800, 
-                            color: '#a855f7', 
-                            background: 'rgba(168, 85, 247, 0.22)', 
-                            padding: '1px 6px', 
-                            borderRadius: '6px' 
-                          }}>
-                            Omiso
+                  return (
+                    <tr key={exp.id}>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.80rem' }}>{exp.date}</div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{exp.month}</div>
+                      </td>
+                      <td>
+                        <span className={`badge ${exp.type === 'Ingreso' ? 'badge-green' : 'badge-red'}`} style={{ fontSize: '0.70rem', padding: '2px 7px' }}>
+                          {exp.type}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600, fontSize: '0.81rem', color: 'var(--text-main)', lineHeight: 1.25 }}>
+                          {exp.description}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '1px 5px', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                            {exp.category}
                           </span>
+                          {isPending && (
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              style={{
+                                backgroundColor: 'rgba(245, 158, 11, 0.16)',
+                                color: '#f59e0b',
+                                border: '1px solid rgba(245, 158, 11, 0.45)',
+                                borderRadius: 'var(--radius-full)',
+                                padding: '1px 7px',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                whiteSpace: 'nowrap'
+                              }}
+                              onClick={() => setExpenseToReceive(exp)}
+                              title="Haz clic para dar OK e ingresar estos productos al inventario físico"
+                            >
+                              <Clock size={11} />
+                              <span>⏳ Pendiente (Dar OK)</span>
+                            </button>
+                          )}
+                          {isReceived && (
+                            <span 
+                              className="badge badge-green" 
+                              style={{ fontSize: '0.68rem', padding: '1px 6px', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}
+                              title="Mercadería ya ingresada al inventario físico"
+                            >
+                              <Check size={11} /> Ingresado ({unitsQty} uds)
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.82rem', color: exp.type === 'Ingreso' ? '#10b981' : '#ef4444' }}>
+                        {exp.type === 'Ingreso' ? '+' : '-'}S/ {Number(exp.amount).toFixed(2)}
+                      </td>
+                      <td>
+                        <span className="badge badge-blue" style={{ fontSize: '0.70rem', padding: '2px 7px' }}>
+                          {exp.paymentMethod}
                         </span>
-                      ) : (
-                        <span style={{ fontWeight: 600 }}>
-                          {exp.paidBy === 'luis' ? '👨‍💼 Luis Romero' : '🚀 Kevin Servat'}
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{exp.month}</td>
-                    <td>
-                      {isPending ? (
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          style={{
-                            backgroundColor: 'rgba(245, 158, 11, 0.16)',
-                            color: '#f59e0b',
-                            border: '1px solid rgba(245, 158, 11, 0.45)',
-                            borderRadius: 'var(--radius-full)',
-                            padding: '3px 10px',
-                            fontSize: '0.74rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            whiteSpace: 'nowrap'
-                          }}
-                          onClick={() => setExpenseToReceive(exp)}
-                          title="Haz clic para dar OK e ingresar estos productos al inventario físico"
-                        >
-                          <Clock size={12} />
-                          <span>⏳ Pendiente (Dar OK)</span>
-                        </button>
-                      ) : isReceived ? (
-                        <span 
-                          className="badge badge-green" 
-                          style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-                          title="Mercadería ya ingresada al inventario físico"
-                        >
-                          <Check size={12} /> Ingresado ({unitsQty} uds)
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
-                      )}
-                    </td>
-                    <td style={{ fontSize: '0.78rem' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleAffectsCapital(exp)}
-                          title={exp.affectsCapital ? 'Egreso afectable al Capital (resta de Ventas). Clic para desmarcar.' : 'No afecta al Capital. Clic para marcar como egreso afectable.'}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            whiteSpace: 'nowrap',
-                            width: 'fit-content',
-                            padding: '4px 10px',
-                            borderRadius: '16px',
-                            border: exp.affectsCapital ? '1px solid rgba(168, 85, 247, 0.55)' : '1px dashed var(--border-subtle)',
-                            backgroundColor: exp.affectsCapital ? 'rgba(168, 85, 247, 0.14)' : 'transparent',
-                            color: exp.affectsCapital ? '#c084fc' : 'var(--text-muted)',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          <span>{exp.affectsCapital ? '💰 Egreso afectable' : '⚪ No afecta capital'}</span>
-                        </button>
-                        {exp.notes && (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
-                            {exp.notes}
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {exp.affectsCapital ? (
+                          <span 
+                            style={{ 
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontWeight: 600,
+                              fontSize: '0.72rem',
+                              color: '#c084fc',
+                              background: 'rgba(168, 85, 247, 0.10)',
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(168, 85, 247, 0.25)'
+                            }}
+                            title="Gasto pagado con fondos del negocio. Omiso de balance 50/50 y sin responsabilidad personal."
+                          >
+                            🏢 Fondos Negocio
+                          </span>
+                        ) : (
+                          <span style={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                            {exp.paidBy === 'luis' ? '👨‍💼 Luis' : '🚀 Kevin'}
                           </span>
                         )}
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                        {isPending && (
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAffectsCapital(exp)}
+                            title={exp.affectsCapital ? 'Egreso afectable al Capital (resta de Ventas). Clic para desmarcar.' : 'No afecta al Capital. Clic para marcar como egreso afectable.'}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              whiteSpace: 'nowrap',
+                              width: 'fit-content',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              border: exp.affectsCapital ? '1px solid rgba(168, 85, 247, 0.5)' : '1px dashed var(--border-subtle)',
+                              backgroundColor: exp.affectsCapital ? 'rgba(168, 85, 247, 0.12)' : 'transparent',
+                              color: exp.affectsCapital ? '#c084fc' : 'var(--text-muted)',
+                              fontSize: '0.69rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <span>{exp.affectsCapital ? '💰 Afectable' : '⚪ No afecta'}</span>
+                          </button>
+                          {exp.notes && (
+                            <span 
+                              style={{ 
+                                color: 'var(--text-muted)', 
+                                fontSize: '0.68rem', 
+                                maxWidth: '130px', 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis', 
+                                whiteSpace: 'nowrap' 
+                              }} 
+                              title={exp.notes}
+                            >
+                              {exp.notes}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                          {isPending && (
+                            <button 
+                              className="btn-icon" 
+                              style={{ width: '26px', height: '26px', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.35)' }}
+                              onClick={() => setExpenseToReceive(exp)}
+                              title="Dar OK e ingresar productos al inventario"
+                            >
+                              <Check size={12} />
+                            </button>
+                          )}
                           <button 
                             className="btn-icon" 
-                            style={{ width: '28px', height: '28px', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.35)' }}
-                            onClick={() => setExpenseToReceive(exp)}
-                            title="Dar OK e ingresar productos al inventario"
+                            style={{ width: '26px', height: '26px', color: 'var(--primary-600)', borderColor: 'rgba(0, 102, 255, 0.3)' }}
+                            onClick={() => handleOpenEditExpense(exp)}
+                            title="Editar gasto"
                           >
-                            <Check size={13} />
+                            <Edit3 size={12} />
                           </button>
-                        )}
-                        <button 
-                          className="btn-icon" 
-                          style={{ width: '28px', height: '28px', color: 'var(--primary-600)', borderColor: 'rgba(0, 102, 255, 0.3)' }}
-                          onClick={() => handleOpenEditExpense(exp)}
-                          title="Editar gasto"
-                        >
-                          <Edit3 size={13} />
-                        </button>
-                        <button 
-                          className="btn-icon" 
-                          style={{ width: '28px', height: '28px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-                          onClick={() => onRequestDelete && onRequestDelete(exp, 'Gasto')}
-                          title="Eliminar gasto (con registro de auditoría)"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                          <button 
+                            className="btn-icon" 
+                            style={{ width: '26px', height: '26px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                            onClick={() => onRequestDelete && onRequestDelete(exp, 'Gasto')}
+                            title="Eliminar gasto (con registro de auditoría)"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
