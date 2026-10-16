@@ -40,6 +40,7 @@ export default function FinanceView({
 }) {
   const [filterMonth, setFilterMonth] = useState('all');
   const [filterPartner, setFilterPartner] = useState('all');
+  const [filterType, setFilterType] = useState('all');
   const [isNewExpenseModalOpen, setIsNewExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
@@ -291,12 +292,72 @@ export default function FinanceView({
     handleCloseSettleModal();
   };
 
-  // Filtrado de gastos
-  const filteredExpenses = expenses.filter(e => {
-    const matchesMonth = filterMonth === 'all' || e.month === filterMonth;
+  // Movimientos unificados: Ventas (Ingresos) + Gastos y Compras (Egresos)
+  const combinedMovements = React.useMemo(() => {
+    const saleRows = (sales || []).map(s => {
+      const dateStr = s.date || localDate();
+      return {
+        id: s.id,
+        raw: s,
+        isSale: true,
+        date: dateStr,
+        month: s.month || getAccountingMonth(dateStr),
+        type: 'Ingreso',
+        category: 'Venta de producto',
+        description: s.productName ? `${s.productName} · ${s.clientName || 'Cliente'}` : `Venta · ${s.clientName || 'Cliente'}`,
+        clientName: s.clientName || 'Cliente',
+        productName: s.productName || 'Producto',
+        quantity: Number(s.quantity) || 1,
+        amount: Number(s.totalAmount) || 0,
+        paymentMethod: s.paymentMethod || 'Yape',
+        paidBy: s.soldBy || 'luis',
+        affectsCapital: false,
+        status: s.status || 'Cobrado / Por entregar',
+        profit: Number(s.profit) || 0,
+        cost: Number(s.cost) || 0,
+        notes: s.saleNumber ? `Venta #${s.saleNumber}` : (s.phone ? `Telf: ${s.phone}` : '')
+      };
+    });
+
+    const expenseRows = (expenses || []).map(exp => {
+      const dateStr = exp.date || localDate();
+      return {
+        id: exp.id,
+        raw: exp,
+        isSale: false,
+        date: dateStr,
+        month: exp.month || getAccountingMonth(dateStr),
+        type: exp.type || 'Gasto',
+        category: exp.category || 'Gasto operativo',
+        description: exp.description || 'Gasto sin descripción',
+        amount: Number(exp.amount) || 0,
+        paymentMethod: exp.paymentMethod || 'Tarjeta',
+        paidBy: exp.paidBy || 'luis',
+        affectsCapital: Boolean(exp.affectsCapital ?? exp.affects_capital ?? false),
+        notes: exp.notes || '',
+        selectedProductId: exp.selectedProductId,
+        inventoryStatus: exp.inventoryStatus,
+        quantity: exp.quantity,
+        stockMovements: exp.stockMovements
+      };
+    });
+
+    return [...saleRows, ...expenseRows].sort((a, b) => {
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      return dateB.localeCompare(dateA);
+    });
+  }, [sales, expenses]);
+
+  const filteredMovements = combinedMovements.filter(m => {
+    const matchesMonth = filterMonth === 'all' || m.month === filterMonth;
     const matchesPartner = filterPartner === 'all' || 
-      (filterPartner === 'business' ? (e.affectsCapital || e.paidBy === 'business') : (!e.affectsCapital && e.paidBy === filterPartner));
-    return matchesMonth && matchesPartner;
+      (filterPartner === 'business' 
+        ? (m.affectsCapital || m.paidBy === 'business') 
+        : (!m.affectsCapital && m.paidBy === filterPartner));
+    const matchesType = filterType === 'all' || 
+      (filterType === 'Ingreso' ? m.type === 'Ingreso' : m.type !== 'Ingreso');
+    return matchesMonth && matchesPartner && matchesType;
   });
 
   return (
@@ -475,10 +536,21 @@ export default function FinanceView({
             </h3>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: '100%', maxWidth: '420px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: '100%', maxWidth: '580px' }}>
             <select 
               className="form-control" 
               style={{ flex: '1 1 140px', minWidth: '130px', padding: '6px 10px', fontSize: '0.82rem' }}
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+            >
+              <option value="all">Todos los Movimientos</option>
+              <option value="Ingreso">🟢 Solo Ingresos (Ventas)</option>
+              <option value="Gasto">🔴 Solo Gastos y Compras</option>
+            </select>
+
+            <select 
+              className="form-control" 
+              style={{ flex: '1 1 130px', minWidth: '120px', padding: '6px 10px', fontSize: '0.82rem' }}
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
             >
@@ -490,7 +562,7 @@ export default function FinanceView({
 
             <select 
               className="form-control" 
-              style={{ flex: '1 1 180px', minWidth: '150px', padding: '6px 10px', fontSize: '0.82rem' }}
+              style={{ flex: '1 1 160px', minWidth: '140px', padding: '6px 10px', fontSize: '0.82rem' }}
               value={filterPartner}
               onChange={(e) => setFilterPartner(e.target.value)}
             >
@@ -517,14 +589,97 @@ export default function FinanceView({
               </tr>
             </thead>
             <tbody>
-              {filteredExpenses.length === 0 ? (
+              {filteredMovements.length === 0 ? (
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
                     No se encontraron movimientos registrados con los filtros seleccionados.
                   </td>
                 </tr>
               ) : (
-                filteredExpenses.map(exp => {
+                filteredMovements.map(m => {
+                  if (m.isSale) {
+                    return (
+                      <tr key={m.id}>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.80rem' }}>{m.date}</div>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{m.month}</div>
+                        </td>
+                        <td>
+                          <span className="badge badge-green" style={{ fontSize: '0.70rem', padding: '2px 7px' }}>
+                            Ingreso
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600, fontSize: '0.81rem', color: 'var(--text-main)', lineHeight: 1.25 }}>
+                            {m.description}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '1px 5px', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                              {m.category}
+                            </span>
+                            <span className="badge badge-blue" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                              {m.quantity} {m.quantity === 1 ? 'ud' : 'uds'}
+                            </span>
+                            <span className="badge badge-purple" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                              {m.status}
+                            </span>
+                            {m.profit > 0 && (
+                              <span style={{ fontSize: '0.68rem', color: '#10b981', fontWeight: 600 }}>
+                                Margen: +S/ {m.profit.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 800, whiteSpace: 'nowrap', fontSize: '0.82rem', color: '#10b981' }}>
+                          +S/ {m.amount.toFixed(2)}
+                        </td>
+                        <td>
+                          <span className="badge badge-blue" style={{ fontSize: '0.70rem', padding: '2px 7px' }}>
+                            {m.paymentMethod}
+                          </span>
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                            {m.paidBy === 'luis' ? '👨‍💼 Luis' : '🚀 Kevin'}
+                          </span>
+                        </td>
+                        <td>
+                          <span 
+                            style={{ 
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontWeight: 600,
+                              fontSize: '0.72rem',
+                              color: '#10b981',
+                              background: 'rgba(16, 185, 129, 0.10)',
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(16, 185, 129, 0.25)'
+                            }}
+                            title="Cobro confirmado por venta comercial de catálogo"
+                          >
+                            💰 Ingreso a Caja
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                            <button 
+                              className="btn-icon" 
+                              style={{ width: '26px', height: '26px', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                              onClick={() => onRequestDelete && onRequestDelete(m.raw, 'Venta')}
+                              title="Eliminar venta (revierte stock al almacén y genera auditoría)"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  // Gasto / Compra
+                  const exp = m.raw;
                   const isPurchase = Boolean(exp.selectedProductId || exp.stockMovements?.length);
                   const isPending = isPurchase && exp.inventoryStatus === 'pending';
                   const isReceived = isPurchase && exp.inventoryStatus !== 'pending';

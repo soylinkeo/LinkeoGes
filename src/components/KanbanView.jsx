@@ -620,7 +620,22 @@ export default function KanbanView({
     });
   };
 
-  const totalPipelineValue = filteredLeads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
+  const getLeadDisplayValue = (lead, sale) => {
+    if (Number(lead.estimatedValue) > 0) return Number(lead.estimatedValue);
+    if (sale && Number(sale.totalAmount) > 0) return Number(sale.totalAmount);
+    if (Number(lead.paid) > 0) return Number(lead.paid);
+    if (Number(lead.quote?.total) > 0) return Number(lead.quote.total);
+    if (Number(lead.payload?.estimatedValue) > 0) return Number(lead.payload.estimatedValue);
+    return 0;
+  };
+
+  const totalPipelineValue = filteredLeads.reduce((acc, l) => {
+    const assoc = sales.find(s => 
+      (s.leadId && s.leadId === l.id) || 
+      (s.clientName && l.businessName && s.clientName.trim().toLowerCase() === l.businessName.trim().toLowerCase())
+    );
+    return acc + getLeadDisplayValue(l, assoc);
+  }, 0);
 
   return (
     <div className="kanban-view">
@@ -856,7 +871,13 @@ export default function KanbanView({
       <div className="kanban-board">
         {(mobileStageFilter === 'all' ? STAGES : STAGES.filter(s => s.id === mobileStageFilter)).map(stage => {
           const stageLeads = filteredLeads.filter(l => normalizeLeadStage(l.stage) === stage.id);
-          const totalValue = stageLeads.reduce((acc, l) => acc + (Number(l.estimatedValue) || 0), 0);
+          const totalValue = stageLeads.reduce((acc, l) => {
+            const assoc = sales.find(s => 
+              (s.leadId && s.leadId === l.id) || 
+              (s.clientName && l.businessName && s.clientName.trim().toLowerCase() === l.businessName.trim().toLowerCase())
+            );
+            return acc + getLeadDisplayValue(l, assoc);
+          }, 0);
           const isSingleStage = mobileStageFilter !== 'all';
 
           return (
@@ -899,6 +920,10 @@ export default function KanbanView({
                       address: lead.address,
                       district: lead.district
                     });
+                    const cardPrice = getLeadDisplayValue(lead, associatedSale);
+                    const displayProduct = (lead.interestedProduct && lead.interestedProduct !== 'Por definir') 
+                      ? lead.interestedProduct 
+                      : (associatedSale?.productName || null);
 
                     return (
                       <div 
@@ -947,9 +972,16 @@ export default function KanbanView({
                             </button>
                           </div>
 
-                          <span className="kanban-card-price">
-                            S/ {Number(lead.estimatedValue || 0).toFixed(2)}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {associatedSale && (
+                              <span className="badge badge-green" style={{ fontSize: '0.65rem', padding: '1px 5px', whiteSpace: 'nowrap' }} title={`Venta confirmada en Gestión: ${associatedSale.saleNumber || associatedSale.id}`}>
+                                ✓ Vendido
+                              </span>
+                            )}
+                            <span className="kanban-card-price">
+                              S/ {cardPrice.toFixed(2)}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Fila 2: Nombre del Negocio / Cliente en tipografía destacada */}
@@ -999,12 +1031,12 @@ export default function KanbanView({
                           </div>
                         )}
 
-                        {/* Fila 5: Producto de Interés (si existe y no es genérico) */}
-                        {lead.interestedProduct && lead.interestedProduct !== 'Por definir' && (
-                          <div className="kanban-product-badge" title={`Producto solicitado: ${lead.interestedProduct}`}>
+                        {/* Fila 5: Producto de Interés o Vendido (si existe y no es genérico) */}
+                        {displayProduct && displayProduct !== 'Por definir' && (
+                          <div className="kanban-product-badge" title={`Producto: ${displayProduct}`}>
                             <CreditCard size={11} style={{ flexShrink: 0, color: '#a78bfa' }} />
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {lead.interestedProduct}
+                              {displayProduct}
                             </span>
                           </div>
                         )}

@@ -78,9 +78,10 @@ const legacyMappers = {
     priority: l.priority || 'media',
     responsible: l.responsible || 'both',
     assignedTo: l.payload?.assignedTo || l.responsible || 'both',
-    estimatedValue: Number(l.estimated_value || 0),
+    estimatedValue: Number(l.estimated_value || l.payload?.estimatedValue || 0),
     googleMapsUrl: l.google_maps_url || '',
-    notes: l.notes || ''
+    notes: l.notes || '',
+    payload: l.payload || {}
   }),
 
   leadToDb: (l) => ({
