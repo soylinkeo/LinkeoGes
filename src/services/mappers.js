@@ -315,5 +315,12 @@ const legacyMappers = {
 export const mappers = Object.fromEntries(Object.entries(legacyMappers).map(([name, map]) => [
   name, name.endsWith('ToDb')
     ? (value) => ({ ...map(value), payload: value })
-    : (row) => ({ ...map(row), ...(row.payload || {}), id: row.id })
+    : (row) => {
+      const value = { ...map(row), ...(row.payload || {}), id: row.id };
+      if (name === 'saleToFront') {
+        const partner = String(row.sold_by || value.soldBy || '').trim().toLowerCase();
+        value.soldBy = ({'luis romero':'luis','kevin servat':'kevin'})[partner] || partner;
+      }
+      return value;
+    }
 ]));

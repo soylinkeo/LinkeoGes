@@ -47,3 +47,5 @@ Thumbs.db
 # Verification artifacts
 playwright-report/
 test-results/
+.vercel
+.env*
