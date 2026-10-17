@@ -315,9 +315,34 @@ const legacyMappers = {
 // Preserve every form field in payload, while typed SQL columns remain authoritative.
 export const mappers = Object.fromEntries(Object.entries(legacyMappers).map(([name, map]) => [
   name, name.endsWith('ToDb')
-    ? (value) => ({ ...map(value), payload: value })
+    ? (value) => {
+      const dbRow = map(value);
+      const cleanPayload = { ...value };
+      delete cleanPayload.payload;
+      if (name === 'leadToDb' && cleanPayload.em && typeof cleanPayload.em === 'object') {
+        const st = String(dbRow.stage || '').toLowerCase().trim();
+        const est = String(cleanPayload.em.estado || '').trim();
+        const stageOfEst = ['Pendiente', 'WhatsApp abierto', 'Enviado', 'Respondió'].includes(est) ? 'prospecto'
+          : est === 'Visitado' ? 'visitado'
+          : ['Interesado', 'Visita agendada'].includes(est) ? 'negociacion'
+          : est === 'Vendido' ? 'configurando'
+          : ['No contactar', 'Descartado'].includes(est) ? 'no_hecha_o_espera' : 'prospecto';
+        const syncedEstado = (est && (stageOfEst === st || (est === 'Vendido' && ['configurando', 'entregado', 'postventa'].includes(st))))
+          ? est
+          : st === 'visitado' ? 'Visitado'
+          : st === 'negociacion' ? (est === 'Visita agendada' ? 'Visita agendada' : 'Interesado')
+          : ['configurando', 'entregado', 'postventa'].includes(st) ? 'Vendido'
+          : st === 'no_hecha_o_espera' ? (est === 'No contactar' ? 'No contactar' : 'Descartado')
+          : ['WhatsApp abierto', 'Enviado', 'Respondió'].includes(est) ? est : 'Pendiente';
+        cleanPayload.em = { ...cleanPayload.em, estado: syncedEstado };
+      }
+      return { ...dbRow, payload: cleanPayload };
+    }
     : (row) => {
       const value = { ...map(row), ...(row.payload || {}), id: row.id };
+      if (name === 'leadToFront' && row.stage) {
+        value.stage = row.stage;
+      }
       if (name === 'saleToFront') {
         const partner = String(row.sold_by || value.soldBy || '').trim().toLowerCase();
         value.soldBy = ({'luis romero':'luis','kevin servat':'kevin'})[partner] || partner;

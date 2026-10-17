@@ -1418,8 +1418,19 @@ export default function App() {
       }
       setSales(prev => prev.filter(row => row.id !== item.id));
       setNfcCards(prev => prev.filter(c => c.saleId !== item.id && !item.cardIds?.includes(c.id)));
+      const remainingSales = sales.filter(row => row.id !== item.id);
+      const clientNorm = (item.clientName || '').trim().toLowerCase();
+      setLeads(prev => prev.map(l => {
+        const isLinked = (item.leadId && l.id === item.leadId) || (clientNorm && (l.businessName || '').trim().toLowerCase() === clientNorm);
+        if (!isLinked) return l;
+        const hasOtherSale = remainingSales.some(s => (s.leadId && s.leadId === l.id) || (clientNorm && (s.clientName || '').trim().toLowerCase() === clientNorm));
+        if (hasOtherSale) return l;
+        const nextStage = ['entregado', 'configurando', 'postventa'].includes(l.stage) ? 'negociacion' : l.stage;
+        const em = l.em ? { ...l.em, saleOrder: null, saleRecorded: false, paid: 0, outcome: l.em.outcome === 'Venta cobrada' ? '' : l.em.outcome, estado: l.em.estado === 'Vendido' ? 'Interesado' : l.em.estado } : undefined;
+        return { ...l, stage: nextStage, ...(em ? { em } : {}) };
+      }));
       item = { ...item, relatedCards: nfcCards.filter(c => c.saleId === item.id || item.cardIds?.includes(c.id)) };
-      cascadeDetails = ' Venta y tarjetas retiradas; movimientos físicos revertidos.';
+      cascadeDetails = ' Venta y tarjetas retiradas; movimientos físicos y Kanban revertidos.';
     } else if (entityType === 'Gasto') {
       try { 
         if (item.stockMovements?.length && item.inventoryStatus !== 'pending') {
@@ -1586,6 +1597,12 @@ export default function App() {
         catch (error) { showToast(error.message, 'error'); return; }
         setSales(prev => [auditLog.snapshot, ...prev]);
         setNfcCards(prev => [...(auditLog.snapshot.relatedCards || []), ...prev]);
+        const restoredClientNorm = (auditLog.snapshot.clientName || '').trim().toLowerCase();
+        setLeads(prev => prev.map(l => {
+          const isLinked = (auditLog.snapshot.leadId && l.id === auditLog.snapshot.leadId) || (restoredClientNorm && (l.businessName || '').trim().toLowerCase() === restoredClientNorm);
+          if (!isLinked) return l;
+          return { ...l, stage: 'entregado' };
+        }));
       } else if (auditLog.entityType === 'Lead') {
         setLeads(prev => [auditLog.snapshot, ...prev]);
       } else if (auditLog.entityType === 'Tarjeta NFC') {
