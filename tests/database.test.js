@@ -85,13 +85,30 @@ test('SQL migration: authorization, atomic rollback, revisions, idempotency and 
     };
     snapshot = await commit(4, [{ table: 'products', kind: 'insert', id: prod.id, data: mappers.productToDb(prod) }]);
     assert.equal(snapshot.tables.products.length, 1);
+    await db.query(`INSERT INTO public.products
+      (id,name,sku,category,type,price,cost,margin,margin_pct,description,payload)
+      VALUES ('prod-full','Pack Full','SKU-PACK-FULL','Pack','pack',150,38.79,111.21,74.14,
+        'Precio regular S/ 180.',
+        '{"web":{"slug":"full","published":true,"regularPrice":180,"savings":30}}'::jsonb)`);
+    const priceMigration = await fs.readFile('supabase/migrations/202610200001_nfc_price_update.sql', 'utf8');
+    await db.exec(priceMigration);
+    await db.exec(priceMigration); // safe to run twice
+    const prices = (await db.query(`SELECT sku, price, payload->>'regularPrice' AS regular_price,
+      payload->'web'->>'savings' AS savings FROM public.products ORDER BY sku`)).rows;
+    const horizontalPrice = prices.find(row => row.sku === 'SKU-LNK-6781');
+    const fullPackPrice = prices.find(row => row.sku === 'SKU-PACK-FULL');
+    assert.equal(Number(horizontalPrice.price), 40);
+    assert.equal(Number(fullPackPrice.price), 100);
+    assert.equal(Number(fullPackPrice.regular_price), 120);
+    assert.equal(Number(fullPackPrice.savings), 20);
 
     // Anon role can call linkeo_public_catalog() and read catalog_sync
     await db.exec('SET ROLE anon');
     const catalogRes = (await db.query('select public.linkeo_public_catalog() as cat')).rows[0].cat;
     assert.ok(catalogRes.products.length >= 1);
-    assert.equal(catalogRes.products[0].slug, 'horizontal');
-    assert.equal(catalogRes.products[0].price, 60);
+    assert.equal(catalogRes.products.find(product => product.slug === 'horizontal').price, 40);
+    assert.equal(catalogRes.products.find(product => product.slug === 'full').price, 100);
+    assert.equal(catalogRes.products.find(product => product.slug === 'full').regular_price, 120);
     assert.equal(catalogRes.products[0].cost, undefined); // never leaks cost
     const syncRes = (await db.query('select revision from public.catalog_sync where id = 1')).rows[0];
     assert.ok(syncRes.revision >= 1);

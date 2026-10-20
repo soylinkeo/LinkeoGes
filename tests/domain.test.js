@@ -8,6 +8,26 @@ import { createSale, getStockMovements, applyStockMovements } from '../src/utils
 import { INITIAL_PRODUCTS, INITIAL_INVENTORY } from '../src/data/initialData.js';
 import { formatGoogleMapsUrl } from '../src/utils/mapsUtils.js';
 
+test('NFC catalogue uses S/40 individual prices and discounted pack prices', () => {
+  const individuals = INITIAL_PRODUCTS.filter(product => product.type === 'individual');
+  assert.ok(individuals.length > 0);
+  assert.ok(individuals.every(product => product.price === 40));
+  const expectedPacks = {
+    'SKU-PACK-DUO': [70, 80],
+    'SKU-PACK-TRIO': [100, 120],
+    'SKU-PACK-EMPRENDEDOR': [65, 80],
+    'SKU-PACK-NEGOCIO': [70, 80],
+    'SKU-PACK-DUO-PREMIUM': [70, 80],
+    'SKU-PACK-FULL': [100, 120]
+  };
+  for (const [sku, [price, regularPrice]] of Object.entries(expectedPacks)) {
+    const product = INITIAL_PRODUCTS.find(item => item.sku === sku);
+    assert.ok(product, `${sku} exists`);
+    assert.equal(product.price, price, `${sku} sale price`);
+    assert.equal(product.regularPrice, regularPrice, `${sku} regular price`);
+  }
+});
+
 test('cloud round trips preserve all fields in every entity', () => {
   for (const entity of ['sale','expense','lead','nfc','inventory','supplier','event','product','auditLog']) {
     const input = { id: 'test', name: 'Prueba', quantity: 2, price: 50, amount: 20, notes: 'observación',
@@ -1412,7 +1432,6 @@ test('calendar appointments classification: pending appointments always top, com
   assert.equal(pending.length, 2);
   assert.equal(completed.length, 3);
 });
-
 
 
 

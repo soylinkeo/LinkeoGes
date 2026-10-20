@@ -228,12 +228,11 @@ export default function App() {
       if (!existing) {
         const cost = Number(item.unitCost) || 12.96;
         let price = 60.00;
-        if (item.sku === 'SKU-LNK-9972' || normName.includes('formato l') || normName.includes(' l esp') || normName.includes('display')) {
-          price = 80.00;
-        } else if (item.sku === 'SKU-LNK-4951' || normName.includes('carnet') || normName.includes('vertical')) {
+        if (['SKU-LNK-9972', 'SKU-LNK-4951', 'SKU-LNK-1367', 'SKU-LNK-6781'].includes(item.sku) ||
+            normName.includes('formato l') || normName.includes(' l esp') || normName.includes('display') ||
+            normName.includes('carnet') || normName.includes('vertical') ||
+            normName.includes('cuadrad') || normName.includes('horizontal')) {
           price = 40.00;
-        } else if (item.sku === 'SKU-LNK-1367' || item.sku === 'SKU-LNK-6781' || normName.includes('cuadrad') || normName.includes('horizontal')) {
-          price = 60.00;
         } else if (cost > 0) {
           price = Number((cost * 2.5).toFixed(2));
         }
@@ -303,9 +302,9 @@ export default function App() {
           } else {
             const bNorm = (b.name || '').toLowerCase();
             const bSku = (b.sku || '').toUpperCase();
-            if (bSku.includes('9972') || bNorm.includes('display') || bNorm.includes('formato l')) {
-              packRegularPrice += 80.00 * reqQty;
-            } else if (bSku.includes('4951') || bNorm.includes('carnet') || bNorm.includes('vertical')) {
+            if (bSku.includes('9972') || bSku.includes('6781') || bSku.includes('1367') || bSku.includes('4951') ||
+                bNorm.includes('display') || bNorm.includes('formato l') || bNorm.includes('carnet') ||
+                bNorm.includes('vertical') || bNorm.includes('cuadrad') || bNorm.includes('horizontal')) {
               packRegularPrice += 40.00 * reqQty;
             } else {
               packRegularPrice += 60.00 * reqQty;
