@@ -123,8 +123,10 @@ export function exportLinkeoGesToExcel({
     const norm = (i.name || '').toLowerCase();
     const sku = (i.sku || '').toUpperCase();
     let retailPrice = 60.00;
-    if (sku.includes('9972') || norm.includes('display') || norm.includes('formato l')) retailPrice = 80.00;
-    else if (sku.includes('4951') || norm.includes('carnet') || norm.includes('vertical')) retailPrice = 40.00;
+    if (['9972', '4951', '1367', '6781', 'IDENT'].some(code => sku.includes(code)) ||
+        norm.includes('display') || norm.includes('formato l') || norm.includes('carnet') ||
+        norm.includes('vertical') || norm.includes('cuadrad') || norm.includes('horizontal') ||
+        norm.includes('identificable')) retailPrice = 35.00;
     else if (cost > 0) retailPrice = Number((cost * 2.5).toFixed(2));
     const totalRetail = qty * retailPrice;
     const profit = Math.max(0, totalRetail - totalCost);

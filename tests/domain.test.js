@@ -8,17 +8,18 @@ import { createSale, getStockMovements, applyStockMovements } from '../src/utils
 import { INITIAL_PRODUCTS, INITIAL_INVENTORY } from '../src/data/initialData.js';
 import { formatGoogleMapsUrl } from '../src/utils/mapsUtils.js';
 
-test('NFC catalogue uses S/40 individual prices and discounted pack prices', () => {
+test('NFC catalogue uses S/35 individual prices and preserves nominal pack savings', () => {
   const individuals = INITIAL_PRODUCTS.filter(product => product.type === 'individual');
   assert.ok(individuals.length > 0);
-  assert.ok(individuals.every(product => product.price === 40));
+  assert.ok(individuals.every(product => product.price === 35));
+  assert.ok(individuals.every(product => product.margin === 22.07));
   const expectedPacks = {
-    'SKU-PACK-DUO': [70, 80],
-    'SKU-PACK-TRIO': [100, 120],
-    'SKU-PACK-EMPRENDEDOR': [65, 80],
-    'SKU-PACK-NEGOCIO': [70, 80],
-    'SKU-PACK-DUO-PREMIUM': [70, 80],
-    'SKU-PACK-FULL': [100, 120]
+    'SKU-PACK-DUO': [60, 70],
+    'SKU-PACK-TRIO': [85, 105],
+    'SKU-PACK-EMPRENDEDOR': [55, 70],
+    'SKU-PACK-NEGOCIO': [60, 70],
+    'SKU-PACK-DUO-PREMIUM': [60, 70],
+    'SKU-PACK-FULL': [85, 105]
   };
   for (const [sku, [price, regularPrice]] of Object.entries(expectedPacks)) {
     const product = INITIAL_PRODUCTS.find(item => item.sku === sku);
@@ -1432,9 +1433,6 @@ test('calendar appointments classification: pending appointments always top, com
   assert.equal(pending.length, 2);
   assert.equal(completed.length, 3);
 });
-
-
-
 
 
 

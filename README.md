@@ -40,6 +40,17 @@ Desarrollada para la dirección y operación conjunta de **Luis Romero** & **Kev
 7. **Bitácora Universal de Auditoría:**
    - Registro inmutable de creaciones, modificaciones y eliminaciones con usuario responsable, motivo del cambio y fecha/hora exacta.
 
+## Precios NFC vigentes
+
+- Modelos individuales: S/35 por unidad.
+- Packs: Restaurante Dúo S/60, Trío S/85, Emprendedor S/55, Negocio S/60,
+  Dúo Premium S/60 y Full S/85.
+- El precio regular de los packs se calcula con sus componentes a S/35 por unidad;
+  se conserva el ahorro nominal vigente de cada promoción.
+- La migración `supabase/migrations/202610200002_nfc_price_update_35.sql`
+  actualiza el catálogo central y debe ejecutarse en Supabase para sincronizar
+  Gestión, la web y las herramientas de ventas.
+
 ---
 
 ## 🛠️ Tecnologías

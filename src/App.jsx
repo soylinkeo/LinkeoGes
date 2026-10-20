@@ -232,7 +232,7 @@ export default function App() {
             normName.includes('formato l') || normName.includes(' l esp') || normName.includes('display') ||
             normName.includes('carnet') || normName.includes('vertical') ||
             normName.includes('cuadrad') || normName.includes('horizontal')) {
-          price = 40.00;
+          price = 35.00;
         } else if (cost > 0) {
           price = Number((cost * 2.5).toFixed(2));
         }
@@ -305,7 +305,7 @@ export default function App() {
             if (bSku.includes('9972') || bSku.includes('6781') || bSku.includes('1367') || bSku.includes('4951') ||
                 bNorm.includes('display') || bNorm.includes('formato l') || bNorm.includes('carnet') ||
                 bNorm.includes('vertical') || bNorm.includes('cuadrad') || bNorm.includes('horizontal')) {
-              packRegularPrice += 40.00 * reqQty;
+              packRegularPrice += 35.00 * reqQty;
             } else {
               packRegularPrice += 60.00 * reqQty;
             }

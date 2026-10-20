@@ -257,7 +257,7 @@ export default function InventoryView({
   // HELPER: PRECIO OFICIAL DE VENTA (PVP) DE UN INSUMO FÍSICO
   // -------------------------------------------------------------
   const getItemRetailPrice = (item) => {
-    if (!item) return 60.00;
+    if (!item) return 35.00;
     const matched = products.find(p => 
       (!p.bundleItems || p.bundleItems.length === 0) && (
         (item.id && p.inventoryId === item.id) ||
@@ -268,18 +268,15 @@ export default function InventoryView({
     if (matched && Number(matched.price) > 0) return Number(matched.price);
     const norm = (item.name || '').toLowerCase();
     const sku = (item.sku || '').toUpperCase();
-    if (sku.includes('9972') || norm.includes('formato l') || norm.includes(' l esp') || norm.includes('display')) {
-      return 80.00;
-    }
-    if (sku.includes('4951') || norm.includes('carnet') || norm.includes('vertical')) {
-      return 40.00;
-    }
-    if (sku.includes('1367') || sku.includes('6781') || norm.includes('cuadrad') || norm.includes('horizontal')) {
-      return 60.00;
+    if (['9972', '4951', '1367', '6781', 'IDENT'].some(code => sku.includes(code)) ||
+        norm.includes('formato l') || norm.includes(' l esp') || norm.includes('display') ||
+        norm.includes('carnet') || norm.includes('vertical') ||
+        norm.includes('cuadrad') || norm.includes('horizontal') || norm.includes('identificable')) {
+      return 35.00;
     }
     if (item.salePrice && Number(item.salePrice) > 0) return Number(item.salePrice);
     const cost = Number(item.unitCost) || 0;
-    return cost > 0 ? Number((cost * 2.5).toFixed(2)) : 60.00;
+    return cost > 0 ? Number((cost * 2.5).toFixed(2)) : 35.00;
   };
 
   // -------------------------------------------------------------
@@ -312,7 +309,7 @@ export default function InventoryView({
     initialComponents.forEach(c => {
       regularSum += getItemRetailPrice(c) * c.quantity;
     });
-    const suggestedPrice = regularSum > 0 ? (Math.round((regularSum * 0.8) / 5) * 5).toFixed(2) : '80.00';
+    const suggestedPrice = regularSum > 0 ? (Math.round((regularSum * 0.8) / 5) * 5).toFixed(2) : '55.00';
 
     setPackForm({
       name: '',
@@ -342,43 +339,43 @@ export default function InventoryView({
         name: 'Pack Emprendedor',
         sku: 'SKU-PACK-EMPRENDEDOR',
         badge: '🔥 Más Vendido',
-        promoPrice: '80.00',
+        promoPrice: '55.00',
         bundleComponents: [
           { id: horiz.id, sku: horiz.sku, name: horiz.name, unitCost: Number(horiz.unitCost) || 12.96, quantity: 1 },
           { id: vert.id, sku: vert.sku, name: vert.name, unitCost: Number(vert.unitCost) || 12.96, quantity: 1 }
         ],
-        description: 'Incluye: 1 Tarjeta Horizontal (PVP S/ 60) + 1 Tarjeta Vertical (PVP S/ 40). Ideal para empezar a captar reseñas.'
+        description: 'Incluye: 1 Tarjeta Horizontal (PVP S/ 35) + 1 Tarjeta Vertical (PVP S/ 35). Precio regular S/ 70. Ideal para empezar a captar reseñas.'
       });
     } else if (presetType === 'negocio') {
       setPackForm({
         name: 'Pack Negocio',
         sku: 'SKU-PACK-NEGOCIO',
         badge: 'Mostrador + Tarjeta',
-        promoPrice: '100.00',
+        promoPrice: '60.00',
         bundleComponents: [
           { id: disp.id, sku: disp.sku, name: disp.name, unitCost: Number(disp.unitCost) || 12.96, quantity: 1 },
           { id: vert.id, sku: vert.sku, name: vert.name, unitCost: Number(vert.unitCost) || 12.96, quantity: 1 }
         ],
-        description: 'Incluye: 1 Display de Mesa en L (PVP S/ 80) + 1 Tarjeta Vertical portátil (PVP S/ 40). Para caja y atención en mesa.'
+        description: 'Incluye: 1 Display de Mesa en L (PVP S/ 35) + 1 Tarjeta Vertical portátil (PVP S/ 35). Precio regular S/ 70. Para caja y atención en mesa.'
       });
     } else if (presetType === 'duo_premium') {
       setPackForm({
         name: 'Pack Dúo Premium',
         sku: 'SKU-PACK-DUO-PREMIUM',
         badge: 'Mayor Presencia',
-        promoPrice: '120.00',
+        promoPrice: '60.00',
         bundleComponents: [
           { id: disp.id, sku: disp.sku, name: disp.name, unitCost: Number(disp.unitCost) || 12.96, quantity: 1 },
           { id: horiz.id, sku: horiz.sku, name: horiz.name, unitCost: Number(horiz.unitCost) || 12.96, quantity: 1 }
         ],
-        description: 'Incluye: 1 Display de Mesa en L (PVP S/ 80) + 1 Tarjeta Horizontal (PVP S/ 60). Mayor presencia en tu local.'
+        description: 'Incluye: 1 Display de Mesa en L (PVP S/ 35) + 1 Tarjeta Horizontal (PVP S/ 35). Precio regular S/ 70. Mayor presencia en tu local.'
       });
     } else if (presetType === 'full') {
       setPackForm({
         name: 'Pack Full',
         sku: 'SKU-PACK-FULL',
         badge: '👑 Los 3 Modelos',
-        promoPrice: '150.00',
+        promoPrice: '85.00',
         bundleComponents: [
           { id: disp.id, sku: disp.sku, name: disp.name, unitCost: Number(disp.unitCost) || 12.96, quantity: 1 },
           { id: horiz.id, sku: horiz.sku, name: horiz.name, unitCost: Number(horiz.unitCost) || 12.96, quantity: 1 },
