@@ -10,7 +10,9 @@ import {
   TrendingDown,
   UserPlus,
   X,
-  ChevronRight
+  ChevronRight,
+  Boxes,
+  TrendingUp
 } from 'lucide-react';
 
 export default function MobileBottomNav({
@@ -48,8 +50,9 @@ export default function MobileBottomNav({
               </div>
               <button 
                 className="btn-icon" 
-                style={{ width: '32px', height: '32px' }}
+                style={{ width: '36px', height: '36px' }}
                 onClick={() => setQuickActionOpen(false)}
+                aria-label="Cerrar panel de acciones rápidas"
               >
                 <X size={18} />
               </button>
@@ -85,6 +88,34 @@ export default function MobileBottomNav({
               </button>
 
               <button 
+                className="mobile-quick-btn quick-inventory"
+                onClick={() => handleAction(() => setCurrentTab('inventory'))}
+              >
+                <div className="quick-icon-circle" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#38bdf8' }}>
+                  <Boxes size={22} />
+                </div>
+                <div className="quick-btn-text">
+                  <strong>Control de Inventario</strong>
+                  <span>Stock físico, insumos y alertas</span>
+                </div>
+                <ChevronRight size={18} className="quick-chevron" />
+              </button>
+
+              <button 
+                className="mobile-quick-btn quick-projections"
+                onClick={() => handleAction(() => setCurrentTab('projections'))}
+              >
+                <div className="quick-icon-circle" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                  <TrendingUp size={22} />
+                </div>
+                <div className="quick-btn-text">
+                  <strong>Metas & Proyecciones</strong>
+                  <span>Simulador, punto de equilibrio y 50/50</span>
+                </div>
+                <ChevronRight size={18} className="quick-chevron" />
+              </button>
+
+              <button 
                 className="mobile-quick-btn quick-nfc"
                 onClick={() => handleAction(() => setCurrentTab('nfc-traceability'))}
               >
@@ -102,7 +133,7 @@ export default function MobileBottomNav({
                 className="mobile-quick-btn quick-lead"
                 onClick={() => handleAction(() => setCurrentTab('pipeline'))}
               >
-                <div className="quick-icon-circle" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
+                <div className="quick-icon-circle" style={{ background: 'rgba(234, 179, 8, 0.15)', color: '#eab308' }}>
                   <UserPlus size={22} />
                 </div>
                 <div className="quick-btn-text">
@@ -128,15 +159,12 @@ export default function MobileBottomNav({
         </button>
 
         <button 
-          className={`nav-tab-item ${currentTab === 'nfc-traceability' ? 'active' : ''}`}
-          onClick={() => setCurrentTab('nfc-traceability')}
-          title="Chips NFC"
+          className={`nav-tab-item ${currentTab === 'inventory' ? 'active' : ''}`}
+          onClick={() => setCurrentTab('inventory')}
+          title="Stock Físico e Insumos"
         >
-          <div style={{ position: 'relative' }}>
-            <Cpu size={20} />
-            {nfcCardsCount > 0 && <span className="mobile-tab-badge">{nfcCardsCount}</span>}
-          </div>
-          <span>NFC</span>
+          <Boxes size={20} />
+          <span>Stock</span>
         </button>
 
         {/* Botón Central Flotante de Acción Rápida */}

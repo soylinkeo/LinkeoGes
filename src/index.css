@@ -3703,3 +3703,162 @@ button, input, select, textarea {
   box-shadow: none;
 }
 
+
+/* ==========================================================================
+   FASE 02 / SPRINT 2: OPTIMIZACIONES MÓVILES TOUCH-FIRST & IPHONE / ANDROID
+   ========================================================================== */
+
+/* 1. Tarjetas de Inventario Móvil */
+.mobile-stock-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+@media (max-width: 640px) {
+  .mobile-stock-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mobile-stock-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: border-color var(--transition-fast);
+}
+
+.mobile-stock-card.low-stock {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.05) 0%, var(--bg-card) 100%);
+}
+
+.mobile-stock-card.out-of-stock {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.05) 0%, var(--bg-card) 100%);
+}
+
+.mobile-stock-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.mobile-stock-card-title {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1.3;
+}
+
+.mobile-stock-qty-box {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mobile-stock-qty-val {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: var(--text-main);
+  line-height: 1;
+}
+
+.mobile-stock-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  background: var(--bg-input);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.mobile-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mobile-metric-label {
+  font-size: 0.68rem;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mobile-metric-val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.mobile-stock-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* 2. Tarjetas de Proyecciones Móvil */
+.mobile-projected-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.mobile-projected-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.mobile-projected-card.inactive {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+/* 3. Optimizaciones para iOS Safari & Pantallas Táctiles */
+@media (max-width: 768px) {
+  /* Evitar auto-zoom molesto en iPhone al enfocar inputs */
+  input, select, textarea, .form-control {
+    font-size: 16px !important;
+  }
+
+  /* Botones táctiles cómodos */
+  .btn, .mobile-quick-btn {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Ocultar elementos de tabla ancha cuando las tarjetas están activas */
+  .desktop-table-only {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-cards-only {
+    display: none !important;
+  }
+}
