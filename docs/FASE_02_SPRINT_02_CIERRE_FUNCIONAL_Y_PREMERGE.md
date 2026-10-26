@@ -4,11 +4,11 @@
 **Fecha y Hora:** 26 de Octubre de 2026 · 10:35 UTC-5  
 **Repositorio Oficial:** `soylinkeo/LinkeoGes`  
 **Rama Local:** `feature/fase-02-sprint-02-mobile-ux`  
-**Commit HEAD Verificado:** `cdb1491`  
+**Commit HEAD Verificado:** `d23ceea`  
 **Base Remota:** `origin/main` en `e0a4b51`  
 **Entorno Productivo Vercel:** `soylinkeos-projects / linkeo-ges`  
 **Supabase Central:** `ntzkjkvgtytlobvbplov` (Revisión 6, Catálogo de 8 productos)  
-**Veredicto:** **GO FUNCIONAL MÓVIL · PRE-MERGE PREPARADO (DESPLIEGUE CONGELADO)**
+**Veredicto:** **GO FUNCIONAL MÓVIL · FASE B AUTORIZADA POR LUIS (PRE-MERGE PENDIENTE DE REVISIÓN KEVIN)**
 
 ---
 
@@ -129,7 +129,45 @@ Dado que `main` no cuenta con protección de rama en GitHub, se recomienda a los
 
 ---
 
-### 6. Plan de Despliegue Futuro en 7 Pasos
+### 6. Acta de Autorización Formal — Fase B (Sprint 2)
+
+**Autorizado Exclusivamente por Luis Romero (Co-CEO):**
+- ✅ Publicar la rama `feature/fase-02-sprint-02-mobile-ux` en `soylinkeo/LinkeoGes`.
+- ✅ Abrir un Pull Request hacia `main` para revisión técnica de Kevin Servat.
+- ✅ Generar Preview de Vercel bajo advertencia de no-mutación productiva.
+
+**Terminantemente Prohibido:**
+- ❌ Fusionar el Pull Request a `main`.
+- ❌ Desplegar a producción.
+- ❌ Modificar ventas, inventario o datos financieros reales.
+- ❌ Ejecutar migraciones en Supabase.
+
+**Aprobaciones:**
+- **Luis Romero:** AUTORIZADO para Fase B (26/10/2026).
+- **Kevin Servat:** Pendiente de revisión formal del Pull Request en GitHub.
+
+---
+
+### 7. Verificación de Seguridad: Aislamiento de la Preview de Vercel
+
+> [!WARNING]
+> **Advertencia de Seguridad sobre la Preview de Vercel**:  
+> Al desplegar la rama `feature/fase-02-sprint-02-mobile-ux`, Vercel genera un subdominio de Preview (`linkeo-ges-git-feature-...vercel.app`).  
+> Dado que el proyecto `linkeo-ges` en Vercel comparte las credenciales de Supabase central (`ntzkjkvgtytlobvbplov`), **un usuario autenticado en la Preview que realice ventas o movimientos de inventario escribiría sobre la base real**.  
+> **Protocolo Operativo de Prueba**: Kevin y Luis deben utilizar la Preview **únicamente en modo inspección visual y auditoría de UI**. Queda prohibido registrar compras, ventas o ajustes reales desde el entorno de Preview.
+
+---
+
+### 8. Diagnóstico de Permisos de Git para el Push
+
+Al verificar el acceso remoto contra `https://github.com/soylinkeo/LinkeoGes.git`:
+- La cuenta local activa en Windows Credential Manager es `LuisRomero20`.
+- GitHub rechazó el push directo con: `HTTP 403 Forbidden: Permission to soylinkeo/LinkeoGes.git denied to LuisRomero20`.
+- **Acción requerida**: Para completar el push de la rama, la organización `soylinkeo` debe invitar a `LuisRomero20` como colaborador con permisos de escritura (*Write*) en el repositorio, o proporcionar un Personal Access Token (PAT) de `soylinkeo` con permisos de `repo`.
+
+---
+
+### 9. Plan de Despliegue Futuro en 7 Pasos
 
 Cuando ambos socios autoricen formalmente el pase a producción:
 
