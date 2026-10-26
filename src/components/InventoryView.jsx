@@ -27,7 +27,9 @@ import {
   TrendingUp,
   Info,
   ArrowRight,
-  SlidersHorizontal
+  SlidersHorizontal,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
 
@@ -107,6 +109,32 @@ export default function InventoryView({
   // Filtros del Catálogo
   const [catalogCategory, setCatalogCategory] = useState('all');
   const [catalogSearch, setCatalogSearch] = useState('');
+
+  // Filtros y Vista del Stock Físico (Sprint 2 - Experiencia Móvil & PC)
+  const [stockSearch, setStockSearch] = useState('');
+  const [stockCategoryFilter, setStockCategoryFilter] = useState('all');
+  const [stockStatusFilter, setStockStatusFilter] = useState('all'); // 'all' | 'critical' | 'optimal' | 'surplus'
+  const [stockViewMode, setStockViewMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('linkeo_stock_view_mode');
+      if (saved === 'cards' || saved === 'table') return saved;
+      return window.innerWidth < 768 ? 'cards' : 'table';
+    }
+    return 'table';
+  });
+  const [stockUpdatingId, setStockUpdatingId] = useState(null);
+  const lastStockClickRef = useRef({});
+
+  const handleToggleStockViewMode = (mode) => {
+    setStockViewMode(mode);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('linkeo_stock_view_mode', mode);
+      } catch (e) {
+        // Ignorar errores de almacenamiento local
+      }
+    }
+  };
 
   // Modales
   const [isPackModalOpen, setIsPackModalOpen] = useState(false);
@@ -189,12 +217,82 @@ export default function InventoryView({
   };
 
   const handleStockClick = (item, delta) => {
+    if (!item) return;
+    const now = Date.now();
+    const lastClick = lastStockClickRef.current[item.id] || 0;
+    // Debounce de 300ms para evitar dobles toques accidentales en pantallas táctiles
+    if (now - lastClick < 300) return;
+    lastStockClickRef.current[item.id] = now;
+
+    setStockUpdatingId(item.id);
+    setTimeout(() => {
+      setStockUpdatingId(curr => (curr === item.id ? null : curr));
+    }, 400);
+
     if (onUpdateInventoryStock(item.id, delta) === false) return;
     const newQty = Math.max(0, (Number(item.quantity) || 0) + delta);
     if (showToast) {
       showToast(`Stock de "${item.name}": ${newQty} uds (${delta > 0 ? '+1' : '-1'})`, 'info', 1800);
     }
   };
+
+  // Clasificación de estado de stock para filtros y tarjetas
+  const getItemStockStatus = (item) => {
+    const qty = Number(item.quantity) || 0;
+    const min = Number(item.minThreshold) || 10;
+    if (qty <= min) return 'critical';
+    if (qty > min * 3 || qty >= 50) return 'surplus';
+    return 'optimal';
+  };
+
+  const stockCategories = useMemo(() => {
+    const set = new Set();
+    (inventory || []).forEach(item => {
+      if (item && item.category && item.category.trim()) {
+        set.add(item.category.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [inventory]);
+
+  const stockStatusCounts = useMemo(() => {
+    let critical = 0;
+    let optimal = 0;
+    let surplus = 0;
+    (inventory || []).forEach(item => {
+      const status = getItemStockStatus(item);
+      if (status === 'critical') critical++;
+      else if (status === 'surplus') surplus++;
+      else optimal++;
+    });
+    return { critical, optimal, surplus, total: (inventory || []).length };
+  }, [inventory]);
+
+  const filteredInventory = useMemo(() => {
+    return (inventory || []).filter(item => {
+      if (!item) return false;
+      // Buscador reactivo por nombre, SKU o proveedor
+      if (stockSearch.trim()) {
+        const q = stockSearch.toLowerCase().trim();
+        const matchName = (item.name || '').toLowerCase().includes(q);
+        const matchSku = (item.sku || '').toLowerCase().includes(q);
+        const matchSup = (item.supplier || '').toLowerCase().includes(q);
+        if (!matchName && !matchSku && !matchSup) return false;
+      }
+      // Filtro por categoría
+      if (stockCategoryFilter !== 'all') {
+        if ((item.category || '').toLowerCase().trim() !== stockCategoryFilter.toLowerCase().trim()) {
+          return false;
+        }
+      }
+      // Filtro por estado de stock
+      if (stockStatusFilter !== 'all') {
+        const status = getItemStockStatus(item);
+        if (status !== stockStatusFilter) return false;
+      }
+      return true;
+    });
+  }, [inventory, stockSearch, stockCategoryFilter, stockStatusFilter]);
 
   // -------------------------------------------------------------
   // PROVEEDORES CONSOLIDADOS
@@ -1625,187 +1723,601 @@ export default function InventoryView({
             </div>
           </div>
 
-          {/* Tabla de Detalle de Insumos */}
+          {/* Detalle de Insumos: Barra de Control, Búsqueda, Filtros y Vista Dual (Tarjetas Táctiles / Tabla) */}
           <div className="card">
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-              <h3 className="card-title" style={{ margin: 0 }}>
-                <Layers size={18} color="var(--primary-600)" />
-                <span>Detalle de Insumos, Materias Primas y Piezas Físicas</span>
-              </h3>
-              <button className="btn btn-primary btn-sm" onClick={handleOpenNewItemModal}>
-                <Plus size={14} />
-                <span>Agregar Insumo / SKU</span>
-              </button>
+              <div>
+                <h3 className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Layers size={18} color="var(--primary-600)" />
+                  <span>Detalle de Insumos, Materias Primas y Piezas Físicas</span>
+                </h3>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {filteredInventory.length} de {inventory.length} insumos listados
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                {/* Selector de modo de vista: Tarjetas vs Tabla */}
+                <div style={{ display: 'inline-flex', background: 'var(--bg-input)', padding: '2px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStockViewMode('cards')}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      borderRadius: 'var(--radius-sm)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: stockViewMode === 'cards' ? 'var(--primary-600)' : 'transparent',
+                      color: stockViewMode === 'cards' ? '#fff' : 'var(--text-muted)'
+                    }}
+                    title="Vista en tarjetas visuales táctiles (óptima para móviles)"
+                  >
+                    <LayoutGrid size={14} />
+                    <span>Tarjetas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStockViewMode('table')}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      borderRadius: 'var(--radius-sm)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: stockViewMode === 'table' ? 'var(--primary-600)' : 'transparent',
+                      color: stockViewMode === 'table' ? '#fff' : 'var(--text-muted)'
+                    }}
+                    title="Vista en tabla de datos (óptima para pantallas anchas)"
+                  >
+                    <List size={14} />
+                    <span>Tabla</span>
+                  </button>
+                </div>
+
+                <button className="btn btn-primary btn-sm" onClick={handleOpenNewItemModal} style={{ minHeight: '38px' }}>
+                  <Plus size={14} />
+                  <span>Agregar Insumo / SKU</span>
+                </button>
+              </div>
             </div>
 
-            <div className="table-responsive">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>SKU</th>
-                    <th>Nombre del Material</th>
-                    <th>Categoría</th>
-                    <th>Stock Actual</th>
-                    <th style={{ textAlign: 'right' }}>Costo Compra (S/)</th>
-                    <th style={{ textAlign: 'right' }}>Precio Venta (S/)</th>
-                    <th style={{ textAlign: 'right' }}>Margen / Ganancia</th>
-                    <th>Proveedor</th>
-                    <th>Días Envío</th>
-                    <th>Estado</th>
-                    <th style={{ textAlign: 'center' }}>Acciones & Catálogo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inventory.length === 0 ? (
-                    <tr>
-                      <td colSpan="11" style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
-                        No hay insumos registrados en el inventario. Pulsa "Agregar Insumo / SKU" para comenzar.
-                      </td>
-                    </tr>
-                  ) : (
-                    inventory.map(item => {
-                      const isLow = (Number(item.quantity) || 0) <= (Number(item.minThreshold) || 10);
+            {/* Barra de Filtros y Búsqueda Reactiva */}
+            <div style={{ padding: '14px 16px', background: 'rgba(255, 255, 255, 0.02)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {/* Buscador reactivo */}
+                <div style={{ position: 'relative', flex: '1 1 240px', minWidth: '200px' }}>
+                  <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Buscar por nombre, SKU o proveedor..."
+                    value={stockSearch}
+                    onChange={(e) => setStockSearch(e.target.value)}
+                    style={{ paddingLeft: '34px', paddingRight: stockSearch ? '32px' : '12px', height: '40px', fontSize: '16px' }}
+                  />
+                  {stockSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setStockSearch('')}
+                      style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                      title="Limpiar búsqueda"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtro por Categoría */}
+                {stockCategories.length > 0 && (
+                  <div style={{ flex: '0 0 auto', minWidth: '150px' }}>
+                    <select
+                      className="form-control"
+                      value={stockCategoryFilter}
+                      onChange={(e) => setStockCategoryFilter(e.target.value)}
+                      style={{ height: '40px', fontSize: '16px' }}
+                    >
+                      <option value="all">Todas las categorías ({inventory.length})</option>
+                      {stockCategories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Píldoras de Filtro por Estado de Stock */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)', marginRight: '4px' }}>Estado:</span>
+                <button
+                  type="button"
+                  onClick={() => setStockStatusFilter('all')}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    borderRadius: '20px',
+                    border: '1px solid',
+                    borderColor: stockStatusFilter === 'all' ? 'var(--primary-500)' : 'var(--border-subtle)',
+                    background: stockStatusFilter === 'all' ? 'rgba(0, 102, 255, 0.15)' : 'transparent',
+                    color: stockStatusFilter === 'all' ? 'var(--primary-400)' : 'var(--text-muted)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Todos ({stockStatusCounts.total})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockStatusFilter('critical')}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    borderRadius: '20px',
+                    border: '1px solid',
+                    borderColor: stockStatusFilter === 'critical' ? '#f59e0b' : 'var(--border-subtle)',
+                    background: stockStatusFilter === 'critical' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                    color: stockStatusFilter === 'critical' ? '#f59e0b' : 'var(--text-muted)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ⚠️ Crítico ({stockStatusCounts.critical})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockStatusFilter('optimal')}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    borderRadius: '20px',
+                    border: '1px solid',
+                    borderColor: stockStatusFilter === 'optimal' ? '#10b981' : 'var(--border-subtle)',
+                    background: stockStatusFilter === 'optimal' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                    color: stockStatusFilter === 'optimal' ? '#10b981' : 'var(--text-muted)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✓ Óptimo ({stockStatusCounts.optimal})
+                </button>
+                {stockStatusCounts.surplus > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStockStatusFilter('surplus')}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '0.74rem',
+                      fontWeight: 600,
+                      borderRadius: '20px',
+                      border: '1px solid',
+                      borderColor: stockStatusFilter === 'surplus' ? '#6366f1' : 'var(--border-subtle)',
+                      background: stockStatusFilter === 'surplus' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                      color: stockStatusFilter === 'surplus' ? '#a5b4fc' : 'var(--text-muted)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ⚡ Excedente ({stockStatusCounts.surplus})
+                  </button>
+                )}
+                {(stockSearch || stockCategoryFilter !== 'all' || stockStatusFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStockSearch('');
+                      setStockCategoryFilter('all');
+                      setStockStatusFilter('all');
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '0.72rem',
+                      borderRadius: '20px',
+                      border: 'none',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      color: '#ef4444',
+                      cursor: 'pointer',
+                      marginLeft: 'auto'
+                    }}
+                  >
+                    Restablecer filtros
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* VISTA 1: TARJETAS TÁCTILES VISUALES */}
+            {stockViewMode === 'cards' && (
+              <div style={{ padding: '16px' }}>
+                {filteredInventory.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                    <p style={{ margin: '0 0 10px 0', fontSize: '1rem', fontWeight: 600 }}>No se encontraron insumos con los filtros actuales.</p>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setStockSearch('');
+                        setStockCategoryFilter('all');
+                        setStockStatusFilter('all');
+                      }}
+                    >
+                      Limpiar filtros de búsqueda
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mobile-stock-cards">
+                    {filteredInventory.map(item => {
+                      const qty = Number(item.quantity) || 0;
+                      const minThreshold = Number(item.minThreshold) || 10;
+                      const isLow = qty <= minThreshold;
+                      const isOutOfStock = qty === 0;
                       const unitCost = Number(item.unitCost) || 0;
                       const retailPrice = getItemRetailPrice(item);
                       const unitProfit = Math.max(0, retailPrice - unitCost);
                       const unitMarginPct = retailPrice > 0 ? Number(((unitProfit / retailPrice) * 100).toFixed(1)) : 0;
+                      const totalVal = unitCost * qty;
+                      const isUpdating = stockUpdatingId === item.id;
+                      const isPublished = products.some(p => p.sku === item.sku || p.inventoryId === item.id || p.name?.toLowerCase() === item.name?.toLowerCase());
+
                       return (
-                        <tr key={item.id}>
-                          <td>
-                            <span 
-                              className="code-mono"
-                              style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}
-                              onClick={() => handleOpenEditItem(item)}
-                              title="Haz clic para editar este insumo"
-                            >
-                              {item.sku}
-                            </span>
-                          </td>
-                          <td>
-                            <strong 
-                              style={{ fontSize: '0.9rem', cursor: 'pointer', color: 'var(--text-main)' }}
-                              onClick={() => handleOpenEditItem(item)}
-                              title="Haz clic para editar este insumo"
-                            >
-                              {item.name}
-                            </strong>
-                            {item.notes && (
-                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                {item.notes}
-                              </div>
-                            )}
-                          </td>
-                          <td><span className="badge badge-blue">{item.category}</span></td>
-                          <td style={{ fontWeight: 800, fontSize: '1rem', color: isLow ? '#f59e0b' : 'var(--text-main)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span 
+                        <div 
+                          key={item.id} 
+                          className={`mobile-stock-card ${isOutOfStock ? 'out-of-stock' : isLow ? 'low-stock' : ''}`}
+                        >
+                          {/* Cabecera de la Tarjeta */}
+                          <div className="mobile-stock-card-header">
+                            <div>
+                              <div 
+                                className="mobile-stock-card-title"
                                 style={{ cursor: 'pointer' }}
                                 onClick={() => handleOpenEditItem(item)}
-                                title="Haz clic para editar el stock"
+                                title="Editar insumo"
                               >
-                                {item.quantity} uds
-                              </span>
-                              <div style={{ display: 'inline-flex', gap: '3px' }}>
-                                <button 
-                                  className="btn-icon" 
-                                  style={{ width: '22px', height: '22px' }}
-                                  onClick={() => handleStockClick(item, -1)}
-                                  title="Restar 1 unidad"
-                                >
-                                  <Minus size={11} />
-                                </button>
-                                <button 
-                                  className="btn-icon" 
-                                  style={{ width: '22px', height: '22px' }}
-                                  onClick={() => handleStockClick(item, 1)}
-                                  title="Sumar 1 unidad"
-                                >
-                                  <Plus size={11} />
-                                </button>
+                                {item.name}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                <span className="code-mono" style={{ fontSize: '0.72rem', color: 'var(--primary-400)' }}>{item.sku}</span>
+                                {item.category && <span className="badge badge-blue" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>{item.category}</span>}
                               </div>
                             </div>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: 700, color: '#f59e0b' }}>
-                              S/ {unitCost.toFixed(2)}
-                            </div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
-                              Costo Compra
-                            </div>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: 800, color: 'var(--primary-400)' }}>
-                              S/ {retailPrice.toFixed(2)}
-                            </div>
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
-                              PVP Venta
-                            </div>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: 800, color: '#10b981' }}>
-                              +S/ {unitProfit.toFixed(2)}
-                            </div>
-                            <div style={{ fontSize: '0.68rem', color: '#10b981' }}>
-                              ({unitMarginPct}%)
-                            </div>
-                          </td>
-                          <td>{item.supplier}</td>
-                          <td>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
-                              <Clock size={12} /> {item.leadTimeDays || 15} días
+                            <span className={`badge ${isOutOfStock ? 'badge-red' : isLow ? 'badge-yellow' : 'badge-green'}`} style={{ whiteSpace: 'nowrap' }}>
+                              {isOutOfStock ? '🚫 Sin Stock' : isLow ? `⚠️ Bajo (≤ ${minThreshold})` : '✓ Óptimo'}
                             </span>
-                          </td>
-                          <td>
-                            <span className={`badge ${isLow ? 'badge-yellow' : 'badge-green'}`}>
-                              {isLow ? '⚠️ Stock Bajo' : '✓ Óptimo'}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                              {products.some(p => p.sku === item.sku || p.inventoryId === item.id || p.name?.toLowerCase() === item.name?.toLowerCase()) ? (
+                          </div>
+
+                          {/* Caja de Stock Principal con Botones Táctiles Tareas Rápidas */}
+                          <div className="mobile-stock-qty-box">
+                            <div>
+                              <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: 'var(--text-subtle)', letterSpacing: '0.04em' }}>
+                                Stock Físico Disponible
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '2px' }}>
                                 <span 
-                                  className="badge badge-green" 
-                                  style={{ fontSize: '0.72rem', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                  title="Este insumo ya está activo y sincronizado en el Catálogo Comercial"
+                                  className="mobile-stock-qty-val"
+                                  style={{ 
+                                    color: isOutOfStock ? '#ef4444' : isLow ? '#f59e0b' : 'var(--text-main)',
+                                    transition: 'opacity 0.2s',
+                                    opacity: isUpdating ? 0.6 : 1
+                                  }}
                                 >
-                                  <Check size={12} /> En Catálogo
+                                  {qty}
                                 </span>
-                              ) : (
-                                <button 
-                                  className="btn btn-secondary btn-sm"
-                                  style={{ padding: '3px 8px', fontSize: '0.72rem', gap: '4px' }}
-                                  onClick={() => handlePublishInventoryToCatalog(item)}
-                                  title="Publicar este insumo como producto oficial en el Catálogo Comercial"
-                                >
-                                  <ShoppingBag size={12} />
-                                  <span>Publicar en Catálogo</span>
-                                </button>
-                              )}
-                              <button 
-                                className="btn-icon" 
-                                style={{ width: '26px', height: '26px', color: 'var(--primary-400)' }}
-                                onClick={() => handleOpenEditItem(item)}
-                                title="Editar insumo / producto de inventario"
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>unidades</span>
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
+                                Umbral mín: <strong>{minThreshold} uds</strong>
+                              </div>
+                            </div>
+
+                            {/* Botones táctiles grandes >=44px de ajuste rápido */}
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary mobile-quick-btn"
+                                style={{
+                                  width: '46px',
+                                  height: '46px',
+                                  padding: 0,
+                                  borderRadius: 'var(--radius-md)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  border: '1px solid var(--border-color)',
+                                  background: 'var(--bg-card)'
+                                }}
+                                onClick={() => handleStockClick(item, -1)}
+                                title="Restar 1 unidad"
+                                aria-label={`Restar 1 unidad a ${item.name}`}
                               >
-                                <Edit size={13} />
+                                <Minus size={18} />
                               </button>
-                              <button 
-                                className="btn-icon" 
-                                style={{ width: '26px', height: '26px', color: '#ef4444' }}
-                                onClick={() => onRequestDelete && onRequestDelete(item, 'Insumo')}
-                                title="Eliminar insumo (Auditoría)"
+                              <button
+                                type="button"
+                                className="btn btn-primary mobile-quick-btn"
+                                style={{
+                                  width: '46px',
+                                  height: '46px',
+                                  padding: 0,
+                                  borderRadius: 'var(--radius-md)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                                onClick={() => handleStockClick(item, 1)}
+                                title="Sumar 1 unidad"
+                                aria-label={`Sumar 1 unidad a ${item.name}`}
                               >
-                                <Trash2 size={12} />
+                                <Plus size={18} />
                               </button>
                             </div>
-                          </td>
-                        </tr>
+                          </div>
+
+                          {/* Cuadrícula de Métricas Financieras y Unit Economics */}
+                          <div className="mobile-stock-metrics-grid">
+                            <div className="mobile-metric-item">
+                              <span className="mobile-metric-label">Costo Compra</span>
+                              <span className="mobile-metric-val" style={{ color: '#f59e0b' }}>
+                                S/ {unitCost.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="mobile-metric-item">
+                              <span className="mobile-metric-label">PVP Venta</span>
+                              <span className="mobile-metric-val" style={{ color: 'var(--primary-400)' }}>
+                                S/ {retailPrice.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="mobile-metric-item">
+                              <span className="mobile-metric-label">Margen Unitario</span>
+                              <span className="mobile-metric-val" style={{ color: '#10b981' }}>
+                                +S/ {unitProfit.toFixed(2)} ({unitMarginPct}%)
+                              </span>
+                            </div>
+                            <div className="mobile-metric-item">
+                              <span className="mobile-metric-label">Valor Total en Stock</span>
+                              <span className="mobile-metric-val" style={{ color: 'var(--text-main)' }}>
+                                S/ {totalVal.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Proveedor y Logística */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Truck size={13} color="var(--primary-400)" />
+                              <span>{item.supplier || 'Proveedor estándar'}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Clock size={12} />
+                              <span>{item.leadTimeDays || 15} días entrega</span>
+                            </div>
+                          </div>
+
+                          {/* Acciones de la Tarjeta */}
+                          <div className="mobile-stock-card-actions">
+                            {isPublished ? (
+                              <span 
+                                className="badge badge-green" 
+                                style={{ fontSize: '0.72rem', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', marginRight: 'auto' }}
+                                title="Sincronizado en el Catálogo Comercial"
+                              >
+                                <Check size={12} /> En Catálogo
+                              </span>
+                            ) : (
+                              <button 
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '4px 10px', fontSize: '0.75rem', gap: '4px', marginRight: 'auto' }}
+                                onClick={() => handlePublishInventoryToCatalog(item)}
+                                title="Publicar este insumo como producto en el Catálogo"
+                              >
+                                <ShoppingBag size={12} />
+                                <span>Publicar en Catálogo</span>
+                              </button>
+                            )}
+
+                            <button 
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '4px 10px', fontSize: '0.75rem', gap: '4px' }}
+                              onClick={() => handleOpenEditItem(item)}
+                              title="Editar este insumo"
+                            >
+                              <Edit size={12} />
+                              <span>Editar</span>
+                            </button>
+                            <button 
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '4px 8px', fontSize: '0.75rem', color: '#ef4444' }}
+                              onClick={() => onRequestDelete && onRequestDelete(item, 'Insumo')}
+                              title="Eliminar insumo de inventario"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
                       );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* VISTA 2: TABLA COMPLETA DE ESCRITORIO */}
+            {stockViewMode === 'table' && (
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Nombre del Material</th>
+                      <th>Categoría</th>
+                      <th>Stock Actual</th>
+                      <th style={{ textAlign: 'right' }}>Costo Compra (S/)</th>
+                      <th style={{ textAlign: 'right' }}>Precio Venta (S/)</th>
+                      <th style={{ textAlign: 'right' }}>Margen / Ganancia</th>
+                      <th>Proveedor</th>
+                      <th>Días Envío</th>
+                      <th>Estado</th>
+                      <th style={{ textAlign: 'center' }}>Acciones & Catálogo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredInventory.length === 0 ? (
+                      <tr>
+                        <td colSpan="11" style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)' }}>
+                          {inventory.length === 0 
+                            ? 'No hay insumos registrados en el inventario. Pulsa "Agregar Insumo / SKU" para comenzar.'
+                            : 'No se encontraron insumos con los filtros de búsqueda aplicados.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredInventory.map(item => {
+                        const isLow = (Number(item.quantity) || 0) <= (Number(item.minThreshold) || 10);
+                        const unitCost = Number(item.unitCost) || 0;
+                        const retailPrice = getItemRetailPrice(item);
+                        const unitProfit = Math.max(0, retailPrice - unitCost);
+                        const unitMarginPct = retailPrice > 0 ? Number(((unitProfit / retailPrice) * 100).toFixed(1)) : 0;
+                        return (
+                          <tr key={item.id}>
+                            <td>
+                              <span 
+                                className="code-mono"
+                                style={{ cursor: 'pointer', textDecoration: 'underline dotted' }}
+                                onClick={() => handleOpenEditItem(item)}
+                                title="Haz clic para editar este insumo"
+                              >
+                                {item.sku}
+                              </span>
+                            </td>
+                            <td>
+                              <strong 
+                                style={{ fontSize: '0.9rem', cursor: 'pointer', color: 'var(--text-main)' }}
+                                onClick={() => handleOpenEditItem(item)}
+                                title="Haz clic para editar este insumo"
+                              >
+                                {item.name}
+                              </strong>
+                              {item.notes && (
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  {item.notes}
+                                </div>
+                              )}
+                            </td>
+                            <td><span className="badge badge-blue">{item.category}</span></td>
+                            <td style={{ fontWeight: 800, fontSize: '1rem', color: isLow ? '#f59e0b' : 'var(--text-main)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span 
+                                  style={{ cursor: 'pointer' }}
+                                  onClick={() => handleOpenEditItem(item)}
+                                  title="Haz clic para editar el stock"
+                                >
+                                  {item.quantity} uds
+                                </span>
+                                <div style={{ display: 'inline-flex', gap: '3px' }}>
+                                  <button 
+                                    className="btn-icon" 
+                                    style={{ width: '26px', height: '26px' }}
+                                    onClick={() => handleStockClick(item, -1)}
+                                    title="Restar 1 unidad"
+                                  >
+                                    <Minus size={13} />
+                                  </button>
+                                  <button 
+                                    className="btn-icon" 
+                                    style={{ width: '26px', height: '26px' }}
+                                    onClick={() => handleStockClick(item, 1)}
+                                    title="Sumar 1 unidad"
+                                  >
+                                    <Plus size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ fontWeight: 700, color: '#f59e0b' }}>
+                                S/ {unitCost.toFixed(2)}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
+                                Costo Compra
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ fontWeight: 800, color: 'var(--primary-400)' }}>
+                                S/ {retailPrice.toFixed(2)}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: 'var(--text-subtle)' }}>
+                                PVP Venta
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ fontWeight: 800, color: '#10b981' }}>
+                                +S/ {unitProfit.toFixed(2)}
+                              </div>
+                              <div style={{ fontSize: '0.68rem', color: '#10b981' }}>
+                                ({unitMarginPct}%)
+                              </div>
+                            </td>
+                            <td>{item.supplier}</td>
+                            <td>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}>
+                                <Clock size={12} /> {item.leadTimeDays || 15} días
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`badge ${isLow ? 'badge-yellow' : 'badge-green'}`}>
+                                {isLow ? '⚠️ Stock Bajo' : '✓ Óptimo'}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                {products.some(p => p.sku === item.sku || p.inventoryId === item.id || p.name?.toLowerCase() === item.name?.toLowerCase()) ? (
+                                  <span 
+                                    className="badge badge-green" 
+                                    style={{ fontSize: '0.72rem', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    title="Este insumo ya está activo y sincronizado en el Catálogo Comercial"
+                                  >
+                                    <Check size={12} /> En Catálogo
+                                  </span>
+                                ) : (
+                                  <button 
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ padding: '3px 8px', fontSize: '0.72rem', gap: '4px' }}
+                                    onClick={() => handlePublishInventoryToCatalog(item)}
+                                    title="Publicar este insumo como producto oficial en el Catálogo Comercial"
+                                  >
+                                    <ShoppingBag size={12} />
+                                    <span>Publicar en Catálogo</span>
+                                  </button>
+                                )}
+                                <button 
+                                  className="btn-icon" 
+                                  style={{ width: '26px', height: '26px', color: 'var(--primary-400)' }}
+                                  onClick={() => handleOpenEditItem(item)}
+                                  title="Editar insumo / producto de inventario"
+                                >
+                                  <Edit size={13} />
+                                </button>
+                                <button 
+                                  className="btn-icon" 
+                                  style={{ width: '26px', height: '26px', color: '#ef4444' }}
+                                  onClick={() => onRequestDelete && onRequestDelete(item, 'Insumo')}
+                                  title="Eliminar insumo (Auditoría)"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

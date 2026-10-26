@@ -6,9 +6,29 @@ import {
   Compass, 
   Trash2, 
   Shuffle, 
-  RefreshCw 
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
+
+const CARDS_PREVIEW_ROUTES = {
+  'SKU-LNK-9972': 'https://linkeocards.com/productos/display.html',
+  'SKU-LNK-6781': 'https://linkeocards.com/productos/horizontal.html',
+  'SKU-LNK-4951': 'https://linkeocards.com/productos/vertical.html',
+  'SKU-LNK-IDENT': 'https://linkeocards.com/productos/identificable.html',
+  'SKU-PACK-DUO-PREMIUM': 'https://linkeocards.com/packs/duo.html',
+  'SKU-PACK-NEGOCIO': 'https://linkeocards.com/packs/negocio.html',
+  'SKU-PACK-EMPRENDEDOR': 'https://linkeocards.com/packs/emprendedor.html',
+  'SKU-PACK-FULL': 'https://linkeocards.com/packs/full.html',
+};
+
+function getCardsPreviewUrl(prod) {
+  if (prod.web?.slug) {
+    const isPack = prod.category === 'Pack' || prod.type === 'pack';
+    return `https://linkeocards.com/${isPack ? 'packs' : 'productos'}/${prod.web.slug}.html`;
+  }
+  return CARDS_PREVIEW_ROUTES[prod.sku] || null;
+}
 
 export default function ProductsCatalogView({
   products = [],
@@ -243,13 +263,40 @@ export default function ProductsCatalogView({
                 </p>
               </div>
 
-              <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
                   Catálogo Activo en Lima
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--primary-600)', fontWeight: 600 }}>
-                  ✓ Google Reviews Ready
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {getCardsPreviewUrl(prod) && (
+                    <a
+                      href={getCardsPreviewUrl(prod)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Ver vista previa en la tienda pública LINKEO Cards"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 8px',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        color: 'var(--primary-600)',
+                        backgroundColor: 'rgba(0, 102, 255, 0.08)',
+                        border: '1px solid rgba(0, 102, 255, 0.2)',
+                        textDecoration: 'none',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <ExternalLink size={12} />
+                      <span>Ver en Cards</span>
+                    </a>
+                  )}
+                  <span style={{ fontSize: '0.75rem', color: 'var(--primary-600)', fontWeight: 600 }}>
+                    ✓ Google Reviews Ready
+                  </span>
+                </div>
               </div>
             </div>
           ))}

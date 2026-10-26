@@ -25,7 +25,12 @@ import {
   ArrowRight,
   HelpCircle,
   CheckCircle,
-  PieChart
+  PieChart,
+  ChevronDown,
+  ChevronUp,
+  Minus,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { generateRandomSku } from '../utils/skuUtils';
 import { 
@@ -93,6 +98,26 @@ export default function ProjectionsView({
   showToast
 }) {
   const [activeSubTab, setActiveSubTab] = useState('goals'); // 'goals', 'products', 'costs', 'funnel', 'plan30'
+  const [showWaterfall, setShowWaterfall] = useState(() => typeof window !== 'undefined' ? window.innerWidth > 768 : true);
+  const [productViewMode, setProductViewMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('linkeo_proj_view_mode');
+      if (saved === 'cards' || saved === 'table') return saved;
+      return window.innerWidth < 768 ? 'cards' : 'table';
+    }
+    return 'table';
+  });
+
+  const handleToggleProductViewMode = (mode) => {
+    setProductViewMode(mode);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('linkeo_proj_view_mode', mode);
+      } catch (e) {
+        // Ignorar error de localStorage
+      }
+    }
+  };
 
   // Modales de Creación y Edición
   const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
@@ -2432,12 +2457,26 @@ export default function ProjectionsView({
           {/* CASCADA DE REPOSICIÓN Y DISTRIBUCIÓN FINANCIERA (7 PASOS TRANSPARENTES)     */}
           {/* ========================================================================= */}
           <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
-            <h4 style={{ fontSize: '1.05rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 16px 0' }}>
-              <TrendingUp size={18} color="var(--primary-600)" />
-              <span>Cascada Financiera: De la Venta al Bolsillo de los Socios</span>
-            </h4>
+            <div 
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: showWaterfall ? '16px' : 0 }}
+              onClick={() => setShowWaterfall(prev => !prev)}
+              title="Haz clic para colapsar o expandir la cascada financiera"
+            >
+              <h4 style={{ fontSize: '1.05rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <TrendingUp size={18} color="var(--primary-600)" />
+                <span>Cascada Financiera: De la Venta al Bolsillo de los Socios</span>
+              </h4>
+              <button 
+                type="button" 
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
+              >
+                <span>{showWaterfall ? 'Colapsar' : 'Ver desglose'}</span>
+                {showWaterfall ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+            </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {showWaterfall && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {/* Paso 1: Venta Bruta */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2534,6 +2573,7 @@ export default function ProjectionsView({
                 </div>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -2553,7 +2593,53 @@ export default function ProjectionsView({
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              {/* Selector de modo de vista: Tarjetas vs Tabla */}
+              <div style={{ display: 'inline-flex', background: 'var(--bg-input)', padding: '2px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <button
+                  type="button"
+                  onClick={() => handleToggleProductViewMode('cards')}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    borderRadius: 'var(--radius-sm)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: productViewMode === 'cards' ? 'var(--primary-600)' : 'transparent',
+                    color: productViewMode === 'cards' ? '#fff' : 'var(--text-muted)'
+                  }}
+                  title="Vista en tarjetas táctiles (óptima para móviles)"
+                >
+                  <LayoutGrid size={14} />
+                  <span>Tarjetas</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleProductViewMode('table')}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    borderRadius: 'var(--radius-sm)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: productViewMode === 'table' ? 'var(--primary-600)' : 'transparent',
+                    color: productViewMode === 'table' ? '#fff' : 'var(--text-muted)'
+                  }}
+                  title="Vista en tabla de datos (óptima para PC)"
+                >
+                  <List size={14} />
+                  <span>Tabla</span>
+                </button>
+              </div>
+
               <button 
                 className="btn btn-secondary"
                 onClick={() => setIsImportProductModalOpen(true)}
@@ -2593,6 +2679,200 @@ export default function ProjectionsView({
                   <Boxes size={16} />
                   <span>Importar del Almacén</span>
                 </button>
+              </div>
+            </div>
+          ) : productViewMode === 'cards' ? (
+            <div>
+              <div className="mobile-projected-cards">
+                {projectedProducts.map((prod) => {
+                  const isActive = prod.included !== false;
+                  const price = Number(prod.price) || 0;
+                  const baseCost = Number(prod.baseCost) || 0;
+                  const paymentFee = price * (totalVariablePercent / 100);
+                  const totalUnitVarCost = baseCost + commonVariablePerUnit + paymentFee;
+                  const prodUnits = isActive ? (Number(prod.targetUnits !== undefined ? prod.targetUnits : 0) || 0) : 0;
+                  const prodRevenue = prodUnits * price;
+                  const prodReplacement = prodUnits * baseCost;
+                  const prodTotalVarCost = prodUnits * totalUnitVarCost;
+                  const prodMargin = prodRevenue - prodTotalVarCost;
+                  const marginPct = price > 0 ? ((price - totalUnitVarCost) / price) * 100 : 0;
+
+                  const invInfo = getProductInventoryInfo(prod, inventory, products);
+                  const realStock = invInfo.stock;
+
+                  return (
+                    <div 
+                      key={prod.id} 
+                      className={`mobile-projected-card ${!isActive ? 'inactive' : ''}`}
+                    >
+                      {/* Cabecera de la Tarjeta */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                          <input
+                            type="checkbox"
+                            checked={isActive}
+                            onChange={() => handleToggleProductInclusion(prod.id)}
+                            title="Incluir / Excluir de la proyección"
+                            style={{ width: '22px', height: '22px', accentColor: 'var(--primary-600)', marginTop: '2px', cursor: 'pointer' }}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--text-main)', lineHeight: 1.25 }}>
+                              {prod.name}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                              <span className="code-mono" style={{ fontSize: '0.72rem', color: 'var(--primary-400)' }}>{prod.sku}</span>
+                              <span className={`badge ${prod.isCustom ? 'badge-purple' : 'badge-blue'}`} style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                                {prod.isCustom ? '✨ Proyectado' : '📦 Oficial'}
+                              </span>
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                                Mix: <strong>{prod.mixPercent}%</strong>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <span className={`badge ${isActive ? 'badge-green' : 'badge-yellow'}`} style={{ fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
+                          {isActive ? '✓ Incluido' : 'Pausado'}
+                        </span>
+                      </div>
+
+                      {/* Stock Real en Almacén */}
+                      {realStock !== null && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255, 255, 255, 0.03)', padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', fontSize: '0.78rem' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Stock físico actual en almacén:</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className={`badge ${realStock > 0 ? 'badge-green' : 'badge-yellow'}`} style={{ fontWeight: 800 }}>
+                              {realStock} uds
+                            </span>
+                            {isActive && prod.targetUnits !== realStock && realStock > 0 && (
+                              <button
+                                type="button"
+                                className="btn btn-xs btn-secondary"
+                                onClick={() => handleUpdateProductUnits(prod.id, realStock)}
+                                style={{ fontSize: '0.68rem', padding: '2px 8px' }}
+                                title="Alinear meta con el stock real disponible"
+                              >
+                                ↑ Usar {realStock} uds
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Control de Unidades a Vender (Meta) */}
+                      <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: 'var(--text-subtle)', letterSpacing: '0.04em' }}>
+                            Meta Unidades a Vender
+                          </div>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 900, color: 'var(--primary-400)', marginTop: '2px' }}>
+                            {prodUnits} <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>uds</span>
+                          </div>
+                        </div>
+
+                        {isActive ? (
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary mobile-quick-btn"
+                              style={{ width: '44px', height: '44px', padding: 0, borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => handleUpdateProductUnits(prod.id, Math.max(0, (Number(prod.targetUnits) || 0) - 1))}
+                              title="Restar 1 unidad"
+                              aria-label={`Restar 1 unidad a ${prod.name}`}
+                            >
+                              <Minus size={18} />
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              max="10000"
+                              className="form-control"
+                              value={prod.targetUnits !== undefined ? prod.targetUnits : 0}
+                              onChange={(e) => handleUpdateProductUnits(prod.id, e.target.value)}
+                              style={{ width: '64px', height: '44px', textAlign: 'center', fontWeight: 800, fontSize: '16px', padding: '4px' }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-primary mobile-quick-btn"
+                              style={{ width: '44px', height: '44px', padding: 0, borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              onClick={() => handleUpdateProductUnits(prod.id, (Number(prod.targetUnits) || 0) + 1)}
+                              title="Sumar 1 unidad"
+                              aria-label={`Sumar 1 unidad a ${prod.name}`}
+                            >
+                              <Plus size={18} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Excluido del cálculo</span>
+                        )}
+                      </div>
+
+                      {/* Grilla de Métricas Financieras */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', background: 'var(--bg-input)', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-subtle)', textTransform: 'uppercase' }}>Precio Venta</span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>S/ {price.toFixed(2)}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-subtle)', textTransform: 'uppercase' }}>Ingresos Brutos</span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#10b981' }}>S/ {prodRevenue.toFixed(2)}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-subtle)', textTransform: 'uppercase' }}>Fdo. Reposición</span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#ef4444' }}>-S/ {prodReplacement.toFixed(0)} (S/ {baseCost.toFixed(2)}/u)</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-subtle)', textTransform: 'uppercase' }}>Margen Estimado</span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: prodMargin > 0 ? '#10b981' : '#ef4444' }}>
+                            S/ {prodMargin.toFixed(2)} ({marginPct.toFixed(1)}%)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Acciones */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-subtle)' }}>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleOpenEditProduct(prod)}
+                          style={{ padding: '4px 10px', fontSize: '0.75rem', gap: '4px' }}
+                        >
+                          <Edit3 size={12} />
+                          <span>Editar</span>
+                        </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ color: '#ef4444', padding: '4px 8px', fontSize: '0.75rem' }}
+                          onClick={() => handleDeleteProjectedProduct(prod)}
+                          title="Eliminar producto"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Resumen Móvil del Mix de Productos */}
+              <div className="card" style={{ padding: '16px', marginTop: '14px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(16, 185, 129, 0.06))' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', textTransform: 'uppercase' }}>Total Unidades</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--primary-400)' }}>{simulationResults.units} uds</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', textTransform: 'uppercase' }}>Venta Bruta</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#10b981' }}>S/ {simulationResults.grossRevenue.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', textTransform: 'uppercase' }}>Margen Total</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#8b5cf6' }}>S/ {simulationResults.totalMargin.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', textTransform: 'uppercase' }}>Socio (50/50)</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#10b981' }}>S/ {simulationResults.profitPerPartner.toFixed(2)} c/u</div>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
@@ -2717,10 +2997,18 @@ export default function ProjectionsView({
                         <div style={{ fontSize: '0.62rem', color: 'var(--text-subtle)' }}>.{(price % 1).toFixed(2).slice(2)}</div>
                       </td>
 
-                      {/* Unidades */}
+                      {/* Unidades con controles +/- táctiles */}
                       <td style={{ padding: '5px 6px', textAlign: 'center', background: isActive ? 'rgba(99,102,241,0.05)' : 'transparent' }}>
                         {isActive ? (
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateProductUnits(prod.id, Math.max(0, (Number(prod.targetUnits) || 0) - 1))}
+                              style={{ width: '22px', height: '22px', padding: 0, borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
+                              title="Restar 1 unidad"
+                            >
+                              -
+                            </button>
                             <input
                               type="number"
                               min="0"
@@ -2740,6 +3028,14 @@ export default function ProjectionsView({
                                 outline: 'none',
                               }}
                             />
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateProductUnits(prod.id, (Number(prod.targetUnits) || 0) + 1)}
+                              style={{ width: '22px', height: '22px', padding: 0, borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
+                              title="Sumar 1 unidad"
+                            >
+                              +
+                            </button>
                             <span style={{ fontSize: '0.64rem', color: 'var(--text-subtle)' }}>u</span>
                           </div>
                         ) : (

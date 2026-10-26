@@ -1,4 +1,5 @@
 import { mappers } from './mappers.js';
+import { generateUuid } from '../utils/uuid.js';
 
 export const collections = {
   sales: ['sales', 'sale'], expenses: ['expenses', 'expense'],
@@ -33,7 +34,7 @@ export function buildOperations(before, after) {
     }
     for (const row of before[key]) if (!newRows.has(row.id)) operations.push({ table, kind: 'delete', id: row.id });
   }
-  for (const name of after.districts) if (!before.districts.includes(name)) operations.push({ table: 'districts', kind: 'insert', id: crypto.randomUUID(), data: { name } });
+  for (const name of after.districts) if (!before.districts.includes(name)) operations.push({ table: 'districts', kind: 'insert', id: generateUuid(), data: { name } });
   for (const name of before.districts) if (!after.districts.includes(name)) operations.push({ table: 'districts', kind: 'delete', name });
   for (const key of settings) if (!equal(before[key], after[key])) operations.push({ table: 'app_settings', kind: 'upsert', id: key, data: { value: after[key] } });
   return operations;

@@ -3,6 +3,8 @@ import { supabase } from '../services/supabase';
 import { decodeSnapshot, buildOperations } from '../services/syncModel.js';
 import { SyncEngine } from '../services/syncEngine.js';
 import { PARTNERS, INITIAL_PROJECT_PHASES, INITIAL_PROJECTIONS_DATA } from '../data/initialData.js';
+import { generateUuid } from '../utils/uuid.js';
+import { assertMutationAllowed } from '../services/environmentGuard.js';
 
 const initial = {
   partnersState: PARTNERS, sales: [], expenses: [], leads: [], nfcCards: [], inventory: [], suppliers: [],
@@ -31,6 +33,7 @@ export function useCloudData(user) {
         return decodeSnapshot(data, initial);
       },
       async commit(request) {
+        assertMutationAllowed('El guardado de cambios en la nube');
         const operations = buildOperations(request.before, request.after);
         const { data, error } = await supabase.rpc('linkeoges_commit', {
           expected_revision: request.revision, request_id: request.requestId, operations,
@@ -46,7 +49,7 @@ export function useCloudData(user) {
     if (!user || !supabase) return;
     engine.disposed = false;
     engine.refresh();
-    const channel = supabase.channel(`linkeoges-${user.authId}-${crypto.randomUUID()}`)
+    const channel = supabase.channel(`linkeoges-${user.authId}-${generateUuid()}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_sync' }, () => engine.refresh())
       .subscribe(status => { if (status === 'SUBSCRIBED') engine.refresh(); });
     const refresh = () => { if (document.visibilityState === 'visible') engine.refresh(); };

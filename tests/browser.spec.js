@@ -40,7 +40,7 @@ test('two browser sessions share a lead, preserve its fields and report a failed
       await page.getByRole('button',{name:/Kevin Servat/}).click();
       await page.getByPlaceholder('Ingresa tu contraseña').fill('test-password-not-real');
       await page.getByRole('button',{name:/Ingresar|Acceder|Iniciar/i}).click();
-      await expect(page.getByText('Cambios guardados',{exact:true})).toBeVisible();
+      await expect(page.getByText(/Guardado en servidor|Cambios guardados/)).toBeVisible();
       return page;
     };
     const a=await createPage(), b=await createPage();
@@ -50,9 +50,9 @@ test('two browser sessions share a lead, preserve its fields and report a failed
     await a.getByPlaceholder('Gerencia / Nombre de Contacto').fill('Contacto Persistente');
     await a.getByPlaceholder('Detalles de la conversación, objeciones, horarios preferidos...').fill('Seguimiento desde PC1');
     await a.getByRole('button',{name:'Crear Prospecto',exact:true}).click();
-    await expect(a.getByText('Cambios guardados',{exact:true})).toBeVisible();
+    await expect(a.getByText(/Guardado en servidor|Cambios guardados/)).toBeVisible();
     await b.reload();
-    await expect(b.getByText('Cambios guardados',{exact:true})).toBeVisible();
+    await expect(b.getByText(/Guardado en servidor|Cambios guardados/)).toBeVisible();
     await b.getByRole('button',{name:/Pipeline B2B/}).click();
     await expect(b.getByText('Cliente Compartido',{exact:true})).toBeVisible();
     const row=(await db.query("select payload from public.leads where business_name='Cliente Compartido'")).rows[0].payload;
@@ -66,7 +66,7 @@ test('two browser sessions share a lead, preserve its fields and report a failed
     expect((await db.query('select count(*)::int as n from public.leads')).rows[0].n).toBe(1);
     failCommit=false;
     await b.getByRole('button',{name:'Reintentar',exact:true}).click();
-    await expect(b.getByText('Cambios guardados',{exact:true})).toBeVisible();
+    await expect(b.getByText(/Guardado en servidor|Cambios guardados/)).toBeVisible();
     expect((await db.query('select count(*)::int as n from public.leads')).rows[0].n).toBe(2);
   } finally {for(const context of contexts) await context.close();await db.close();}
 });
