@@ -1,4 +1,5 @@
 import { equal } from './syncModel.js';
+import { generateUuid } from '../utils/uuid.js';
 
 // One authoritative snapshot; remote reads never produce writes. Requests are
 // idempotent and use a revision to reject edits based on outdated information.
@@ -49,7 +50,7 @@ export class SyncEngine {
     // Keep precisely this request on transport errors, including its idempotency key.
     const request = this.request ||= {
       before: this.confirmed, after: this.view.data,
-      revision: this.view.revision, requestId: crypto.randomUUID(),
+      revision: this.view.revision, requestId: generateUuid(),
     };
     this.emit({ status: 'saving', error: '' });
     try {

@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { decodeSnapshot, buildOperations } from '../services/syncModel.js';
 import { SyncEngine } from '../services/syncEngine.js';
 import { PARTNERS, INITIAL_PROJECT_PHASES, INITIAL_PROJECTIONS_DATA } from '../data/initialData.js';
+import { generateUuid } from '../utils/uuid.js';
 
 const initial = {
   partnersState: PARTNERS, sales: [], expenses: [], leads: [], nfcCards: [], inventory: [], suppliers: [],
@@ -46,7 +47,7 @@ export function useCloudData(user) {
     if (!user || !supabase) return;
     engine.disposed = false;
     engine.refresh();
-    const channel = supabase.channel(`linkeoges-${user.authId}-${crypto.randomUUID()}`)
+    const channel = supabase.channel(`linkeoges-${user.authId}-${generateUuid()}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_sync' }, () => engine.refresh())
       .subscribe(status => { if (status === 'SUBSCRIBED') engine.refresh(); });
     const refresh = () => { if (document.visibilityState === 'visible') engine.refresh(); };

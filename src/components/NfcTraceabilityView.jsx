@@ -1,4 +1,5 @@
 import { localDate } from '../utils/dateUtils.js';
+import { generateUuid } from '../utils/uuid.js';
 import { 
   buildCardRedirectUrl, 
   cleanGooglePlaceId, 
@@ -348,7 +349,7 @@ export default function NfcTraceabilityView({
 
   const handleCreateNewCard = (e) => {
     e.preventDefault();
-    const newId = `LNK-${crypto.randomUUID()}`;
+    const newId = `LNK-${generateUuid()}`;
 
     let finalReviewUrl = newCardForm.reviewUrl.trim();
     let finalPlaceId = cleanGooglePlaceId(newCardForm.placeId.trim());

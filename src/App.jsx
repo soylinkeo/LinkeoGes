@@ -34,6 +34,7 @@ import { localDate } from './utils/dateUtils';
 import { parseDynamicCardRoute, areLeadAndCardLinked, buildGoogleReviewUrl } from './utils/dynamicRouter.js';
 import SyncStatus, { downloadJson } from './components/SyncStatus';
 import MobileBottomNav from './components/MobileBottomNav';
+import { generateUuid } from './utils/uuid.js';
 export default function App() {
   // Tema (Dark por defecto para look tech profesional)
   const [theme, setTheme] = useState(() => {
@@ -1341,7 +1342,7 @@ export default function App() {
   };
   const handleAddNewProduct = newProd => {
     const existing = inventory.find(i => i.id === newProd.inventoryId || i.sku === newProd.sku);
-    const inventoryId = existing?.id || crypto.randomUUID();
+    const inventoryId = existing?.id || generateUuid();
     if (!existing && !newProd.bundleItems?.length) setInventory(prev => [...prev, {
       id: inventoryId, sku: newProd.sku, name: newProd.name, category: newProd.category,
       quantity: Number(newProd.stock ?? 0), minThreshold: 5, unitCost: Number(newProd.cost), leadTimeDays: 7
