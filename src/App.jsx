@@ -35,6 +35,7 @@ import { parseDynamicCardRoute, areLeadAndCardLinked, buildGoogleReviewUrl } fro
 import SyncStatus, { downloadJson } from './components/SyncStatus';
 import MobileBottomNav from './components/MobileBottomNav';
 import { generateUuid } from './utils/uuid.js';
+import { isPreviewEnvironment } from './services/environmentGuard.js';
 export default function App() {
   // Tema (Dark por defecto para look tech profesional)
   const [theme, setTheme] = useState(() => {
@@ -998,8 +999,8 @@ export default function App() {
       localStorage.setItem(localKey, JSON.stringify(updatedLocal));
     } catch (e) {}
 
-    // Persistencia en Supabase
-    if (supabase) {
+    // Persistencia en Supabase (bloqueada en entornos de Preview)
+    if (supabase && !isPreviewEnvironment()) {
       supabase.from('nfc_cards').select('read_count, bips_nfc, bips_qr').eq('id', cardId).maybeSingle()
         .then(({ data }) => {
           if (data) {

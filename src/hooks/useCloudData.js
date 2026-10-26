@@ -4,6 +4,7 @@ import { decodeSnapshot, buildOperations } from '../services/syncModel.js';
 import { SyncEngine } from '../services/syncEngine.js';
 import { PARTNERS, INITIAL_PROJECT_PHASES, INITIAL_PROJECTIONS_DATA } from '../data/initialData.js';
 import { generateUuid } from '../utils/uuid.js';
+import { assertMutationAllowed } from '../services/environmentGuard.js';
 
 const initial = {
   partnersState: PARTNERS, sales: [], expenses: [], leads: [], nfcCards: [], inventory: [], suppliers: [],
@@ -32,6 +33,7 @@ export function useCloudData(user) {
         return decodeSnapshot(data, initial);
       },
       async commit(request) {
+        assertMutationAllowed('El guardado de cambios en la nube');
         const operations = buildOperations(request.before, request.after);
         const { data, error } = await supabase.rpc('linkeoges_commit', {
           expected_revision: request.revision, request_id: request.requestId, operations,

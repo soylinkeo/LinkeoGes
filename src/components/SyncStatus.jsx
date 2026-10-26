@@ -8,9 +8,11 @@ import {
   Clock, 
   AlertTriangle,
   RefreshCw,
-  Download
+  Download,
+  ShieldAlert
 } from 'lucide-react';
 import { equal } from '../services/syncModel.js';
+import { isPreviewEnvironment } from '../services/environmentGuard.js';
 
 export function downloadJson(data, filename) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -22,6 +24,7 @@ export default function SyncStatus({ cloud }) {
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const [dismissed, setDismissed] = useState(false);
   const [prevStatus, setPrevStatus] = useState(cloud.status);
+  const isPreview = isPreviewEnvironment();
 
   // Monitor de conectividad del navegador
   useEffect(() => {
@@ -70,6 +73,32 @@ export default function SyncStatus({ cloud }) {
   );
 
   if (dismissed && cloud.status === 'ready' && !hasLocalEdits && !isOffline) {
+    if (isPreview) {
+      return (
+        <div style={{
+          position: 'fixed',
+          top: 10,
+          right: 12,
+          zIndex: 9999,
+          background: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(239, 68, 68, 0.4)',
+          borderRadius: '9999px',
+          padding: '4px 10px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          fontSize: '0.70rem',
+          color: '#fca5a5',
+          fontWeight: 600,
+          boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+          pointerEvents: 'none'
+        }}>
+          <ShieldAlert size={12} style={{ color: '#ef4444' }} />
+          <span>PREVIEW: Solo lectura</span>
+        </div>
+      );
+    }
     return null;
   }
 
@@ -97,6 +126,24 @@ export default function SyncStatus({ cloud }) {
       aria-live="polite"
     >
       <div className={`sync-panel ${isOffline ? 'sync-offline' : ''} ${isConflict ? 'sync-conflict' : ''}`}>
+        {isPreview && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            color: '#fca5a5',
+            padding: '3px 8px',
+            borderRadius: '4px',
+            fontSize: '0.70rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginBottom: '6px'
+          }}>
+            <ShieldAlert size={12} style={{ color: '#ef4444', flexShrink: 0 }} />
+            <span>MODO AUDITORÍA PREVIEW · BD central protegida (Solo lectura)</span>
+          </div>
+        )}
         <div className="sync-content-row">
           {/* ESTADO 1: SIN CONEXIÓN (OFFLINE) */}
           {isOffline && (
